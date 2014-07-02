@@ -51,8 +51,14 @@ class ViewModel
   # default serialize_view: visit child attributes with serialize
   def serialize_view(json, options = {})
     attr_names.each do |attr|
-      json.set! attr do
-        ViewModel.serialize(self.send(attr), json, options)
+      attr_value = self.send(attr)
+      case attr_value
+      when ViewModel, Array, Hash
+        json.set! attr do
+          ViewModel.serialize(attr_value, json, options)
+        end
+      else
+        json.set! attr, attr_value
       end
     end
   end
