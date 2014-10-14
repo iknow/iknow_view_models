@@ -41,8 +41,12 @@ class ViewModel
       end
     when Hash
       target.each do |k, v|
-        json.set! k do
-          serialize(v, json, options)
+        if is_primitive?(v)
+          json.set! k, v
+        else
+          json.set! k do
+            serialize(v, json, options)
+          end
         end
       end
     end
@@ -67,9 +71,15 @@ class ViewModel
     end
   end
 
-  def serialize_child(child_relation, child_model, json, options = {})
-    child = self.model.public_send(child_relation)
-    child_model.new(child).serialize_view(json, options) if child
+  private
+
+  def self.is_primitive?(object)
+    case object
+    when Integer, String
+      true
+    when Array
+      is_primitive?(object.first)
+    end
   end
 
 end
