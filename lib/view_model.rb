@@ -52,8 +52,8 @@ class ViewModel
     end
   end
 
-  def self.serialize_to_hash(viewmodel)
-    Jbuilder.new { |json| serialize(viewmodel, json, {}) }.attributes!
+  def self.serialize_to_hash(viewmodel, options = {})
+    Jbuilder.new { |json| serialize(viewmodel, json, options) }.attributes!
   end
 
   # default serialize_view: visit child attributes with serialize
