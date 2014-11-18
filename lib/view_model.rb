@@ -13,7 +13,8 @@ class ViewModel
   # easier to define them: this helper creates a class extending ViewModel with
   # the provided attributes and a constructor which assigns them in order. The
   # first attribute is considered slightly special: it's aliased by the method
-  # :model, and used by `serialize_child` for chaining ViewModel serialization.
+  # :model, and used by Cerego.com's `serialize_child` for chaining ViewModel
+  # serialization.
   def self.with_attrs(*attrs)
     attrs.freeze
     init = lambda do |*args|
@@ -30,11 +31,12 @@ class ViewModel
     end
   end
 
-  # ViewModel can serialize ViewModels, and Arrays and Hashes of ViewModels.
+  # ViewModel can serialize ViewModels, Arrays and Hashes of ViewModels, and
+  # relies on Jbuilder#merge! for anything else.
   def self.serialize(target, json, options = {})
     case target
     when ViewModel
-      target.serialize_view(json, options)
+      target.serialize(json, options)
     when Array
       json.array! target do |elt|
         serialize(elt, json, options)
@@ -49,6 +51,8 @@ class ViewModel
           end
         end
       end
+    else
+      json.merge! target
     end
   end
 
@@ -56,7 +60,14 @@ class ViewModel
     Jbuilder.new { |json| serialize(viewmodel, json, options) }.attributes!
   end
 
-  # default serialize_view: visit child attributes with serialize
+  # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
+  # overridden in subclasses to (for example) implement caching.
+  def serialize(json, options = {})
+    serialize_view(json, options)
+  end
+
+  # Render this viewmodel to a jBuilder. Usually overridden in subclasses.
+  # Default implementation visits each attribute with Viewmodel.serialize.
   def serialize_view(json, options = {})
     attr_names.each do |attr|
       attr_value = self.send(attr)
