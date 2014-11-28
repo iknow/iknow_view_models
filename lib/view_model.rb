@@ -66,6 +66,10 @@ class ViewModel
     serialize_view(json, options)
   end
 
+  def to_hash(options = {})
+    Jbuilder.new { |json| serialize(json, options) }.attributes!
+  end
+
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.
   # Default implementation visits each attribute with Viewmodel.serialize.
   def serialize_view(json, options = {})
