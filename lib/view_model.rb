@@ -41,8 +41,8 @@ class ViewModel
       json.array! target do |elt|
         serialize(elt, json, options)
       end
-    when Hash
-      target.each do |k, v|
+    when Hash, Struct
+      target.each_pair do |k, v|
         if is_primitive?(v)
           json.set! k, v
         else
