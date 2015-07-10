@@ -86,6 +86,10 @@ class ViewModel
     end
   end
 
+  def preload_model
+    ActiveRecord::Associations::Preloader.new(Array.wrap(model), self.class.eager_includes).run
+  end
+
   private
 
   def self.is_primitive?(object)
