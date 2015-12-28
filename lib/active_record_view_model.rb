@@ -1,0 +1,233 @@
+require "active_support"
+require "active_record"
+require "cerego_active_record_patches"
+
+class ActiveRecordViewModel < ViewModel
+  # An AR ViewModel wraps a single AR model
+  attribute :model
+
+  class << self
+    attr_accessor :_table, :_model_attributes
+
+    def table(table)
+      t = table.to_s.camelize.safe_constantize
+      if t.nil? || !(t < ActiveRecord::Base)
+        raise ArgumentError.new("ActiveRecord model #{table} not found")
+      end
+      self._table = t
+    end
+
+    def inherited(subclass)
+      subclass._attributes = self._attributes
+      subclass._model_attributes = []
+      subclass.attribute(:id)
+    end
+
+    def attribute(attr)
+      _model_attributes << attr
+
+      define_method(attr) do
+        model.public_send(attr)
+      end unless method_defined?(attr)
+
+      define_method("#{attr}=") do |value|
+        model.public_send("#{attr}=", value)
+      end unless method_defined?("#{attr}=")
+    end
+
+    def all_attributes
+      attrs = _table.attribute_names - _table.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
+      attrs.each { |attr| attribute(attr) }
+    end
+
+    def association(target, viewmodel: nil)
+      reflection = _table.reflect_on_association(target)
+
+      if reflection.nil?
+        raise ArgumentError.new("Association #{target} not found in #{_table.name} model")
+      end
+
+      if viewmodel.nil?
+        viewmodel_name = reflection.klass.name + "View"
+        viewmodel = viewmodel_name.safe_constantize
+
+        if viewmodel.nil? || !(viewmodel < ViewModel)
+          raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for AR model '#{reflection.klass.name}' not found")
+        end
+      end
+
+      _model_attributes << target
+
+      define_method target do
+        read_association(reflection, viewmodel)
+      end unless method_defined?(target)
+
+      define_method :"#{target}=" do |data|
+        write_association(reflection, viewmodel, data)
+      end unless method_defined?(:"#{target}=")
+
+      define_method :"build_#{target}" do |data|
+        build_association(reflection, viewmodel, data)
+      end unless method_defined?(:"#{target}=")
+    end
+  end
+
+
+  def serialize_view(json, **options)
+    self.class._model_attributes.each do |attr_name|
+      json.set! attr_name do
+        self.class.serialize(self.public_send(attr_name), json, **options)
+      end
+    end
+  end
+
+  def self.create_from_view(hash, save: true)
+    model = _table.new
+    self.new(model).update_from_view(hash, save: save)
+  end
+
+  def update_from_view(hash, save: true)
+    hash.each do |k, v|
+      next if k == "id"
+      self.public_send("#{k}=", v)
+    end
+
+    model.save! if save
+
+    self
+  end
+
+  private
+
+  def read_association(reflection, viewmodel)
+    associated = model.public_send(reflection.name)
+    if reflection.collection?
+      associated.map { |x| viewmodel.new(x) }
+    else
+      viewmodel.new(associated)
+    end
+  end
+
+  # so, to create a model associated with the current model, I can use `build`
+  # regardless of the association type or whether it's saved and it'll be saved
+  # with it.
+  # When we're updating something that exists however, we may need to use or garbage collect the existing records.
+
+  def write_association(reflection, viewmodel, data)
+    association = model.association(reflection.name)
+
+    if reflection.collection?
+      # preload any existing models: if they're referred to, we require them to exist.
+      ids = data.map { |h| h["id"] }.compact
+
+      models_by_id = ids.blank? ? {} : reflection.klass.find_all!(ids).index_by(&:id)
+
+      assoc_views = data.map do |h|
+        if id = h["id"]
+          # update existing. Needs to be saved in order to have changes applied
+          # before calling `replace`.
+          viewmodel.new(models_by_id[id]).update_from_view(h, save: true)
+        else
+          # create new, refraining from saving so foreign key can be populated
+          viewmodel.create_from_view(h, save: false)
+        end
+      end
+
+      assoc_models = assoc_views.map(&:model)
+      association.replace(assoc_models)
+    else
+      assoc_view =
+        if id = data["id"]
+          viewmodel.new(table.find(id)).update_from_view(h, save: true)
+        else
+          self.class.create_from_view(data, save: false)
+        end
+      assoc_model = assoc_view.model
+
+      if reflection.macro == :belongs_to
+        # then we need to manually garbage collect
+        existing_model = model.public_send(reflection.name)
+        if existing_model.present? && existing_model != assoc_model
+          case reflection.options[:dependent]
+          when :destroy
+            existing_model.destroy!
+          when :delete
+            existing_model.delete
+          end
+        end
+      end
+
+      association.replace(assoc_model)
+    end
+  end
+
+  # create or edit a single associated subtree.
+  # TODO: what if the reverse association is multiple? throw?
+  # TODO: will acts_as_list behave itself?
+  def build_association(reflection, viewmodel, data)
+    association = model.association(reflection.name)
+    if id = data["id"]
+      existing_model = reflection.klass.find(id)
+      # retarget the association to me, if it already isn't.
+      raise "nope"
+      viewmodel.new(existing_model).update_from_view(data, save: true)
+    else
+      new_model = association.build
+      viewmodel.new(new_model).update_from_view(data, save: true)
+    end
+  end
+
+  # How about visibility?
+
+  # How about client views? We're not actually anxious about security of the
+  # answers here (are we?) so do we even care to constrain the output? Or let
+  # the front end handle it entirely?
+
+  # we can have create and update separate if we like with POST vs PATCH
+
+  # How can we create from context?
+  # I think it's desirable to POST /model/1/associatedmodel to create an associatedmodel linked to model 1
+
+
+  # but hey now we have the difference between create and update - how to handle?
+  # => privilege the `id` attr, if it's provided, it's an update?
+
+  # Cases
+  # new or existing record, at a top level
+  # => want to save when it's done, and update children at that point
+  # new record, with a parent
+  # => being created with `build`, and parent might be new: want to save (and our children) when parent is saved
+  # existing record, with a parent
+  # => parent might be new. If we belong_to the parent, we need to be updated when the parent is saved.
+  # if parent belongs_to us, it can be updated right away.
+  # But when would we actually be saved?
+
+  # orphaned records need to be saved up to be destroyed, because if we
+  # belong_to them we'll get a FK violation when destroying if we're not
+  # done.
+
+  # ===
+  # alternative: universally use `new` and `replace` instead of `build`.
+  # Can we use `replace` on something new?
+  # => yes: it's not performed until it's saved
+  # if our new thing `has_many` and we're going to `replace` with something existing that we want to change, can we save it?
+  # => only if we can save it in advance
+  # if our new thing `belongs_to`
+  # => then the `replace` will maintain the foreign key
+
+  # so this pretty much works because it's a post-order traversal, and any
+  # links up the tree get maintained/updated when we hit the parent.
+
+  # Well, almost. if it's a new record that's not the top level, when does
+  # it get saved? We can't safely save at the end of the node because the
+  # link to the parent isn't established. However because it's new, we know
+  # it'll be saved when it's `replace`d into the parent.
+
+  # Caveats:
+
+  # 1: if we change an child item and then move its `belongs_to` to
+  #    something new it gets hit in the db twice.
+  # 2: acts_as_list doesn't hook `replace` at all, and because replace is
+  #    eager we'd have to update the list positions. However, if the client
+  #    is well-behaved, the update should be a no-op.
+end

@@ -1,5 +1,6 @@
 require "cerego_view_models/version"
-require 'view_model'
+require "view_model"
+require "active_record_view_model"
 
 module CeregoViewModels
   # expects a class that defines a "render" method
