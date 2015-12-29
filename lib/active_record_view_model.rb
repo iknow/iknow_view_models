@@ -70,6 +70,27 @@ class ActiveRecordViewModel < ViewModel
         build_association(reflection, viewmodel, data)
       end unless method_defined?(:"#{target}=")
     end
+
+    def create_or_update_from_view(hash_data, model_cache: nil, root_node: true)
+      if id = hash_data["id"]
+        # Update an existing model. If this model isn't the root of the tree
+        # being modified, we need to first save the model to have any changes
+        # applied before calling `replace` on the parent's association.
+        model = if model_cache.nil?
+                  _table.find(id)
+                else
+                  model_cache[id]
+                end
+        self.new(model).update_from_view(hash_data, save: true)
+      else
+        # Create a new model. If we're not the root of the tree, we need to
+        # refrain from saving, so that foreign keys to a newly created parent
+        # can be populated together when the parent node is saved.
+        model = _table.new
+        self.new(model).update_from_view(hash_data, save: root_node)
+      end
+    end
+
   end
 
 
@@ -81,13 +102,8 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def self.create_from_view(hash, save: true)
-    model = _table.new
-    self.new(model).update_from_view(hash, save: save)
-  end
-
-  def update_from_view(hash, save: true)
-    hash.each do |k, v|
+  def update_from_view(hash_data, save: true)
+    hash_data.each do |k, v|
       next if k == "id"
       self.public_send("#{k}=", v)
     end
@@ -108,40 +124,23 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # so, to create a model associated with the current model, I can use `build`
-  # regardless of the association type or whether it's saved and it'll be saved
-  # with it.
-  # When we're updating something that exists however, we may need to use or garbage collect the existing records.
-
+  # Create or update an entire associated subtree, replacing current contents if necessary.
   def write_association(reflection, viewmodel, data)
     association = model.association(reflection.name)
 
     if reflection.collection?
       # preload any existing models: if they're referred to, we require them to exist.
       ids = data.map { |h| h["id"] }.compact
-
       models_by_id = ids.blank? ? {} : reflection.klass.find_all!(ids).index_by(&:id)
 
-      assoc_views = data.map do |h|
-        if id = h["id"]
-          # update existing. Needs to be saved in order to have changes applied
-          # before calling `replace`.
-          viewmodel.new(models_by_id[id]).update_from_view(h, save: true)
-        else
-          # create new, refraining from saving so foreign key can be populated
-          viewmodel.create_from_view(h, save: false)
-        end
+      assoc_views = data.map do |hash|
+        viewmodel.create_or_update_from_view(hash, model_cache: models_by_id, root_node: false)
       end
 
       assoc_models = assoc_views.map(&:model)
       association.replace(assoc_models)
     else
-      assoc_view =
-        if id = data["id"]
-          viewmodel.new(table.find(id)).update_from_view(h, save: true)
-        else
-          self.class.create_from_view(data, save: false)
-        end
+      assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
       assoc_model = assoc_view.model
 
       if reflection.macro == :belongs_to
@@ -161,9 +160,10 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # create or edit a single associated subtree.
+  # Create or update a single member of an associated subtree (for a collection association, adds)
   # TODO: what if the reverse association is multiple? throw?
   # TODO: will acts_as_list behave itself?
+  # what happens when you build a single association that's already populated? does it clean up the old one?
   def build_association(reflection, viewmodel, data)
     association = model.association(reflection.name)
     if id = data["id"]
