@@ -40,6 +40,23 @@ class ActiveRecordViewModel < ViewModel
       attrs.each { |attr| attribute(attr) }
     end
 
+    # `acts_as_list` maintains a `position_changed` instance variable, which
+    # suppresses position recalculation if the setter was called, even if the
+    # value wasn't altered. Because we rely on being able to reset attributes to
+    # their current value without effect, handle this case specially by only
+    # invoking the setter if the value is different.
+    def acts_as_list(attr = :position)
+      setter_defined = method_defined?("#{attr}=")
+
+      attribute(attr)
+
+      define_method("#{attr}=") do |value|
+        if value != model.public_send(attr)
+          super(attr)
+        end
+      end unless setter_defined
+    end
+
     def association(target, viewmodel: nil)
       reflection = _table.reflect_on_association(target)
 
@@ -71,26 +88,31 @@ class ActiveRecordViewModel < ViewModel
       end unless method_defined?(:"#{target}=")
     end
 
-    def create_or_update_from_view(hash_data, model_cache: nil, root_node: true)
-      if id = hash_data["id"]
-        # Update an existing model. If this model isn't the root of the tree
-        # being modified, we need to first save the model to have any changes
-        # applied before calling `replace` on the parent's association.
-        model = if model_cache.nil?
-                  _table.find(id)
-                else
-                  model_cache[id]
-                end
-        self.new(model).update_from_view(hash_data, save: true)
-      else
-        # Create a new model. If we're not the root of the tree, we need to
-        # refrain from saving, so that foreign keys to a newly created parent
-        # can be populated together when the parent node is saved.
-        model = _table.new
-        self.new(model).update_from_view(hash_data, save: root_node)
-      end
+    def associations(*assocs)
+      assocs.each { |assoc| association(assoc) }
     end
 
+    def create_or_update_from_view(hash_data, model_cache: nil, root_node: true)
+      _table.transaction do
+        if id = hash_data["id"]
+          # Update an existing model. If this model isn't the root of the tree
+          # being modified, we need to first save the model to have any changes
+          # applied before calling `replace` on the parent's association.
+          model = if model_cache.nil?
+                    _table.find(id)
+                  else
+                    model_cache[id]
+                  end
+          self.new(model)._update_from_view(hash_data, save: true)
+        else
+          # Create a new model. If we're not the root of the tree, we need to
+          # refrain from saving, so that foreign keys to a newly created parent
+          # can be populated together when the parent node is saved.
+          model = _table.new
+          self.new(model)._update_from_view(hash_data, save: root_node)
+        end
+      end
+    end
   end
 
 
@@ -102,7 +124,8 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def update_from_view(hash_data, save: true)
+  # Should only be called from `create_or_update_from_view`
+  def _update_from_view(hash_data, save: true)
     hash_data.each do |k, v|
       next if k == "id"
       self.public_send("#{k}=", v)
@@ -117,7 +140,10 @@ class ActiveRecordViewModel < ViewModel
 
   def read_association(reflection, viewmodel)
     associated = model.public_send(reflection.name)
-    if reflection.collection?
+
+    if associated.nil?
+      nil
+    elsif reflection.collection?
       associated.map { |x| viewmodel.new(x) }
     else
       viewmodel.new(associated)
@@ -140,18 +166,31 @@ class ActiveRecordViewModel < ViewModel
       assoc_models = assoc_views.map(&:model)
       association.replace(assoc_models)
     else
-      assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
-      assoc_model = assoc_view.model
+      if data.nil?
+        assoc_model = nil
+      else
+        assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
+        assoc_model = assoc_view.model
+      end
 
-      if reflection.macro == :belongs_to
-        # then we need to manually garbage collect
-        existing_model = model.public_send(reflection.name)
-        if existing_model.present? && existing_model != assoc_model
-          case reflection.options[:dependent]
-          when :destroy
-            existing_model.destroy!
-          when :delete
-            existing_model.delete
+      if reflection.macro == :belongs_to && [:dependent, :destroy].include?(reflection.options[:dependent])
+
+        existing_fkey = model.public_send(reflection.foreign_key)
+        if existing_fkey != assoc_model.try(&:id)
+          # we need to manually garbage collect the old associated record if present
+          if existing_fkey.present?
+            case reflection.options[:dependent]
+            when :destroy
+              association.association_scope.destroy_all
+            when :delete
+              association.association_scope.delete_all
+            end
+          end
+
+          # and ensure that the new target, if it already existed and was not already
+          # the current target, doesn't belong to another association
+          if assoc_model.present? && data["id"].present?
+            raise "Todo"
           end
         end
       end
