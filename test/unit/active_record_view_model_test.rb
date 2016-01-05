@@ -90,7 +90,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view = ParentView.new(parent).to_hash
 
-    view["children"] = [{name: "c2"}]
+    view["children"] = [{"name" => "c2"}]
     ParentView.create_or_update_from_view(view)
 
     parent.reload
@@ -108,7 +108,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = ParentView.new(parent).to_hash
 
     view["children"].shift
-    view["children"] << { name: "c3" }
+    view["children"] << { "name" => "c3" }
     ParentView.create_or_update_from_view(view)
 
     parent.reload
@@ -312,7 +312,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = ParentView.new(p).to_hash
     view["label"] = { "text" => "cheese" }
 
-    pv = ParentView.create_or_update_from_view(view)
+    ParentView.create_or_update_from_view(view)
     p.reload
 
     assert(p.label.present?)
@@ -418,7 +418,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = ParentView.new(p).to_hash
     view["target"] = { }
 
-    pv = ParentView.create_or_update_from_view(view)
+    ParentView.create_or_update_from_view(view)
     p.reload
 
     assert(p.target.present?)
