@@ -64,7 +64,7 @@ end
 
 class ChildView < ActiveRecordViewModel
   table :child
-  attributes :name
+  attributes :name, :position
   acts_as_list :position
 end
 
