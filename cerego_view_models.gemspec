@@ -26,8 +26,10 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "rake"
 
   spec.add_development_dependency "sqlite3"
-  spec.add_development_dependency "byebug"
   spec.add_development_dependency "acts_as_list"
+
+  spec.add_development_dependency "byebug"
+  spec.add_development_dependency "method_source"
 
   spec.add_dependency "jbuilder", "~> 2.2.5"
 

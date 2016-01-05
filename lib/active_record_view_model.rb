@@ -26,11 +26,11 @@ class ActiveRecordViewModel < ViewModel
     def attribute(attr)
       _model_attributes << attr
 
-      define_method(attr) do
+      define_method(attr) do |**options|
         model.public_send(attr)
       end unless method_defined?(attr)
 
-      define_method("#{attr}=") do |value|
+      define_method("#{attr}=") do |value, **options|
         model.public_send("#{attr}=", value)
       end unless method_defined?("#{attr}=")
     end
@@ -50,9 +50,9 @@ class ActiveRecordViewModel < ViewModel
 
       attribute(attr)
 
-      define_method("#{attr}=") do |value|
+      define_method("#{attr}=") do |value, **options|
         if value != model.public_send(attr)
-          super(attr)
+          super(attr, **options)
         end
       end unless setter_defined
     end
@@ -75,17 +75,17 @@ class ActiveRecordViewModel < ViewModel
 
       _model_attributes << target
 
-      define_method target do
+      define_method target do |**options|
         read_association(reflection, viewmodel)
       end unless method_defined?(target)
 
-      define_method :"#{target}=" do |data|
+      define_method :"#{target}=" do |data, **options|
         write_association(reflection, viewmodel, data)
       end unless method_defined?(:"#{target}=")
 
-      define_method :"build_#{target}" do |data|
+      define_method :"build_#{target}" do |data, **options|
         build_association(reflection, viewmodel, data)
-      end unless method_defined?(:"#{target}=")
+      end unless method_defined?(:"build_#{target}")
     end
 
     def associations(*assocs)
@@ -105,9 +105,9 @@ class ActiveRecordViewModel < ViewModel
                   end
           self.new(model)._update_from_view(hash_data, save: true)
         else
-          # Create a new model. If we're not the root of the tree, we need to
-          # refrain from saving, so that foreign keys to a newly created parent
-          # can be populated together when the parent node is saved.
+          # Create a new model. If we're not the root of the tree we need to
+          # refrain from saving, so that foreign keys to the parent can be
+          # populated when the parent and association are saved.
           model = _table.new
           self.new(model)._update_from_view(hash_data, save: root_node)
         end
@@ -115,6 +115,12 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
+  def initialize(model)
+    unless model.is_a?(self.class._table)
+      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{self.class._table.name}")
+    end
+    super(model)
+  end
 
   def serialize_view(json, **options)
     self.class._model_attributes.each do |attr_name|
@@ -124,7 +130,21 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # Should only be called from `create_or_update_from_view`
+  def create_or_update_associated(association_name, hash_data)
+    self.class._table.transaction do
+      self.public_send(:"build_#{association_name}", hash_data)
+      model.save!
+    end
+  end
+
+
+  def destroy!
+    model.destroy!
+  end
+
+
+  # Iterate the hash and update the model. Internal implementation, private to
+  # class and metaclass.
   def _update_from_view(hash_data, save: true)
     hash_data.each do |k, v|
       next if k == "id"
@@ -150,7 +170,8 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # Create or update an entire associated subtree, replacing current contents if necessary.
+  # Create or update an entire associated subtree, replacing the current
+  # contents if necessary.
   def write_association(reflection, viewmodel, data)
     association = model.association(reflection.name)
 
@@ -167,106 +188,80 @@ class ActiveRecordViewModel < ViewModel
       association.replace(assoc_models)
     else
       if data.nil?
+        new_record = false
         assoc_model = nil
       else
+        new_record = model["id"].nil?
         assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
         assoc_model = assoc_view.model
       end
 
-      if reflection.macro == :belongs_to && [:dependent, :destroy].include?(reflection.options[:dependent])
-
-        existing_fkey = model.public_send(reflection.foreign_key)
-        if existing_fkey != assoc_model.try(&:id)
-          # we need to manually garbage collect the old associated record if present
-          if existing_fkey.present?
-            case reflection.options[:dependent]
-            when :destroy
-              association.association_scope.destroy_all
-            when :delete
-              association.association_scope.delete_all
-            end
-          end
-
-          # and ensure that the new target, if it already existed and was not already
-          # the current target, doesn't belong to another association
-          if assoc_model.present? && data["id"].present?
-            raise "Todo"
-          end
-        end
+      if reflection.macro == :belongs_to
+        garbage_collect_belongs_to_association(reflection, assoc_model, new_record)
       end
 
       association.replace(assoc_model)
     end
   end
 
-  # Create or update a single member of an associated subtree (for a collection association, adds)
-  # TODO: what if the reverse association is multiple? throw?
-  # TODO: will acts_as_list behave itself?
-  # what happens when you build a single association that's already populated? does it clean up the old one?
+  # Create or update a single member of an associated subtree. For a collection
+  # association, this appends to the collection, otherwise it has the same
+  # effect as `write_association`.
   def build_association(reflection, viewmodel, data)
-    association = model.association(reflection.name)
-    if id = data["id"]
-      existing_model = reflection.klass.find(id)
-      # retarget the association to me, if it already isn't.
-      raise "nope"
-      viewmodel.new(existing_model).update_from_view(data, save: true)
+    if reflection.collection?
+      association = model.association(reflection.name)
+      assoc_view  = viewmodel.create_or_update_from_view(data, root_node: false)
+      assoc_model = assoc_view.model
+      association.concat(assoc_model)
     else
-      new_model = association.build
-      viewmodel.new(new_model).update_from_view(data, save: true)
+      write_association(reflection, viewmodel, data)
     end
   end
 
-  # How about visibility?
 
-  # How about client views? We're not actually anxious about security of the
-  # answers here (are we?) so do we even care to constrain the output? Or let
-  # the front end handle it entirely?
+  def garbage_collect_belongs_to_association(reflection, target, new_record)
+    return unless [:delete, :destroy].include?(reflection.options[:dependent])
 
-  # we can have create and update separate if we like with POST vs PATCH
+    existing_fkey = model.public_send(reflection.foreign_key)
+    if existing_fkey != target.try(&:id)
+      association = model.association(reflection.name)
 
-  # How can we create from context?
-  # I think it's desirable to POST /model/1/associatedmodel to create an associatedmodel linked to model 1
+      # we need to manually garbage collect the old associated record if present
+      if existing_fkey.present?
+        case reflection.options[:dependent]
+        when :destroy
+          association.association_scope.destroy_all
+        when :delete
+          association.association_scope.delete_all
+        end
+      end
+
+      # Additionally, ensure that the new target, if it already
+      # existed and was not already the current target, doesn't belong to
+      # another association.
+
+      # TODO: we might not want to support this. It's expensive, requires an
+      # index, and, doesn't play well with nullness or fkey constraints. This
+      # ties into a bigger question: how do we support moving a child from one
+      # parent to another, with each of the different association types?
+      if target.present? && !new_record
+        # We might not have an inverse specified: only update if present
+        reflection.inverse_of.try do |inverse_reflection|
+          inverse_association = target.association(inverse_reflection.name)
+          inverse_association.association_scope.update_all(inverse_reflection.foreign_key => nil)
+        end
+      end
+    end
+  end
 
 
-  # but hey now we have the difference between create and update - how to handle?
-  # => privilege the `id` attr, if it's provided, it's an update?
+  # TODO: How about visibility/customization? We could consider visibility
+  # filters along the lines of `jsonapi-resources`. Customization comes
+  # reasonably easily with overriding.
 
-  # Cases
-  # new or existing record, at a top level
-  # => want to save when it's done, and update children at that point
-  # new record, with a parent
-  # => being created with `build`, and parent might be new: want to save (and our children) when parent is saved
-  # existing record, with a parent
-  # => parent might be new. If we belong_to the parent, we need to be updated when the parent is saved.
-  # if parent belongs_to us, it can be updated right away.
-  # But when would we actually be saved?
+  # What do we want the API to look like?
+  # I think it's desirable to have the `build_association` accessible via
+  # POST /model/1/associatedmodel, to create an associatedmodel linked to model 1
 
-  # orphaned records need to be saved up to be destroyed, because if we
-  # belong_to them we'll get a FK violation when destroying if we're not
-  # done.
 
-  # ===
-  # alternative: universally use `new` and `replace` instead of `build`.
-  # Can we use `replace` on something new?
-  # => yes: it's not performed until it's saved
-  # if our new thing `has_many` and we're going to `replace` with something existing that we want to change, can we save it?
-  # => only if we can save it in advance
-  # if our new thing `belongs_to`
-  # => then the `replace` will maintain the foreign key
-
-  # so this pretty much works because it's a post-order traversal, and any
-  # links up the tree get maintained/updated when we hit the parent.
-
-  # Well, almost. if it's a new record that's not the top level, when does
-  # it get saved? We can't safely save at the end of the node because the
-  # link to the parent isn't established. However because it's new, we know
-  # it'll be saved when it's `replace`d into the parent.
-
-  # Caveats:
-
-  # 1: if we change an child item and then move its `belongs_to` to
-  #    something new it gets hit in the db twice.
-  # 2: acts_as_list doesn't hook `replace` at all, and because replace is
-  #    eager we'd have to update the list positions. However, if the client
-  #    is well-behaved, the update should be a no-op.
 end

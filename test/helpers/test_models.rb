@@ -13,7 +13,7 @@ ActiveRecord::Schema.define do
   end
 
   create_table :children do |t|
-    t.references :parent
+    t.references :parent, null: false
     t.string :name
     t.integer :position
   end
@@ -24,27 +24,27 @@ ActiveRecord::Schema.define do
 
   create_table :targets do |t|
     t.string :text
-    t.references :parent
+    t.references :parent, null: false
   end
 end
 
 class Label < ActiveRecord::Base
-  has_one :parent
+  has_one :parent, inverse_of: :label
 end
 
 class Child < ActiveRecord::Base
-  belongs_to :parent
+  belongs_to :parent, inverse_of: :children
   acts_as_list scope: :parent
 end
 
 class Target < ActiveRecord::Base
-  belongs_to :parent
+  belongs_to :parent, inverse_of: :target
 end
 
 class Parent < ActiveRecord::Base
-  has_many   :children, dependent: :destroy
-  belongs_to :label,    dependent: :destroy
-  has_one    :target,   dependent: :destroy
+  has_many   :children, dependent: :destroy, inverse_of: :parent
+  belongs_to :label,    dependent: :destroy, inverse_of: :parent
+  has_one    :target,   dependent: :destroy, inverse_of: :parent
 end
 
 class LabelView < ActiveRecordViewModel

@@ -125,7 +125,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_edit_has_many_reversed
-    pending "Haven't implemented reverse side of acts_as_list assignment"
+    pending "Haven't implemented reverse side of acts_as_list assignment."
 
     child1 = Child.new(name: "c1")
     child2 = Child.new(name: "c2")
@@ -337,9 +337,58 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p1.reload
     p2.reload
 
-    # do we null out the other here? I would imagine not, but..
     assert_blank(p1.label)
     assert_present(p2.label)
+    assert_equal("l1", p2.label.text)
+  end
+
+  def test_belongs_to_build_new_association
+    l = Label.new(text: "l1")
+    p = Parent.new(name: "p1", label: l)
+    p.save!
+
+    ParentView.new(p).create_or_update_associated(:label, { "text" => "l2" })
+
+    p.reload
+
+    assert_blank(Label.where(id: l.id))
+    assert_equal("l2", p.label.text)
+  end
+
+  def test_belongs_to_update_existing_association
+    l = Label.new(text: "l1")
+    p = Parent.new(name: "p1", label: l)
+    p.save!
+
+    lv = LabelView.new(l).to_hash
+    lv["text"] = "l2"
+
+    ParentView.new(p).create_or_update_associated(:label, lv)
+
+    p.reload
+
+    assert_equal(l, p.label)
+    assert_equal("l2", p.label.text)
+  end
+
+  def test_belongs_to_move_existing_association
+    l1 = Label.new(text: "l1")
+    p1 = Parent.new(name: "p1", label: l1)
+    p1.save!
+
+    l2 = Label.new(text: "l2")
+    p2 = Parent.new(name: "p2", label: l2)
+    p2.save!
+
+    ParentView.new(p2).create_or_update_associated("label", { "id" => l1.id })
+
+    p1.reload
+    p2.reload
+
+    assert_blank(p1.label)
+    assert_blank(Label.where(id: l2.id))
+
+    assert_equal(l1, p2.label)
     assert_equal("l1", p2.label.text)
   end
 
@@ -400,11 +449,121 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_blank(Target.where(id: t2))
   end
 
-  # test other dependent: delete_all
+ def test_has_one_build_new_association
+    t = Target.new(text: "t1")
+    p = Parent.new(name: "p1", target: t)
+    p.save!
 
-  # test other dependent: nothing
+    ParentView.new(p).create_or_update_associated(:target, { "text" => "t2" })
+
+    p.reload
+
+    assert_blank(Target.where(id: t.id))
+    assert_equal("t2", p.target.text)
+  end
+
+  def test_has_one_update_existing_association
+    t = Target.new(text: "t1")
+    p = Parent.new(name: "p1", target: t)
+    p.save!
+
+    tv = TargetView.new(t).to_hash
+    tv["text"] = "t2"
+
+    ParentView.new(p).create_or_update_associated(:target, tv)
+
+    p.reload
+
+    assert_equal(t, p.target)
+    assert_equal("t2", p.target.text)
+  end
+
+  def test_has_one_move_existing_association
+    t1 = Target.new(text: "t1")
+    p1 = Parent.new(name: "p1", target: t1)
+    p1.save!
+
+    t2 = Target.new(text: "t2")
+    p2 = Parent.new(name: "p2", target: t2)
+    p2.save!
+
+    ParentView.new(p2).create_or_update_associated("target", { "id" => t1.id })
+
+    p1.reload
+    p2.reload
+
+    assert_blank(p1.target)
+    assert_blank(Target.where(id: t2.id))
+
+    assert_equal(t1, p2.target)
+    assert_equal("t1", p2.target.text)
+  end
+
+
+  # test other dependent: delete_all
+  def test_dependent_delete_all
+    pending
+  end
+
+  def test_dependent_ignore
+    pending
+  end
 
   # test building extra child in association
+  def test_has_many_build_new_association
+    child = Child.new(name: "c1")
+    parent = Parent.new(name: "p", children: [child])
+    parent.save!
+
+    ParentView.new(parent).create_or_update_associated(:children, { "name" => "c2" })
+
+    parent.reload
+
+    assert_equal(2, parent.children.size)
+    c1, c2 = parent.children.order(:position)
+    assert_equal(child, c1)
+    assert_equal("c2", c2.name)
+  end
+
+  def test_has_many_update_existing_association
+    child = Child.new(name: "c1")
+    parent = Parent.new(name: "p", children: [child])
+    parent.save!
+
+    cv = ChildView.new(child).to_hash
+    cv["name"] = "c2"
+
+    ParentView.new(parent).create_or_update_associated(:children, cv)
+
+    parent.reload
+
+    assert_equal(1, parent.children.size)
+    assert_equal(child, parent.children.first)
+    assert_equal("c2", parent.children.first.name)
+  end
+
+  def test_has_many_move_existing_association
+    c1 = Child.new(name: "c1")
+    p1 = Parent.new(name: "p1", children: [c1])
+    p1.save!
+
+    c2 = Child.new(name: "c2")
+    p2 = Parent.new(name: "p2", children: [c2])
+    p2.save!
+
+
+    ParentView.new(p2).create_or_update_associated("children", { "id" => c1.id })
+
+    p1.reload
+    p2.reload
+
+    assert_equal(0, p1.children.size)
+
+    assert_equal(2, p2.children.size)
+    p1c1, p1c2 = p2.children.order(:position)
+    assert_equal(c2, p1c1)
+    assert_equal(c1, p1c2)
+  end
 
   # test polymorphic association
 end
