@@ -69,7 +69,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = { "name" => "p", "children" => [] }
     pv = ParentView.create_or_update_from_view(view)
     p = pv.model
-    assert_blank(p.children)
+    assert(p.children.blank?)
 
     # update
     h = pv.to_hash
@@ -79,8 +79,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     ParentView.create_or_update_from_view(h)
     p.reload
-    assert_blank(p.children)
-    assert_blank(Child.where(id: child.id))
+    assert(p.children.blank?)
+    assert(Child.where(id: child.id).blank?)
   end
 
   def test_replace_has_many
@@ -121,11 +121,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("c3", tc2.name)
     assert_equal(2, tc2.position)
 
-    assert_blank(Child.where(id: child1.id))
+    assert(Child.where(id: child1.id).blank?)
   end
 
   def test_edit_has_many_reversed
-    pending "Haven't implemented reverse side of acts_as_list assignment."
+    skip "Haven't implemented reverse side of acts_as_list assignment."
 
     child1 = Child.new(name: "c1")
     child2 = Child.new(name: "c2")
@@ -303,7 +303,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ParentView.create_or_update_from_view(h)
     p.reload
     assert_nil(p.label)
-    assert_blank(Label.where(id: label.id))
+    assert(Label.where(id: label.id).blank?)
   end
 
   def test_belongs_to_create
@@ -315,7 +315,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     pv = ParentView.create_or_update_from_view(view)
     p.reload
 
-    assert_present(p.label)
+    assert(p.label.present?)
     assert_equal("cheese", p.label.text)
   end
 
@@ -337,8 +337,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p1.reload
     p2.reload
 
-    assert_blank(p1.label)
-    assert_present(p2.label)
+    assert(p1.label.blank?)
+    assert(p2.label.present?)
     assert_equal("l1", p2.label.text)
   end
 
@@ -351,7 +351,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     p.reload
 
-    assert_blank(Label.where(id: l.id))
+    assert(Label.where(id: l.id).blank?)
     assert_equal("l2", p.label.text)
   end
 
@@ -385,8 +385,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p1.reload
     p2.reload
 
-    assert_blank(p1.label)
-    assert_blank(Label.where(id: l2.id))
+    assert(p1.label.blank?)
+    assert(Label.where(id: l2.id).blank?)
 
     assert_equal(l1, p2.label)
     assert_equal("l1", p2.label.text)
@@ -409,7 +409,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ParentView.create_or_update_from_view(h)
     p.reload
     assert_nil(p.target)
-    assert_blank(Target.where(id: target.id))
+    assert(Target.where(id: target.id).blank?)
   end
 
   def test_has_one_create
@@ -421,7 +421,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     pv = ParentView.create_or_update_from_view(view)
     p.reload
 
-    assert_present(p.target)
+    assert(p.target.present?)
   end
 
   def test_has_one_move_and_replace
@@ -442,11 +442,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p1.reload
     p2.reload
 
-    assert_blank(p1.target)
-    assert_present(p2.target)
+    assert(p1.target.blank?)
+    assert(p2.target.present?)
     assert_equal(t1.text, p2.target.text)
 
-    assert_blank(Target.where(id: t2))
+    assert(Target.where(id: t2).blank?)
   end
 
  def test_has_one_build_new_association
@@ -458,7 +458,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     p.reload
 
-    assert_blank(Target.where(id: t.id))
+    assert(Target.where(id: t.id).blank?)
     assert_equal("t2", p.target.text)
   end
 
@@ -492,8 +492,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p1.reload
     p2.reload
 
-    assert_blank(p1.target)
-    assert_blank(Target.where(id: t2.id))
+    assert(p1.target.blank?)
+    assert(Target.where(id: t2.id).blank?)
 
     assert_equal(t1, p2.target)
     assert_equal("t1", p2.target.text)
@@ -502,11 +502,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   # test other dependent: delete_all
   def test_dependent_delete_all
-    pending
+    skip
   end
 
   def test_dependent_ignore
-    pending
+    skip
   end
 
   # test building extra child in association
@@ -566,4 +566,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   # test polymorphic association
+  def test_polymorphic
+    skip
+  end
 end
