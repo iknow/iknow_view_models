@@ -46,12 +46,20 @@ class ActiveRecordViewModel < ViewModel
     # their current value without effect, handle this case specially by only
     # invoking the setter if the value is different.
     def acts_as_list(attr = :position)
+      old_setter = instance_method("#{attr}=")
+
       undef_method("#{attr}=")
+
       define_method("#{attr}=") do |value, **options|
         if value != model.public_send(attr)
-           model.public_send("#{attr}=", value)
+          old_setter.bind(self).call(value)
         end
       end
+    end
+
+    # When assigning to an `acts_as_list`, i
+    def has_a_list(association)
+
     end
 
     def association(target, viewmodel: nil)
