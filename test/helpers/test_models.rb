@@ -3,28 +3,38 @@ require "acts_as_list"
 require "logger"
 ActiveRecord::Base.logger = Logger.new(STDOUT)
 
-ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
+db = :sqlite
+
+case db
+when :sqlite
+  ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
+when :pg
+  ActiveRecord::Base.establish_connection adapter: "postgresql", database: "candreae"
+  %w[labels parents children targets].each do |t|
+    ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
+  end
+end
 
 ActiveRecord::Schema.define do
   self.verbose = false
-  create_table :parents do |t|
-    t.string :name
-    t.references :label
-  end
-
-  create_table :children do |t|
-    t.references :parent, null: false
-    t.string :name
-    t.integer :position
-  end
-
   create_table :labels do |t|
     t.string :text
   end
 
+  create_table :parents do |t|
+    t.string :name
+    t.references :label, foreign_key: true
+  end
+
+  create_table :children do |t|
+    t.references :parent, null: false, foreign_key: true
+    t.string :name
+    t.integer :position
+  end
+
   create_table :targets do |t|
     t.string :text
-    t.references :parent, null: false
+    t.references :parent, null: false, foreign_key: true
   end
 end
 
