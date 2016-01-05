@@ -143,17 +143,25 @@ class ActiveRecordViewModel < ViewModel
   end
 
 
-  # Iterate the hash and update the model. Internal implementation, private to
+  # Update the model based on attributes in the hash. Internal implementation, private to
   # class and metaclass.
   def _update_from_view(hash_data, save: true)
-    hash_data.each do |k, v|
-      next if k == "id"
+    valid_attrs = self.class._model_attributes.map(&:to_s)
 
-      unless _model_attributes.include?(k)
-        raise ArgumentError.new("Illegal attribute '#{k}' when updating #{self.class.name}")
+    # check for bad data
+    bad_keys = hash_data.keys.reject {|k| valid_attrs.include?(k) }
+
+    if bad_keys.present?
+      raise ArgumentError.new("Illegal attribute(s) #{bad_keys.inspect} when updating #{self.class.name}")
+    end
+
+    valid_attrs.each do |attr|
+      next if attr == "id"
+
+      if hash_data.has_key?(attr)
+        val = hash_data[attr]
+        self.public_send("#{attr}=", val)
       end
-
-      self.public_send("#{k}=", v)
     end
 
     model.save! if save
