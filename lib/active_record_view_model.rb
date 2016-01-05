@@ -148,6 +148,11 @@ class ActiveRecordViewModel < ViewModel
   def _update_from_view(hash_data, save: true)
     hash_data.each do |k, v|
       next if k == "id"
+
+      unless _model_attributes.include?(k)
+        raise ArgumentError.new("Illegal attribute '#{k}' when updating #{self.class.name}")
+      end
+
       self.public_send("#{k}=", v)
     end
 
