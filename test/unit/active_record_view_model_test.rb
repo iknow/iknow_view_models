@@ -14,36 +14,57 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     child = Child.new(name: "c1")
     label = Label.new(text: "hello")
     target = Target.new(text: "goodbye")
-    parent = Parent.new(name: "p", children: [child], label: label, target: target)
+    poly = PolyOne.new(number: 3)
+    parent = Parent.new(name: "p", children: [child], label: label, target: target, poly: poly)
     parent.save!
 
     s = ParentView.new(parent)
     assert_equal(s.to_hash,
-                 { "id" => parent.id,
-                   "name" => parent.name,
-                   "label" => { "id" => label.id, "text" => label.text },
-                   "target" => { "id" => target.id, "text" => target.text },
+                 { "id"       => parent.id,
+                   "name"     => parent.name,
+                   "label"    => { "id" => label.id, "text" => label.text },
+                   "target"   => { "id" => target.id, "text" => target.text },
+                   "poly_type" => parent.poly_type,
+                   "poly"      => { "id" => poly.id, "number" => poly.number },
                    "children" => [{"id" => child.id, "name" => child.name, "position" => 1 }]})
   end
 
   def test_create_from_view
-    view = { "name" => "p", "label" => { "text" => "l" }, "children" => [{ "name" => "c1" }, {"name" => "c2"}]}
+    view = {
+      "name" => "p",
+      "label" => { "text" => "l" },
+      "target" => { "text" => "t" },
+      "children" => [{ "name" => "c1" }, {"name" => "c2"}],
+      "poly_type" => "PolyTwo",
+      "poly" => { "text" => "pol" }
+    }
 
     pv = ParentView.create_or_update_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
     assert(!p.new_record?)
+
     assert_equal("p", p.name)
+
     assert(p.label.present?)
     assert_equal("l", p.label.text)
+
+    assert(p.target.present?)
+    assert_equal("t", p.target.text)
+
     assert_equal(2, p.children.count)
     p.children.order(:id).each_with_index do |c, i|
       assert(!c.changed?)
       assert(!c.new_record?)
       assert_equal("c#{i + 1}", c.name)
     end
+
+    assert(p.poly.present?)
+    assert(p.poly.is_a?(PolyTwo))
+    assert_equal("pol", p.poly.text)
   end
+
 
   def test_edit_attribute_from_view
     child = Child.new(name: "c1")
@@ -122,6 +143,25 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(2, tc2.position)
 
     assert(Child.where(id: child1.id).blank?)
+  end
+
+  def test_edit_list_position
+    child1 = Child.new(name: "c1")
+    child2 = Child.new(name: "c2")
+    parent = Parent.new(name: "p", children: [child1, child2])
+    parent.save!
+
+    view = ParentView.new(parent).to_hash
+
+    view["children"][0]["position"] = 2
+    view["children"][1]["position"] = 1
+    ParentView.create_or_update_from_view(view)
+
+     parent.reload
+     assert_equal(2, parent.children.size)
+     tc1, tc2 = parent.children.order(:position)
+     assert_equal(child2, tc1)
+     assert_equal(child1, tc2)
   end
 
   def test_edit_has_many_reversed
@@ -565,8 +605,4 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(c1, p1c2)
   end
 
-  # test polymorphic association
-  def test_polymorphic
-    skip
-  end
 end

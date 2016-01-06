@@ -24,6 +24,8 @@ ActiveRecord::Schema.define do
   create_table :parents do |t|
     t.string :name
     t.references :label, foreign_key: true
+    t.string :poly_type
+    t.integer :poly_id
   end
 
   create_table :children do |t|
@@ -35,6 +37,14 @@ ActiveRecord::Schema.define do
   create_table :targets do |t|
     t.string :text
     t.references :parent, null: false, foreign_key: true
+  end
+
+  create_table :poly_ones do |t|
+    t.integer :number
+  end
+
+  create_table :poly_twos do |t|
+    t.string :text
   end
 end
 
@@ -51,10 +61,19 @@ class Target < ActiveRecord::Base
   belongs_to :parent, inverse_of: :target
 end
 
+class PolyOne < ActiveRecord::Base
+  has_one :parent, as: :poly
+end
+
+class PolyTwo < ActiveRecord::Base
+  has_one :parent, as: :poly
+end
+
 class Parent < ActiveRecord::Base
   has_many   :children, dependent: :destroy, inverse_of: :parent
   belongs_to :label,    dependent: :destroy, inverse_of: :parent
   has_one    :target,   dependent: :destroy, inverse_of: :parent
+  belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 end
 
 class LabelView < ActiveRecordViewModel
@@ -75,6 +94,16 @@ end
 
 class ParentView < ActiveRecordViewModel
   table :parent
-  attributes :name
-  associations :children, :label, :target
+  attributes :name, :poly_type
+  associations :children, :label, :target, :poly
+end
+
+class PolyOneView < ActiveRecordViewModel
+  table :poly_one
+  attributes :number
+end
+
+class PolyTwoView < ActiveRecordViewModel
+  table :poly_two
+  attributes :text
 end

@@ -7,7 +7,7 @@ class ActiveRecordViewModel < ViewModel
   attribute :model
 
   class << self
-    attr_accessor :_table, :_model_attributes
+    attr_accessor :_table, :_members, :_associations
 
     def table(table)
       t = table.to_s.camelize.safe_constantize
@@ -19,12 +19,13 @@ class ActiveRecordViewModel < ViewModel
 
     def inherited(subclass)
       subclass._attributes = self._attributes
-      subclass._model_attributes = []
+      subclass._members = []
+      subclass._associations = []
       subclass.attribute(:id)
     end
 
     def attribute(attr)
-      _model_attributes << attr
+      _members << attr
 
       define_method(attr) do |**options|
         model.public_send(attr)
@@ -62,34 +63,24 @@ class ActiveRecordViewModel < ViewModel
 
     end
 
-    def association(target, viewmodel: nil)
-      reflection = _table.reflect_on_association(target)
+    def association(target, viewmodel: nil, viewmodels: nil, order: nil)
+      reflection = reflection_for(target)
 
-      if reflection.nil?
-        raise ArgumentError.new("Association #{target} not found in #{_table.name} model")
-      end
+      viewmodel_spec = viewmodel || viewmodels
 
-      if viewmodel.nil?
-        viewmodel_name = reflection.klass.name + "View"
-        viewmodel = viewmodel_name.safe_constantize
-
-        if viewmodel.nil? || !(viewmodel < ViewModel)
-          raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for AR model '#{reflection.klass.name}' not found")
-        end
-      end
-
-      _model_attributes << target
+      _members << target
+      _associations << target
 
       define_method target do |**options|
-        read_association(reflection, viewmodel)
+        read_association(reflection, viewmodel_spec)
       end unless method_defined?(target)
 
       define_method :"#{target}=" do |data, **options|
-        write_association(reflection, viewmodel, data)
+        write_association(reflection, viewmodel_spec, data)
       end unless method_defined?(:"#{target}=")
 
       define_method :"build_#{target}" do |data, **options|
-        build_association(reflection, viewmodel, data)
+        build_association(reflection, viewmodel_spec, data)
       end unless method_defined?(:"build_#{target}")
     end
 
@@ -118,6 +109,19 @@ class ActiveRecordViewModel < ViewModel
         end
       end
     end
+
+    private
+
+    def reflection_for(association_name)
+      reflection = _table.reflect_on_association(association_name)
+
+      if reflection.nil?
+        raise ArgumentError.new("Association #{association_name} not found in #{_table.name} model")
+      end
+
+      reflection
+    end
+
   end
 
   def initialize(model)
@@ -128,9 +132,9 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def serialize_view(json, **options)
-    self.class._model_attributes.each do |attr_name|
-      json.set! attr_name do
-        self.class.serialize(self.public_send(attr_name), json, **options)
+    self.class._members.each do |member_name|
+      json.set! member_name do
+        self.class.serialize(self.public_send(member_name), json, **options)
       end
     end
   end
@@ -151,21 +155,21 @@ class ActiveRecordViewModel < ViewModel
   # Update the model based on attributes in the hash. Internal implementation, private to
   # class and metaclass.
   def _update_from_view(hash_data, save: true)
-    valid_attrs = self.class._model_attributes.map(&:to_s)
+    valid_members = self.class._members.map(&:to_s)
 
     # check for bad data
-    bad_keys = hash_data.keys.reject {|k| valid_attrs.include?(k) }
+    bad_keys = hash_data.keys.reject {|k| valid_members.include?(k) }
 
     if bad_keys.present?
-      raise ArgumentError.new("Illegal attribute(s) #{bad_keys.inspect} when updating #{self.class.name}")
+      raise ArgumentError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
     end
 
-    valid_attrs.each do |attr|
-      next if attr == "id"
+    valid_members.each do |member|
+      next if member == "id"
 
-      if hash_data.has_key?(attr)
-        val = hash_data[attr]
-        self.public_send("#{attr}=", val)
+      if hash_data.has_key?(member)
+        val = hash_data[member]
+        self.public_send("#{member}=", val)
       end
     end
 
@@ -176,24 +180,30 @@ class ActiveRecordViewModel < ViewModel
 
   private
 
-  def read_association(reflection, viewmodel)
+  def read_association(reflection, viewmodel_spec)
     associated = model.public_send(reflection.name)
 
     if associated.nil?
       nil
-    elsif reflection.collection?
-      associated.map { |x| viewmodel.new(x) }
     else
-      viewmodel.new(associated)
+      association = model.association(reflection.name)
+      viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+      if reflection.collection?
+        associated.map { |x| viewmodel.new(x) }
+      else
+        viewmodel.new(associated)
+      end
     end
   end
 
   # Create or update an entire associated subtree, replacing the current
   # contents if necessary.
-  def write_association(reflection, viewmodel, data)
+  def write_association(reflection, viewmodel_spec, data)
     association = model.association(reflection.name)
 
     if reflection.collection?
+      viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+
       # preload any existing models: if they're referred to, we require them to exist.
       ids = data.map { |h| h["id"] }.compact
       models_by_id = ids.blank? ? {} : reflection.klass.find_all!(ids).index_by(&:id)
@@ -209,6 +219,11 @@ class ActiveRecordViewModel < ViewModel
         new_record = false
         assoc_model = nil
       else
+        if association.klass.nil?
+          raise ArgumentError.new("Couldn't identify target class for association `#{reflection.name}`: polymorphic type missing?")
+        end
+        viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+
         new_record = model["id"].nil?
         assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
         assoc_model = assoc_view.model
@@ -225,14 +240,15 @@ class ActiveRecordViewModel < ViewModel
   # Create or update a single member of an associated subtree. For a collection
   # association, this appends to the collection, otherwise it has the same
   # effect as `write_association`.
-  def build_association(reflection, viewmodel, data)
+  def build_association(reflection, viewmodel_spec, data)
     if reflection.collection?
       association = model.association(reflection.name)
+      viewmodel   = viewmodel_for(association.klass, viewmodel_spec)
       assoc_view  = viewmodel.create_or_update_from_view(data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
     else
-      write_association(reflection, viewmodel, data)
+      write_association(reflection, viewmodel_spec, data)
     end
   end
 
@@ -245,6 +261,8 @@ class ActiveRecordViewModel < ViewModel
       association = model.association(reflection.name)
 
       # we need to manually garbage collect the old associated record if present
+      # TODO: This violates foreign key constraints: we need to save up the
+      # scopes to garbage collect and destroy them after saving the record
       if existing_fkey.present?
         case reflection.options[:dependent]
         when :destroy
@@ -272,10 +290,34 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
+  def viewmodel_for(klass, override)
+    case override
+    when ActiveRecordViewModel
+      viewmodel = override
+    when Hash
+      viewmodel = override[klass.name]
+      if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
+        raise ArgumentError.new("ViewModel for associated class '#{klass.name}' not specified in manual association")
+      end
+    when nil
+      viewmodel_name = (klass.name + "View")
+      viewmodel = viewmodel_name.safe_constantize
+      if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
+        raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for associated class '#{klass.name}' not found")
+      end
+    else
+      raise ArgumentError("Invalid viewmodel specification: ")
+    end
+
+    viewmodel
+  end
+
 
   # TODO: How about visibility/customization? We could consider visibility
   # filters along the lines of `jsonapi-resources`. Customization comes
   # reasonably easily with overriding.
+
+  # Do we want to support defining sorts (or other arel constraints) on associations?
 
   # What do we want the API to look like?
   # I think it's desirable to have the `build_association` accessible via
