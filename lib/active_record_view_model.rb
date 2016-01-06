@@ -187,7 +187,7 @@ class ActiveRecordViewModel < ViewModel
       nil
     else
       association = model.association(reflection.name)
-      viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+      viewmodel = viewmodel_for(association, viewmodel_spec)
       if reflection.collection?
         associated.map { |x| viewmodel.new(x) }
       else
@@ -202,7 +202,7 @@ class ActiveRecordViewModel < ViewModel
     association = model.association(reflection.name)
 
     if reflection.collection?
-      viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+      viewmodel = viewmodel_for(association, viewmodel_spec)
 
       # preload any existing models: if they're referred to, we require them to exist.
       ids = data.map { |h| h["id"] }.compact
@@ -219,10 +219,7 @@ class ActiveRecordViewModel < ViewModel
         new_record = false
         assoc_model = nil
       else
-        if association.klass.nil?
-          raise ArgumentError.new("Couldn't identify target class for association `#{reflection.name}`: polymorphic type missing?")
-        end
-        viewmodel = viewmodel_for(association.klass, viewmodel_spec)
+        viewmodel = viewmodel_for(association, viewmodel_spec)
 
         new_record = model["id"].nil?
         assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
@@ -243,7 +240,7 @@ class ActiveRecordViewModel < ViewModel
   def build_association(reflection, viewmodel_spec, data)
     if reflection.collection?
       association = model.association(reflection.name)
-      viewmodel   = viewmodel_for(association.klass, viewmodel_spec)
+      viewmodel   = viewmodel_for(association, viewmodel_spec)
       assoc_view  = viewmodel.create_or_update_from_view(data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
@@ -290,7 +287,13 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def viewmodel_for(klass, override)
+  def viewmodel_for(association, override)
+    klass = association.klass
+
+    if klass.nil?
+      raise ArgumentError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
+    end
+
     case override
     when ActiveRecordViewModel
       viewmodel = override

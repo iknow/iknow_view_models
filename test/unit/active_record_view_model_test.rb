@@ -65,6 +65,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("pol", p.poly.text)
   end
 
+  def test_create_without_polymorphic_type
+   view = {
+      "name" => "p",
+      "poly" => { "text" => "pol" }
+    }
+
+    assert_raises(ArgumentError) do
+     ParentView.create_or_update_from_view(view)
+    end
+  end
 
   def test_edit_attribute_from_view
     child = Child.new(name: "c1")
