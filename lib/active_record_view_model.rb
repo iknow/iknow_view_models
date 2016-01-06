@@ -7,7 +7,7 @@ class ActiveRecordViewModel < ViewModel
   attribute :model
 
   class << self
-    attr_reader :_table, :_members, :_associations
+    attr_reader :_table, :_members, :_associations, :_list_attribute
 
     def table(table)
       t = table.to_s.camelize.safe_constantize
@@ -53,31 +53,35 @@ class ActiveRecordViewModel < ViewModel
       attrs.each { |attr| attribute(attr) }
     end
 
-    # `acts_as_list` maintains a `position_changed` instance variable, which
-    # suppresses position recalculation if the setter was called, even if the
-    # value wasn't altered. Because we rely on being able to reset attributes to
-    # their current value without effect, handle this case specially by only
-    # invoking the setter if the value is different.
     def acts_as_list(attr = :position)
-      @generated_accessor_module.module_eval do
-        old_setter = instance_method("#{attr}=")
+      @_list_attribute = attr
 
-        undef_method("#{attr}=")
-
-        define_method("#{attr}=") do |value, **options|
-          if value != model.public_send(attr)
-            old_setter.bind(self).call(value)
+      if _members.include?(attr)
+        @generated_accessor_module.module_eval do
+          # Additionally, if the list position attribute is exposed in the
+          # viewmodel then we want to wrap the generated setter to maintain
+          # correct acts_as_list behaviour.
+          #
+          # This is needed because `acts_as_list` maintains a `position_changed`
+          # instance variable, which suppresses automatic position recalculation
+          # if the setter was called, even if the value wasn't altered. Because
+          # viewmodel deserialization relies on being able to reset attributes to
+          # their current value without effect, handle this case specially by only
+          # invoking the setter on the model if the value is different.
+          redefine_method("#{attr}=") do |value, **options|
+            if value != model.public_send(attr)
+              model.public_send("#{attr}=", value)
+            end
           end
         end
       end
     end
 
-    # When assigning to an `acts_as_list`, i
-    def has_a_list(association)
-
+    def _list_member?
+      _list_attribute.present?
     end
 
-    def association(target, viewmodel: nil, viewmodels: nil, order: nil)
+    def association(target, viewmodel: nil, viewmodels: nil)
       reflection = reflection_for(target)
 
       viewmodel_spec = viewmodel || viewmodels
@@ -144,7 +148,10 @@ class ActiveRecordViewModel < ViewModel
     unless model.is_a?(self.class._table)
       raise ArgumentError.new("'#{model.inspect}' is not an instance of #{self.class._table.name}")
     end
+
     super(model)
+
+    @post_save_hooks = []
   end
 
   def serialize_view(json, **options)
@@ -159,6 +166,7 @@ class ActiveRecordViewModel < ViewModel
     self.class._table.transaction do
       self.public_send(:"build_#{association_name}", hash_data)
       model.save!
+      self.run_post_save_hooks
     end
   end
 
@@ -189,26 +197,39 @@ class ActiveRecordViewModel < ViewModel
       end
     end
 
-    model.save! if save
+    if save
+      model.save!
+      self.run_post_save_hooks
+    end
 
     self
+  end
+
+  def _list_position
+    raise "ViewModel does not represent a list member" unless self.class._list_member?
+    model.public_send(self.class._list_attribute)
+  end
+
+  def _list_position=(value)
+    raise "ViewModel does not represent a list member" unless self.class._list_member?
+    ###    model.define_singleton_method(:scope_condition){ "0" } if model.new_record?
+    model.public_send("#{self.class._list_attribute}=", value)
   end
 
   private
 
   def read_association(reflection, viewmodel_spec)
     associated = model.public_send(reflection.name)
+    return nil if associated.nil?
 
-    if associated.nil?
-      nil
+    association = model.association(reflection.name)
+    viewmodel = viewmodel_for(association, viewmodel_spec)
+    if reflection.collection?
+      associated = associated.map { |x| viewmodel.new(x) }
+      associated.sort_by!(&:_list_position) if viewmodel._list_member?
+      associated
     else
-      association = model.association(reflection.name)
-      viewmodel = viewmodel_for(association, viewmodel_spec)
-      if reflection.collection?
-        associated.map { |x| viewmodel.new(x) }
-      else
-        viewmodel.new(associated)
-      end
+      viewmodel.new(associated)
     end
   end
 
@@ -222,7 +243,12 @@ class ActiveRecordViewModel < ViewModel
 
       # preload any existing models: if they're referred to, we require them to exist.
       ids = data.map { |h| h["id"] }.compact
-      models_by_id = ids.blank? ? {} : reflection.klass.find_all!(ids).index_by(&:id)
+      models_by_id = ids.blank? ? {} : association.klass.find_all!(ids).index_by(&:id)
+
+      # if we're writing an ordered list, put the members in the target order.
+      if viewmodel._list_member?
+        data = reorder_list_members(viewmodel, data)
+      end
 
       assoc_views = data.map do |hash|
         viewmodel.create_or_update_from_view(hash, model_cache: models_by_id, root_node: false)
@@ -230,6 +256,33 @@ class ActiveRecordViewModel < ViewModel
 
       assoc_models = assoc_views.map(&:model)
       association.replace(assoc_models)
+
+      assoc_views.each do |v|
+        if v.pending_post_save_hooks?
+          register_post_save_hook { v.run_post_save_hooks }
+        end
+      end
+
+      if assoc_views.present? && viewmodel._list_member?
+        # after save of the parent, force the updated models into their target positions.
+
+        # downside: this will get run every time, even if we're only adding new
+        # records (positions will be correct) or editing non-position fields
+        # (nothing changed). How can we identify if the positions in the models
+        # need to change, with the understanding that in the event of moving a
+        # member in from another list, acts_as_list could have clobbered other
+        # previously existing members of this list?
+        register_post_save_hook do
+          update_cases = ""
+          assoc_models.each_with_index do |model, i|
+            update_cases << " WHEN #{model.id} THEN #{i + 1}"
+          end
+
+          viewmodel._table.where(id: assoc_models).update_all(<<-SQL)
+            #{viewmodel._list_attribute} = CASE id #{update_cases} END
+          SQL
+        end
+      end
     else
       if data.nil?
         new_record = false
@@ -240,6 +293,10 @@ class ActiveRecordViewModel < ViewModel
         new_record = model["id"].nil?
         assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
         assoc_model = assoc_view.model
+
+        if assoc_view.pending_post_save_hooks?
+          register_post_save_hook { assoc_view.run_post_save_hooks }
+        end
       end
 
       if reflection.macro == :belongs_to
@@ -248,6 +305,19 @@ class ActiveRecordViewModel < ViewModel
 
       association.replace(assoc_model)
     end
+  end
+
+  def register_post_save_hook(&block)
+    @post_save_hooks << block
+  end
+
+  protected def run_post_save_hooks
+    @post_save_hooks.each { |hook| hook.call }
+    @post_save_hooks = []
+  end
+
+  protected def pending_post_save_hooks?
+    @post_save_hooks.present?
   end
 
   # Create or update a single member of an associated subtree. For a collection
@@ -260,11 +330,36 @@ class ActiveRecordViewModel < ViewModel
       assoc_view  = viewmodel.create_or_update_from_view(data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
+
+      if assoc_view.pending_post_save_hooks?
+        register_post_save_hook { assoc_view.run_post_save_hooks }
+      end
     else
       write_association(reflection, viewmodel_spec, data)
     end
   end
 
+  def reorder_list_members(viewmodel, hashes)
+    # If the position attribute is explicitly exposed in the viewmodel, then
+    # allow positions to be specified by the user by pre-sorting using any
+    # specified position values as a partial order, followed in original
+    # array order by models without position specified.
+    if viewmodel._members.include?(viewmodel._list_attribute)
+      hashes = hashes.map(&:dup)
+
+      n = 0
+      hashes.sort_by! do |h|
+        pos = h.delete(viewmodel._list_attribute.to_s)
+        if pos.nil?
+          [1, n += 1]
+        else
+          [0, pos]
+        end
+      end
+    end
+
+    hashes
+  end
 
   def garbage_collect_belongs_to_association(reflection, target, new_record)
     return unless [:delete, :destroy].include?(reflection.options[:dependent])

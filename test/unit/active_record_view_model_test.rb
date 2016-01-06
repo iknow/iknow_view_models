@@ -155,7 +155,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert(Child.where(id: child1.id).blank?)
   end
 
-  def test_edit_list_position
+  def test_edit_explicit_list_position
     child1 = Child.new(name: "c1")
     child2 = Child.new(name: "c2")
     parent = Parent.new(name: "p", children: [child1, child2])
@@ -165,18 +165,20 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view["children"][0]["position"] = 2
     view["children"][1]["position"] = 1
+    view["children"] << { "name" => "c3" }
+    view["children"] << { "name" => "c4" }
     ParentView.create_or_update_from_view(view)
 
-     parent.reload
-     assert_equal(2, parent.children.size)
-     tc1, tc2 = parent.children.order(:position)
-     assert_equal(child2, tc1)
-     assert_equal(child1, tc2)
+    parent.reload
+    assert_equal(4, parent.children.size)
+    tc1, tc2, tc3, tc4 = parent.children.order(:position)
+    assert_equal(child2, tc1)
+    assert_equal(child1, tc2)
+    assert_equal("c3", tc3.name)
+    assert_equal("c4", tc4.name)
   end
 
-  def test_edit_has_many_reversed
-    skip "Haven't implemented reverse side of acts_as_list assignment."
-
+  def test_edit_implicit_list_position
     child1 = Child.new(name: "c1")
     child2 = Child.new(name: "c2")
     parent = Parent.new(name: "p", children: [child1, child2])
@@ -184,19 +186,32 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view = ParentView.new(parent).to_hash
 
-    view["children"].shift
-    view["children"].unshift({ name: "c3" })
+    view["children"].each { |c| c.delete("position") }
+    view["children"].reverse!
+    view["children"].unshift({ "name" => "c3" })
+
     ParentView.create_or_update_from_view(view)
 
     parent.reload
-    assert_equal(2, parent.children.size)
-    tc1, tc2 = parent.children.order(:position)
+    assert_equal(3, parent.children.size)
+    tc1, tc2, tc3 = parent.children.order(:position)
 
     assert_equal("c3", tc1.name)
     assert_equal(1, tc1.position)
 
     assert_equal(child2, tc2)
     assert_equal(2, tc2.position)
+
+    assert_equal(child1, tc3)
+    assert_equal(3, tc3.position)
+  end
+
+  def test_build_explicit_position
+    skip
+  end
+
+  def test_build_implicit_position
+    skip
   end
 
   def test_move_child_to_new
