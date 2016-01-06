@@ -7,33 +7,45 @@ class ActiveRecordViewModel < ViewModel
   attribute :model
 
   class << self
-    attr_accessor :_table, :_members, :_associations
+    attr_reader :_table, :_members, :_associations
 
     def table(table)
       t = table.to_s.camelize.safe_constantize
       if t.nil? || !(t < ActiveRecord::Base)
         raise ArgumentError.new("ActiveRecord model #{table} not found")
       end
-      self._table = t
+      @_table = t
     end
 
     def inherited(subclass)
+      # copy ViewModel setup
       subclass._attributes = self._attributes
-      subclass._members = []
-      subclass._associations = []
-      subclass.attribute(:id)
+
+      subclass.initialize_members
+    end
+
+    def initialize_members
+      @_members = []
+      @_associations = []
+
+      @generated_accessor_module = Module.new
+      include @generated_accessor_module
+
+      attribute(:id)
     end
 
     def attribute(attr)
       _members << attr
 
-      define_method(attr) do |**options|
-        model.public_send(attr)
-      end unless method_defined?(attr)
+      @generated_accessor_module.module_eval do
+        define_method attr do |**options|
+          model.public_send(attr)
+        end
 
-      define_method("#{attr}=") do |value, **options|
-        model.public_send("#{attr}=", value)
-      end unless method_defined?("#{attr}=")
+        define_method "#{attr}=" do |value, **options|
+          model.public_send("#{attr}=", value)
+        end
+      end
     end
 
     def all_attributes
@@ -47,13 +59,15 @@ class ActiveRecordViewModel < ViewModel
     # their current value without effect, handle this case specially by only
     # invoking the setter if the value is different.
     def acts_as_list(attr = :position)
-      old_setter = instance_method("#{attr}=")
+      @generated_accessor_module.module_eval do
+        old_setter = instance_method("#{attr}=")
 
-      undef_method("#{attr}=")
+        undef_method("#{attr}=")
 
-      define_method("#{attr}=") do |value, **options|
-        if value != model.public_send(attr)
-          old_setter.bind(self).call(value)
+        define_method("#{attr}=") do |value, **options|
+          if value != model.public_send(attr)
+            old_setter.bind(self).call(value)
+          end
         end
       end
     end
@@ -71,17 +85,19 @@ class ActiveRecordViewModel < ViewModel
       _members << target
       _associations << target
 
-      define_method target do |**options|
-        read_association(reflection, viewmodel_spec)
-      end unless method_defined?(target)
+      @generated_accessor_module.module_eval do
+        define_method target do |**options|
+          read_association(reflection, viewmodel_spec)
+        end
 
-      define_method :"#{target}=" do |data, **options|
-        write_association(reflection, viewmodel_spec, data)
-      end unless method_defined?(:"#{target}=")
+        define_method  :"#{target}=" do |data, **options|
+          write_association(reflection, viewmodel_spec, data)
+        end
 
-      define_method :"build_#{target}" do |data, **options|
-        build_association(reflection, viewmodel_spec, data)
-      end unless method_defined?(:"build_#{target}")
+        define_method :"build_#{target}" do |data, **options|
+          build_association(reflection, viewmodel_spec, data)
+        end
+      end
     end
 
     def associations(*assocs)
