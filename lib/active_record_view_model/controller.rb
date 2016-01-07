@@ -48,7 +48,6 @@ module ActiveRecordViewModel::Controller
     render_viewmodel({ data: view }, **view_options)
   end
 
-  # todo: differentiate errors so they're not all 500
   def render_error(exception, status = 500)
     render_viewmodel(ExceptionView.new(exception, status), status: status)
   end

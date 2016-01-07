@@ -156,6 +156,17 @@ class ActiveRecordViewModel < ViewModel
       hash_data.has_key?("id")
     end
 
+    # TODO: This should be recursive. To be recursive, need to have saved the
+    # `viewmodel_specs` for each association. For now, only loading one level.
+    # Still going to have issues with polymorphic viewmodels: how do you specify
+    # "when type A, go on to load these, but type B go on to load those?"
+    def eager_includes(**options)
+      _associations.each_with_object({}) do |assoc_name, h|
+        reflection = reflection_for(assoc_name)
+        h[reflection.name] = nil
+      end
+    end
+
     private
 
     def reflection_for(association_name)
@@ -465,15 +476,56 @@ class ActiveRecordViewModel < ViewModel
   end
 
 
-  # TODO: How about visibility/customization? We could consider visibility
-  # filters along the lines of `jsonapi-resources`. Customization comes
-  # reasonably easily with overriding.
+  ####### TODO LIST ########
 
-  # Do we want to support defining sorts (or other arel constraints) on associations?
+  ## Create tools for customizing visibility and access control
+  # Besides manually rewriting setters/getters.  We could could consider
+  # visibility filters along the lines of `jsonapi-resources`.
 
-  # What do we want the API to look like?
-  # I think it's desirable to have the `build_association` accessible via
-  # POST /model/1/associatedmodel, to create an associatedmodel linked to model 1
+  ## Do we want to support defining any kind of constraints on associations?
 
+  ## Eager loading
+  # - Correctly use eager loaded associations when present in `write_association`
+  # - Fix eager loading so it's recursive
+  # - Come up with a way to represent (and perform!) type conditional eager
+  #  loads for polymorphic associations
 
+  ## Support for single table inheritance (if necessary)
+
+  ## Ensure that we have correct behaviour when a polymorphic relationship is changed to an entity of a different type
+  # - does the old one get correctly garbage collected?
+
+  ## Throw an error if the same entity is specified twice
+
+  ## Replace acts_as_list
+  # - It's not ok that we rewrite the positions every time, even if nothing is changed
+  # - acts_as_list performs O(n) aggregate queries across the list context
+  # - acts_as_list's activerecord hooks don't update other affected model objects, so
+  #   the models built in a newly deserialized viewmodel may not reflect reality
+  # -  our post-save hook *definitely* doesn't update the model objects
+  # - if we take it out, what's our solution for services that manipulate the
+  #   models directly?  we don't want to leave them to rewrite position
+  #   manipulation. Should we require that the model includes our own
+  #   lightweight *explicitly used* acts_as_list replacement, which the
+  #   viewmodel can use as well as other code?
+
+  ## Belongs-to garbage collection
+  # - may or may not be desirable
+  # - doesn't have a post-save hook
+  # - Check that post save hooks for garbage collection can't clobber changes:
+  #   consider what would happen if a A record had two references to B, and we
+  #   change from {b1: x, b2: null} to {b1: null, b2: x} - the post-save hook
+  #   for removing the record from b1 would destroy it, even though it now
+  #   belongs to b2.
+
+  ### Controllers
+
+  ## Consider better support for queries or pagination
+
+  ## Fix check that update is operating on the desired target item
+
+  ## Generate controllers for writing to associations
+
+  ## if we remove acts_as_list, how will DELETE actions ensure that the list is maintained?
+  # - could have a `#destroy` method to the viewmodel which maintains the list, and always use that?
 end
