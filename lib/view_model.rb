@@ -35,7 +35,7 @@ class ViewModel
 
     # If this viewmodel represents an AR model, what associations does it make
     # use of?
-    def eager_includes
+    def eager_includes(**options)
       []
     end
 
@@ -98,7 +98,7 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
-  def preload_model
-    ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes).run
+  def preload_model(**options)
+    ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes(**options)).run
   end
 end

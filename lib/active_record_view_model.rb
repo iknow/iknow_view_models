@@ -6,15 +6,24 @@ class ActiveRecordViewModel < ViewModel
   # An AR ViewModel wraps a single AR model
   attribute :model
 
-  class << self
-    attr_reader :_table, :_members, :_associations, :_list_attribute
+  class DeserializationError < StandardError
+  end
 
-    def table(table)
-      t = table.to_s.camelize.safe_constantize
-      if t.nil? || !(t < ActiveRecord::Base)
-        raise ArgumentError.new("ActiveRecord model #{table} not found")
+  class << self
+    attr_reader :_members, :_associations, :_list_attribute
+
+    def table(table_name = nil)
+      if table_name
+        raise ArgumentError.new("Table for ViewModel '#{self.name}' already set") if @table.present?
+
+        t = table_name.to_s.camelize.safe_constantize
+        if t.nil? || !(t < ActiveRecord::Base)
+          raise ArgumentError.new("ActiveRecord model #{table_name} not found")
+        end
+        @table = t
       end
-      @_table = t
+
+      @table
     end
 
     def inherited(subclass)
@@ -49,8 +58,20 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def all_attributes
-      attrs = _table.attribute_names - _table.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
+      attrs = table.attribute_names - table.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
       attrs.each { |attr| attribute(attr) }
+    end
+
+    # `acts_as_enum`s can be assigned as strings, but return the AR model. We
+    # want to serialize the string.
+    def acts_as_enum(*attrs)
+      attrs.each do |attr|
+        @generated_accessor_module.module_eval do
+          redefine_method(attr) do |**options|
+            model.public_send(attr).enum_constant
+          end
+        end
+      end
     end
 
     def acts_as_list(attr = :position)
@@ -108,14 +129,15 @@ class ActiveRecordViewModel < ViewModel
       assocs.each { |assoc| association(assoc) }
     end
 
-    def create_or_update_from_view(hash_data, model_cache: nil, root_node: true)
-      _table.transaction do
-        if id = hash_data["id"]
+    def deserialize_from_view(hash_data, model_cache: nil, root_node: true)
+      table.transaction do
+        if is_update_hash?(hash_data)
           # Update an existing model. If this model isn't the root of the tree
           # being modified, we need to first save the model to have any changes
           # applied before calling `replace` on the parent's association.
+          id = hash_data["id"]
           model = if model_cache.nil?
-                    _table.find(id)
+                    table.includes(self.eager_includes).find(id)
                   else
                     model_cache[id]
                   end
@@ -124,19 +146,23 @@ class ActiveRecordViewModel < ViewModel
           # Create a new model. If we're not the root of the tree we need to
           # refrain from saving, so that foreign keys to the parent can be
           # populated when the parent and association are saved.
-          model = _table.new
+          model = table.new
           self.new(model)._update_from_view(hash_data, save: root_node)
         end
       end
     end
 
+    def is_update_hash?(hash_data)
+      hash_data.has_key?("id")
+    end
+
     private
 
     def reflection_for(association_name)
-      reflection = _table.reflect_on_association(association_name)
+      reflection = table.reflect_on_association(association_name)
 
       if reflection.nil?
-        raise ArgumentError.new("Association #{association_name} not found in #{_table.name} model")
+        raise ArgumentError.new("Association #{association_name} not found in #{table.name} model")
       end
 
       reflection
@@ -145,8 +171,8 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def initialize(model)
-    unless model.is_a?(self.class._table)
-      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{self.class._table.name}")
+    unless model.is_a?(self.class.table)
+      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{self.class.table.name}")
     end
 
     super(model)
@@ -162,8 +188,8 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def create_or_update_associated(association_name, hash_data)
-    self.class._table.transaction do
+  def deserialize_associated(association_name, hash_data)
+    self.class.table.transaction do
       self.public_send(:"build_#{association_name}", hash_data)
       model.save!
       self.run_post_save_hooks
@@ -185,7 +211,7 @@ class ActiveRecordViewModel < ViewModel
     bad_keys = hash_data.keys.reject {|k| valid_members.include?(k) }
 
     if bad_keys.present?
-      raise ArgumentError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
+      raise DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
     end
 
     valid_members.each do |member|
@@ -206,12 +232,12 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def _list_position
-    raise "ViewModel does not represent a list member" unless self.class._list_member?
+    raise DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     model.public_send(self.class._list_attribute)
   end
 
   def _list_position=(value)
-    raise "ViewModel does not represent a list member" unless self.class._list_member?
+    raise DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     ###    model.define_singleton_method(:scope_condition){ "0" } if model.new_record?
     model.public_send("#{self.class._list_attribute}=", value)
   end
@@ -235,23 +261,31 @@ class ActiveRecordViewModel < ViewModel
 
   # Create or update an entire associated subtree, replacing the current
   # contents if necessary.
-  def write_association(reflection, viewmodel_spec, data)
+  def write_association(reflection, viewmodel_spec, hash_data)
     association = model.association(reflection.name)
 
     if reflection.collection?
       viewmodel = viewmodel_for(association, viewmodel_spec)
 
-      # preload any existing models: if they're referred to, we require them to exist.
-      ids = data.map { |h| h["id"] }.compact
+      # preload any existing models: if they're referred to, we require them to
+      # exist.
+      # TODO: if we're editing an existing model, then we'll have already
+      # preloaded the association with its eager includes. Only re-fetch
+      # unloaded records here.
+      unless hash_data.is_a?(Array)
+        raise DeserializationError.new("Invalid hash data array for multiple association: '#{hash_data.inspect}'")
+      end
+
+      ids = hash_data.map { |h| h["id"] }.compact
       models_by_id = ids.blank? ? {} : association.klass.find_all!(ids).index_by(&:id)
 
       # if we're writing an ordered list, put the members in the target order.
       if viewmodel._list_member?
-        data = reorder_list_members(viewmodel, data)
+        hash_data = reorder_list_members(viewmodel, hash_data)
       end
 
-      assoc_views = data.map do |hash|
-        viewmodel.create_or_update_from_view(hash, model_cache: models_by_id, root_node: false)
+      assoc_views = hash_data.map do |hash|
+        viewmodel.deserialize_from_view(hash, model_cache: models_by_id, root_node: false)
       end
 
       assoc_models = assoc_views.map(&:model)
@@ -278,25 +312,29 @@ class ActiveRecordViewModel < ViewModel
             update_cases << " WHEN #{model.id} THEN #{i + 1}"
           end
 
-          viewmodel._table.where(id: assoc_models).update_all(<<-SQL)
+          viewmodel.table.where(id: assoc_models).update_all(<<-SQL)
             #{viewmodel._list_attribute} = CASE id #{update_cases} END
           SQL
         end
       end
     else
-      if data.nil?
+      # single association
+      if hash_data.nil?
         new_record = false
         assoc_model = nil
-      else
+      elsif hash_data.is_a?(Hash)
         viewmodel = viewmodel_for(association, viewmodel_spec)
 
-        new_record = model["id"].nil?
-        assoc_view = viewmodel.create_or_update_from_view(data, root_node: false)
+        new_record = hash_data["id"].nil?
+        # TODO: not taking advantage of the model possibly being preloaded
+        assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false)
         assoc_model = assoc_view.model
 
         if assoc_view.pending_post_save_hooks?
           register_post_save_hook { assoc_view.run_post_save_hooks }
         end
+      else
+        raise DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
       end
 
       if reflection.macro == :belongs_to
@@ -323,11 +361,11 @@ class ActiveRecordViewModel < ViewModel
   # Create or update a single member of an associated subtree. For a collection
   # association, this appends to the collection, otherwise it has the same
   # effect as `write_association`.
-  def build_association(reflection, viewmodel_spec, data)
+  def build_association(reflection, viewmodel_spec, hash_data)
     if reflection.collection?
       association = model.association(reflection.name)
       viewmodel   = viewmodel_for(association, viewmodel_spec)
-      assoc_view  = viewmodel.create_or_update_from_view(data, root_node: false)
+      assoc_view  = viewmodel.deserialize_from_view(hash_data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
 
@@ -335,7 +373,7 @@ class ActiveRecordViewModel < ViewModel
         register_post_save_hook { assoc_view.run_post_save_hooks }
       end
     else
-      write_association(reflection, viewmodel_spec, data)
+      write_association(reflection, viewmodel_spec, hash_data)
     end
   end
 
@@ -402,7 +440,7 @@ class ActiveRecordViewModel < ViewModel
     klass = association.klass
 
     if klass.nil?
-      raise ArgumentError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
+      raise DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
     end
 
     case override
