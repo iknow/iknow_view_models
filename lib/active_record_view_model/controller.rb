@@ -11,37 +11,49 @@ module ActiveRecordViewModel::Controller
   end
 
   def show(**view_options)
-    model = viewmodel.table.includes(viewmodel.eager_includes(**view_options)).find(params[:id])
+    model = model_scope(**view_options).find(params[:id])
     view = viewmodel.new(model)
     render_viewmodel({ data: view }, **view_options)
   end
 
   def index(**view_options)
-    models = viewmodel.table.includes(viewmodel.eager_includes(**view_options)).to_a
+    models = model_scope(**view_options).to_a
     views = models.map { |m| viewmodel.new(m) }
     render_viewmodel({ data: views }, **view_options)
   end
 
   def create(**view_options)
-    deserialize(false, **view_options)
+    deserialize(nil, **view_options)
   end
 
   def update(**view_options)
-    # TODO: don't just check that we're updating something, check that we're updating the specified thing.
-    deserialize(true, **view_options)
+    deserialize(params[:id], **view_options)
+  end
+
+  def delete
+    model = model_scope(**view_options).find(params[:id])
+    view = viewmodel.new(model)
+    view.destroy!
   end
 
   private
 
-  def deserialize(is_update, **view_options)
+  def model_scope(**view_options)
+    viewmodel.table.includes(viewmodel.eager_includes(**view_options))
+  end
+
+  def deserialize(requested_id, **view_options)
     data = params[:data]
 
     unless data.is_a?(Hash)
       raise DataServiceError.new(HTTP_BAD_REQUEST, "Empty or invalid data submitted")
     end
 
-    if viewmodel.is_update_hash?(data) != is_update
-      raise "data doesn't match create/update"
+    if requested_id.present?
+      raise "not an update" unless viewmodel.is_update_hash?(data)
+      raise "incorrect update" unless viewmodel.update_id(data) == requested_id
+    else
+      raise "not a create" if viewmodel.is_update_hash?
     end
 
     view = viewmodel.deserialize_from_view(data)

@@ -135,7 +135,7 @@ class ActiveRecordViewModel < ViewModel
           # Update an existing model. If this model isn't the root of the tree
           # being modified, we need to first save the model to have any changes
           # applied before calling `replace` on the parent's association.
-          id = hash_data["id"]
+          id = update_id(hash_data)
           model = if model_cache.nil?
                     table.includes(self.eager_includes).find(id)
                   else
@@ -154,6 +154,10 @@ class ActiveRecordViewModel < ViewModel
 
     def is_update_hash?(hash_data)
       hash_data.has_key?("id")
+    end
+
+    def update_id(hash_data)
+      hash_data["id"]
     end
 
     # TODO: This should be recursive. To be recursive, need to have saved the
@@ -336,7 +340,7 @@ class ActiveRecordViewModel < ViewModel
       elsif hash_data.is_a?(Hash)
         viewmodel = viewmodel_for(association, viewmodel_spec)
 
-        new_record = hash_data["id"].nil?
+        new_record = viewmodel.update_id(hash_data).nil?
         # TODO: not taking advantage of the model possibly being preloaded
         assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false)
         assoc_model = assoc_view.model
@@ -521,8 +525,6 @@ class ActiveRecordViewModel < ViewModel
   ### Controllers
 
   ## Consider better support for queries or pagination
-
-  ## Fix check that update is operating on the desired target item
 
   ## Generate controllers for writing to associations
 
