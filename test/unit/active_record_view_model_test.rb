@@ -74,7 +74,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = {
       "children" => nil
     }
-    assert_raises(ActiveRecordViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError) do
       pv = ParentView.deserialize_from_view(view)
     end
   end
@@ -83,7 +83,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = {
       "target" => []
     }
-    assert_raises(ActiveRecordViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError) do
       pv = ParentView.deserialize_from_view(view)
     end
   end
@@ -94,7 +94,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       "poly" => { "text" => "pol" }
     }
 
-    assert_raises(ActiveRecordViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError) do
      ParentView.deserialize_from_view(view)
     end
   end

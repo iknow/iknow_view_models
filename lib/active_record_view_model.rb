@@ -6,9 +6,6 @@ class ActiveRecordViewModel < ViewModel
   # An AR ViewModel wraps a single AR model
   attribute :model
 
-  class DeserializationError < StandardError
-  end
-
   class << self
     attr_reader :_members, :_associations, :_list_attribute
 
@@ -189,7 +186,7 @@ class ActiveRecordViewModel < ViewModel
       klass = association.klass
 
       if klass.nil?
-        raise DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
+        raise ViewModel::DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
       end
 
       viewmodel_for(klass, override_spec)
@@ -273,7 +270,7 @@ class ActiveRecordViewModel < ViewModel
     bad_keys = hash_data.keys.reject {|k| valid_members.include?(k) }
 
     if bad_keys.present?
-      raise DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
+      raise ViewModel::DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
     end
 
     valid_members.each do |member|
@@ -294,12 +291,12 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def _list_position
-    raise DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
+    raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     model.public_send(self.class._list_attribute)
   end
 
   def _list_position=(value)
-    raise DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
+    raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     ###    model.define_singleton_method(:scope_condition){ "0" } if model.new_record?
     model.public_send("#{self.class._list_attribute}=", value)
   end
@@ -335,7 +332,7 @@ class ActiveRecordViewModel < ViewModel
       # preloaded the association with its eager includes. Only re-fetch
       # unloaded records here.
       unless hash_data.is_a?(Array)
-        raise DeserializationError.new("Invalid hash data array for multiple association: '#{hash_data.inspect}'")
+        raise ViewModel::DeserializationError.new("Invalid hash data array for multiple association: '#{hash_data.inspect}'")
       end
 
       ids = hash_data.map { |h| h["id"] }.compact
@@ -404,7 +401,7 @@ class ActiveRecordViewModel < ViewModel
 
         assoc_model = assoc_view.model
       else
-        raise DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
+        raise ViewModel::DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
       end
 
       if reflection.macro == :belongs_to

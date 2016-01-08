@@ -3,6 +3,9 @@
 require 'jbuilder'
 
 class ViewModel
+  class DeserializationError < StandardError
+  end
+
   class << self
     attr_accessor :_attributes
 
@@ -62,6 +65,10 @@ class ViewModel
 
     def serialize_to_hash(viewmodel, **options)
       Jbuilder.new { |json| serialize(viewmodel, json, **options) }.attributes!
+    end
+
+    def deserialize_from_view(hash_data, **options)
+      raise DeserializationError.new("Deserialization not defined for '#{self.name}'")
     end
   end
 
