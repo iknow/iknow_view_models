@@ -328,15 +328,16 @@ class ActiveRecordViewModel < ViewModel
 
       # preload any existing models: if they're referred to, we require them to
       # exist.
-      # TODO: if we're editing an existing model, then we'll have already
-      # preloaded the association with its eager includes. Only re-fetch
-      # unloaded records here.
       unless hash_data.is_a?(Array)
         raise ViewModel::DeserializationError.new("Invalid hash data array for multiple association: '#{hash_data.inspect}'")
       end
 
-      ids = hash_data.map { |h| h["id"] }.compact
-      models_by_id = ids.blank? ? {} : association.klass.find_all!(ids).index_by(&:id)
+      model_cache = model.public_send(reflection.name).index_by(&:id)
+      missing_model_ids = hash_data.map { |h| viewmodel.update_id(h) }.reject { |id| id.nil? || model_cache.has_key?(id) }
+
+      if missing_model_ids.present?
+        viewmodel.table.includes(viewmodel.eager_includes).find_all!(missing_model_ids).each { |model| model_cache[model.id] = model }
+      end
 
       # if we're writing an ordered list, put the members in the target order.
       if viewmodel._list_member?
@@ -344,7 +345,7 @@ class ActiveRecordViewModel < ViewModel
       end
 
       assoc_views = hash_data.map do |hash|
-        viewmodel.deserialize_from_view(hash, model_cache: models_by_id, root_node: false)
+        viewmodel.deserialize_from_view(hash, model_cache: model_cache, root_node: false)
       end
 
       assoc_models = assoc_views.map(&:model)
@@ -469,14 +470,10 @@ class ActiveRecordViewModel < ViewModel
   def garbage_collect_belongs_to_association(reflection, old_target, new_target, is_new_record)
     return unless [:delete, :destroy].include?(reflection.options[:dependent])
 
-    existing_fkey = model.public_send(reflection.foreign_key)
-
     if old_target.try(&:id) != new_target.try(&:id)
       association = model.association(reflection.name)
 
       # we need to manually garbage collect the old associated record if present
-      # TODO: This violates foreign key constraints: we need to save up the
-      # scopes to garbage collect and destroy them after saving the record
       if old_target.present?
         garbage_scope = association.association_scope
         case reflection.options[:dependent]
@@ -515,8 +512,7 @@ class ActiveRecordViewModel < ViewModel
   ## Do we want to support defining any kind of constraints on associations?
 
   ## Eager loading
-  # - Correctly use eager loaded associations when present in `write_association`
-  # - Come up with a way to represent (and perform!) type conditional eager
+  # - Come up with a way to represent (and perform!) type-conditional eager
   #  loads for polymorphic associations
 
   ## Support for single table inheritance (if necessary)

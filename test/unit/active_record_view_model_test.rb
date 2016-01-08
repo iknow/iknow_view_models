@@ -75,7 +75,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       "children" => nil
     }
     assert_raises(ViewModel::DeserializationError) do
-      pv = ParentView.deserialize_from_view(view)
+      ParentView.deserialize_from_view(view)
     end
   end
 
@@ -84,7 +84,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       "target" => []
     }
     assert_raises(ViewModel::DeserializationError) do
-      pv = ParentView.deserialize_from_view(view)
+      ParentView.deserialize_from_view(view)
     end
   end
 
@@ -542,7 +542,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert(Target.where(id: t2).blank?)
   end
 
- def test_has_one_build_new_association
+  def test_has_one_build_new_association
     t = Target.new(text: "t1")
     p = Parent.new(name: "p1", target: t)
     p.save!
