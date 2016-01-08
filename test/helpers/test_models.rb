@@ -10,7 +10,7 @@ when :sqlite
   ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
 when :pg
   ActiveRecord::Base.establish_connection adapter: "postgresql", database: "candreae"
-  %w[labels parents children targets].each do |t|
+  %w[labels parents children targets poly_ones poly_twos].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
 end

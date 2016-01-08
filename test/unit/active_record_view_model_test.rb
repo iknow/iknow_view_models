@@ -419,9 +419,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     v1 = ParentView.new(p1).to_hash
     v2 = ParentView.new(p2).to_hash
 
+    # move l1 to p2
+    # l2 should be garbage collected
+    # p1 should now have no label
+
     v2["label"] = v1["label"]
 
     ParentView.deserialize_from_view(v2)
+
     p1.reload
     p2.reload
 

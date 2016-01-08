@@ -381,26 +381,34 @@ class ActiveRecordViewModel < ViewModel
       end
     else
       # single association
+      previous_assoc_model = model.public_send(reflection.name)
+
       if hash_data.nil?
-        new_record = false
+        is_new_record = false
         assoc_model = nil
       elsif hash_data.is_a?(Hash)
         viewmodel = viewmodel_for_association(association, viewmodel_spec)
+        is_new_record = !viewmodel.is_update_hash?(hash_data)
+        model_cache = nil
 
-        new_record = viewmodel.update_id(hash_data).nil?
-        # TODO: not taking advantage of the model possibly being preloaded
-        assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false)
-        assoc_model = assoc_view.model
+        # Might have already eager loaded the model if the target isn't being changed
+        if !is_new_record && previous_assoc_model.id == viewmodel.update_id(hash_data)
+          model_cache = { previous_assoc_model.id => previous_assoc_model }
+        end
+
+        assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false, model_cache: model_cache)
 
         if assoc_view.pending_post_save_hooks?
           register_post_save_hook { assoc_view.run_post_save_hooks }
         end
+
+        assoc_model = assoc_view.model
       else
         raise DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
       end
 
       if reflection.macro == :belongs_to
-        garbage_collect_belongs_to_association(reflection, assoc_model, new_record)
+        garbage_collect_belongs_to_association(reflection, previous_assoc_model, assoc_model, is_new_record)
       end
 
       association.replace(assoc_model)
@@ -461,22 +469,24 @@ class ActiveRecordViewModel < ViewModel
     hashes
   end
 
-  def garbage_collect_belongs_to_association(reflection, target, new_record)
+  def garbage_collect_belongs_to_association(reflection, old_target, new_target, is_new_record)
     return unless [:delete, :destroy].include?(reflection.options[:dependent])
 
     existing_fkey = model.public_send(reflection.foreign_key)
-    if existing_fkey != target.try(&:id)
+
+    if old_target.try(&:id) != new_target.try(&:id)
       association = model.association(reflection.name)
 
       # we need to manually garbage collect the old associated record if present
       # TODO: This violates foreign key constraints: we need to save up the
       # scopes to garbage collect and destroy them after saving the record
-      if existing_fkey.present?
+      if old_target.present?
+        garbage_scope = association.association_scope
         case reflection.options[:dependent]
         when :destroy
-          association.association_scope.destroy_all
+          register_post_save_hook { garbage_scope.destroy_all }
         when :delete
-          association.association_scope.delete_all
+          register_post_save_hook { garbage_scope.delete_all }
         end
       end
 
@@ -488,11 +498,12 @@ class ActiveRecordViewModel < ViewModel
       # index, and, doesn't play well with nullness or fkey constraints. This
       # ties into a bigger question: how do we support moving a child from one
       # parent to another, with each of the different association types?
-      if target.present? && !new_record
+      if new_target.present? && !is_new_record
         # We might not have an inverse specified: only update if present
         reflection.inverse_of.try do |inverse_reflection|
-          inverse_association = target.association(inverse_reflection.name)
-          inverse_association.association_scope.update_all(inverse_reflection.foreign_key => nil)
+          inverse_association = new_target.association(inverse_reflection.name)
+          clearing_scope = inverse_association.association_scope.where("id != ?", model.id)
+          register_post_save_hook { clearing_scope.update_all(inverse_reflection.foreign_key => nil) }
         end
       end
     end
@@ -508,7 +519,6 @@ class ActiveRecordViewModel < ViewModel
 
   ## Eager loading
   # - Correctly use eager loaded associations when present in `write_association`
-  # - Fix eager loading so it's recursive
   # - Come up with a way to represent (and perform!) type conditional eager
   #  loads for polymorphic associations
 
