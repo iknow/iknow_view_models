@@ -37,6 +37,7 @@ ActiveRecord::Schema.define do
   create_table :targets do |t|
     t.string :text
     t.references :parent, null: false, foreign_key: true
+    t.references :label, foreign_key: true
   end
 
   create_table :poly_ones do |t|
@@ -49,7 +50,8 @@ ActiveRecord::Schema.define do
 end
 
 class Label < ActiveRecord::Base
-  has_one :parent, inverse_of: :label
+  has_one :parent
+  has_one :target
 end
 
 class Child < ActiveRecord::Base
@@ -59,6 +61,7 @@ end
 
 class Target < ActiveRecord::Base
   belongs_to :parent, inverse_of: :target
+  belongs_to :label, dependent: :destroy
 end
 
 class PolyOne < ActiveRecord::Base
@@ -71,7 +74,7 @@ end
 
 class Parent < ActiveRecord::Base
   has_many   :children, dependent: :destroy, inverse_of: :parent
-  belongs_to :label,    dependent: :destroy, inverse_of: :parent
+  belongs_to :label,    dependent: :destroy
   has_one    :target,   dependent: :destroy, inverse_of: :parent
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 end
@@ -90,6 +93,7 @@ end
 class TargetView < ActiveRecordViewModel
   table :target
   attributes :text
+  association :label
 end
 
 class ParentView < ActiveRecordViewModel

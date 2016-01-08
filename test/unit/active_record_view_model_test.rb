@@ -23,10 +23,15 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                  { "id"       => parent.id,
                    "name"     => parent.name,
                    "label"    => { "id" => label.id, "text" => label.text },
-                   "target"   => { "id" => target.id, "text" => target.text },
+                   "target"   => { "id" => target.id, "text" => target.text, "label" => nil },
                    "poly_type" => parent.poly_type,
                    "poly"      => { "id" => poly.id, "number" => poly.number },
                    "children" => [{"id" => child.id, "name" => child.name, "position" => 1 }]})
+  end
+
+  def test_eager_includes
+    p = ParentView.eager_includes
+    assert_equal({:children=>{}, :label=>{}, :target=>{:label=>{}}, :poly=>nil}, p)
   end
 
   def test_create_from_view

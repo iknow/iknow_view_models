@@ -82,7 +82,7 @@ module ActiveRecordViewModel::Controller
   class_methods do
     def viewmodel(v = nil)
       if v.present?
-        raise ArgumentError.new("ViewModel for controller '#{self.name}' already set") if @viewmodel.present?
+        raise ArgumentError.new("ViewModel for controller '#{self.name}' already set") if instance_variable_defined?(:@viewmodel)
         if v.nil? || !(v < ActiveRecordViewModel)
           raise ArgumentError.new("Invalid ActiveRecordViewModel specified: '#{v.inspect}'")
         end

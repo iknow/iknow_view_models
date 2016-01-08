@@ -14,7 +14,7 @@ class ActiveRecordViewModel < ViewModel
 
     def table(table_name = nil)
       if table_name
-        raise ArgumentError.new("Table for ViewModel '#{self.name}' already set") if @table.present?
+        raise ArgumentError.new("Table for ViewModel '#{self.name}' already set") if instance_variable_defined?(:@table)
 
         t = table_name.to_s.camelize.safe_constantize
         if t.nil? || !(t < ActiveRecord::Base)
@@ -35,7 +35,7 @@ class ActiveRecordViewModel < ViewModel
 
     def initialize_members
       @_members = []
-      @_associations = []
+      @_associations = {}
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module
@@ -108,7 +108,7 @@ class ActiveRecordViewModel < ViewModel
       viewmodel_spec = viewmodel || viewmodels
 
       _members << target
-      _associations << target
+      _associations[target] = viewmodel_spec
 
       @generated_accessor_module.module_eval do
         define_method target do |**options|
@@ -160,15 +160,61 @@ class ActiveRecordViewModel < ViewModel
       hash_data["id"]
     end
 
-    # TODO: This should be recursive. To be recursive, need to have saved the
-    # `viewmodel_specs` for each association. For now, only loading one level.
-    # Still going to have issues with polymorphic viewmodels: how do you specify
-    # "when type A, go on to load these, but type B go on to load those?"
+    # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
+    # specify "when type A, go on to load these, but type B go on to load
+    # those?"
     def eager_includes(**options)
-      _associations.each_with_object({}) do |assoc_name, h|
+      _associations.each_with_object({}) do |(assoc_name, viewmodel_spec), h|
         reflection = reflection_for(assoc_name)
-        h[reflection.name] = nil
+
+        if reflection.polymorphic?
+          # The regular AR preloader doesn't support child includes that are
+          # conditional on type.  If we want to go through polymorphic includes,
+          # we'd need to manually specify the viewmodel spec so that the
+          # possible target classes are know, and also use our own preloader
+          # instead of AR.
+          children = nil
+        else
+          # if we have a known non-polymorphic association class, we can find
+          # child viewmodels and recurse.
+          viewmodel = viewmodel_for(reflection.klass, viewmodel_spec)
+          children = viewmodel.eager_includes(**options)
+        end
+
+        h[reflection.name] = children
       end
+    end
+
+    def viewmodel_for_association(association, override_spec)
+      klass = association.klass
+
+      if klass.nil?
+        raise DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
+      end
+
+      viewmodel_for(klass, override_spec)
+    end
+
+    def viewmodel_for(klass, override_spec)
+      case override_spec
+      when ActiveRecordViewModel
+        viewmodel = override_spec
+      when Hash
+        viewmodel = override_spec[klass.name]
+        if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
+          raise ArgumentError.new("ViewModel for associated class '#{klass.name}' not specified in manual association")
+        end
+      when nil
+        viewmodel_name = (klass.name + "View")
+        viewmodel = viewmodel_name.safe_constantize
+        if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
+          raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for associated class '#{klass.name}' not found")
+        end
+      else
+        raise ArgumentError("Invalid viewmodel specification: ")
+      end
+
+      viewmodel
     end
 
     private
@@ -182,12 +228,13 @@ class ActiveRecordViewModel < ViewModel
 
       reflection
     end
-
   end
 
+  delegate :table, :viewmodel_for, :viewmodel_for_association, to: :class
+
   def initialize(model)
-    unless model.is_a?(self.class.table)
-      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{self.class.table.name}")
+    unless model.is_a?(table)
+      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{table.name}")
     end
 
     super(model)
@@ -204,7 +251,7 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def deserialize_associated(association_name, hash_data)
-    self.class.table.transaction do
+    table.transaction do
       self.public_send(:"build_#{association_name}", hash_data)
       model.save!
       self.run_post_save_hooks
@@ -264,7 +311,7 @@ class ActiveRecordViewModel < ViewModel
     return nil if associated.nil?
 
     association = model.association(reflection.name)
-    viewmodel = viewmodel_for(association, viewmodel_spec)
+    viewmodel = viewmodel_for_association(association, viewmodel_spec)
     if reflection.collection?
       associated = associated.map { |x| viewmodel.new(x) }
       associated.sort_by!(&:_list_position) if viewmodel._list_member?
@@ -280,7 +327,7 @@ class ActiveRecordViewModel < ViewModel
     association = model.association(reflection.name)
 
     if reflection.collection?
-      viewmodel = viewmodel_for(association, viewmodel_spec)
+      viewmodel = viewmodel_for_association(association, viewmodel_spec)
 
       # preload any existing models: if they're referred to, we require them to
       # exist.
@@ -338,7 +385,7 @@ class ActiveRecordViewModel < ViewModel
         new_record = false
         assoc_model = nil
       elsif hash_data.is_a?(Hash)
-        viewmodel = viewmodel_for(association, viewmodel_spec)
+        viewmodel = viewmodel_for_association(association, viewmodel_spec)
 
         new_record = viewmodel.update_id(hash_data).nil?
         # TODO: not taking advantage of the model possibly being preloaded
@@ -379,7 +426,7 @@ class ActiveRecordViewModel < ViewModel
   def build_association(reflection, viewmodel_spec, hash_data)
     if reflection.collection?
       association = model.association(reflection.name)
-      viewmodel   = viewmodel_for(association, viewmodel_spec)
+      viewmodel   = viewmodel_for_association(association, viewmodel_spec)
       assoc_view  = viewmodel.deserialize_from_view(hash_data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
@@ -450,35 +497,6 @@ class ActiveRecordViewModel < ViewModel
       end
     end
   end
-
-  def viewmodel_for(association, override)
-    klass = association.klass
-
-    if klass.nil?
-      raise DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
-    end
-
-    case override
-    when ActiveRecordViewModel
-      viewmodel = override
-    when Hash
-      viewmodel = override[klass.name]
-      if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
-        raise ArgumentError.new("ViewModel for associated class '#{klass.name}' not specified in manual association")
-      end
-    when nil
-      viewmodel_name = (klass.name + "View")
-      viewmodel = viewmodel_name.safe_constantize
-      if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
-        raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for associated class '#{klass.name}' not found")
-      end
-    else
-      raise ArgumentError("Invalid viewmodel specification: ")
-    end
-
-    viewmodel
-  end
-
 
   ####### TODO LIST ########
 
