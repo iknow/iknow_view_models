@@ -296,15 +296,16 @@ class ActiveRecordViewModel < ViewModel
     model_class.transaction do
       case hash_data
       when Array
-        self.public_send(:"#{association_name}=", hash_data)
+        view = self.public_send(:"#{association_name}=", hash_data)
       when Hash
-        self.public_send(:"build_#{association_name}", hash_data)
+        view = self.public_send(:"build_#{association_name}", hash_data)
       else
         raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
       end
       model.save!
       self.run_post_save_hooks
     end
+    view
   end
 
   def delete_associated(association_name, associated)
@@ -433,6 +434,8 @@ class ActiveRecordViewModel < ViewModel
           SQL
         end
       end
+
+      assoc_views
     else
       # single association
       previous_assoc_model = model.public_send(reflection.name)
@@ -466,6 +469,7 @@ class ActiveRecordViewModel < ViewModel
       end
 
       association.replace(assoc_model)
+      assoc_view
     end
   end
 
@@ -483,6 +487,7 @@ class ActiveRecordViewModel < ViewModel
       if assoc_view.pending_post_save_hooks?
         register_post_save_hook { assoc_view.run_post_save_hooks }
       end
+      assoc_view
     else
       write_association(reflection, viewmodel_spec, hash_data)
     end
