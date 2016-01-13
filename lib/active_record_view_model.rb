@@ -119,6 +119,10 @@ class ActiveRecordViewModel < ViewModel
         define_method :"build_#{target}" do |data, **options|
           build_association(reflection, viewmodel_spec, data)
         end
+
+        define_method :"delete_#{target}" do |associated, **options|
+          delete_association(reflection, viewmodel_spec, associated)
+        end
       end
     end
 
@@ -179,6 +183,18 @@ class ActiveRecordViewModel < ViewModel
         end
 
         h[reflection.name] = children
+      end
+    end
+
+    def each_association
+      _associations.each do |assoc_name, viewmodel_spec|
+        reflection = reflection_for(assoc_name)
+        if reflection.polymorphic?
+          yield(assoc_name, nil)
+        else
+          vm = viewmodel_for(reflection.klass, viewmodel_spec)
+          yield(assoc_name, viewmodel)
+        end
       end
     end
 
@@ -247,19 +263,36 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
+  def destroy!
+    table.transaction do
+      model.destroy!
+    end
+  end
+
   def deserialize_associated(association_name, hash_data)
     table.transaction do
-      self.public_send(:"build_#{association_name}", hash_data)
+      case hash_data
+      when Array
+        self.public_send(:"#{association_name}=", hash_data)
+      when Hash
+        self.public_send(:"build_#{association_name}", hash_data)
+      else
+        raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
+      end
       model.save!
       self.run_post_save_hooks
     end
   end
 
-
-  def destroy!
-    model.destroy!
+  def delete_associated(association_name, associated)
+    table.transaction do
+      self.public_send(:"delete_#{association_name}", associated)
+      # Ensure the model is saved and hooks are run in case the implementor
+      # overrides `delete_x`
+      model.save!
+      self.run_post_save_hooks
+    end
   end
-
 
   # Update the model based on attributes in the hash. Internal implementation, private to
   # class and metaclass.
@@ -413,19 +446,6 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def register_post_save_hook(&block)
-    @post_save_hooks << block
-  end
-
-  protected def run_post_save_hooks
-    @post_save_hooks.each { |hook| hook.call }
-    @post_save_hooks = []
-  end
-
-  protected def pending_post_save_hooks?
-    @post_save_hooks.present?
-  end
-
   # Create or update a single member of an associated subtree. For a collection
   # association, this appends to the collection, otherwise it has the same
   # effect as `write_association`.
@@ -443,6 +463,32 @@ class ActiveRecordViewModel < ViewModel
     else
       write_association(reflection, viewmodel_spec, hash_data)
     end
+  end
+
+  # Removes the association between the models represented by this viewmodel and
+  # the provided associated viewmodel. The associated model will be
+  # garbage-collected if the assocation is specified with `dependent: :destroy`
+  # or `:delete_all`
+  def delete_association(reflection, viewmodel_spec, associated)
+    association = model.association(reflection.name)
+    if reflection.collection?
+      association.delete(associated.model)
+    else
+      write_association(reflection, viewmodel_spec, nil)
+    end
+  end
+
+  def register_post_save_hook(&block)
+    @post_save_hooks << block
+  end
+
+  protected def run_post_save_hooks
+    @post_save_hooks.each { |hook| hook.call }
+    @post_save_hooks = []
+  end
+
+  protected def pending_post_save_hooks?
+    @post_save_hooks.present?
   end
 
   def reorder_list_members(viewmodel, hashes)

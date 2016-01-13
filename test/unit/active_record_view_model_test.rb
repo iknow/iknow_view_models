@@ -658,4 +658,19 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(c1, p1c2)
   end
 
+  def test_delete_association
+    c1 = Child.new(name: "c1")
+    c2 = Child.new(name: "c2")
+    p1 = Parent.new(name: "p1", children: [c1, c2])
+    p1.save!
+
+    ParentView.new(p1).delete_associated("children", ChildView.new(c1))
+    p1.reload
+
+    assert_equal(1, p1.children.size)
+    assert_equal(c2, p1.children.first)
+    assert_equal(1, p1.children.first.position)
+
+    assert(Child.where(id: c1).blank?)
+  end
 end
