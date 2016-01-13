@@ -9,20 +9,16 @@ class ActiveRecordViewModel < ViewModel
   class << self
     attr_reader :_members, :_associations, :_list_attribute
 
-    def table(table_name = nil)
-      if table_name
-        raise ArgumentError.new("Table for ViewModel '#{self.name}' already set") if instance_variable_defined?(:@table)
-
-        t = table_name.to_s.camelize.safe_constantize
-        if t.nil? || !(t < ActiveRecord::Base)
-          raise ArgumentError.new("ActiveRecord model #{table_name} not found")
-        end
-        @table = t
+    def model_class
+      unless instance_variable_defined?(:@model_class)
+        # try to auto-detect the model class based on our name
+        match = /(.*)View$/.match(self.name)
+        raise ArgumentError.new("Could not auto-determine AR model name from ViewModel name '#{self.name}'") if match.nil?
+        self.model_class_name = match[1]
       end
 
-      @table
+      @model_class
     end
-
     def inherited(subclass)
       # copy ViewModel setup
       subclass._attributes = self._attributes
@@ -55,7 +51,7 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def all_attributes
-      attrs = table.attribute_names - table.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
+      attrs = model_class.attribute_names - model_class.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
       attrs.each { |attr| attribute(attr) }
     end
 
@@ -131,14 +127,14 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def deserialize_from_view(hash_data, model_cache: nil, root_node: true)
-      table.transaction do
+      model_class.transaction do
         if is_update_hash?(hash_data)
           # Update an existing model. If this model isn't the root of the tree
           # being modified, we need to first save the model to have any changes
           # applied before calling `replace` on the parent's association.
           id = update_id(hash_data)
           model = if model_cache.nil?
-                    table.includes(self.eager_includes).find(id)
+                    model_scope.find(id)
                   else
                     model_cache[id]
                   end
@@ -147,19 +143,12 @@ class ActiveRecordViewModel < ViewModel
           # Create a new model. If we're not the root of the tree we need to
           # refrain from saving, so that foreign keys to the parent can be
           # populated when the parent and association are saved.
-          model = table.new
+          model = model_class.new
           self.new(model)._update_from_view(hash_data, save: root_node)
         end
       end
     end
 
-    def is_update_hash?(hash_data)
-      hash_data.has_key?("id")
-    end
-
-    def update_id(hash_data)
-      hash_data["id"]
-    end
 
     # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
     # specify "when type A, go on to load these, but type B go on to load
@@ -186,18 +175,34 @@ class ActiveRecordViewModel < ViewModel
       end
     end
 
+    def model_scope(**options)
+      self.model_class.includes(self.eager_includes(**options))
+    end
+
+    # TODO: remove?
     def each_association
       _associations.each do |assoc_name, viewmodel_spec|
         reflection = reflection_for(assoc_name)
         if reflection.polymorphic?
           yield(assoc_name, nil)
         else
-          vm = viewmodel_for(reflection.klass, viewmodel_spec)
+          viewmodel = viewmodel_for(reflection.klass, viewmodel_spec)
           yield(assoc_name, viewmodel)
         end
       end
     end
 
+    # internal
+    def is_update_hash?(hash_data)
+      hash_data.has_key?("id")
+    end
+
+    # internal
+    def update_id(hash_data)
+      hash_data["id"]
+    end
+
+    # internal
     def viewmodel_for_association(association, override_spec)
       klass = association.klass
 
@@ -208,6 +213,7 @@ class ActiveRecordViewModel < ViewModel
       viewmodel_for(klass, override_spec)
     end
 
+    # internal
     def viewmodel_for(klass, override_spec)
       case override_spec
       when ActiveRecordViewModel
@@ -232,22 +238,39 @@ class ActiveRecordViewModel < ViewModel
 
     private
 
+    def model_class_name=(name)
+      type = name.to_s.camelize.safe_constantize
+      raise ArgumentError.new("Could not find model class '#{name}'") if type.nil?
+      self.model_class = type
+    end
+
+    def model_class=(type)
+      if instance_variable_defined?(:@model_class)
+        raise ArgumentError.new("Model class for ViewModel '#{self.name}' already set")
+      end
+
+      unless type < ActiveRecord::Base
+        raise ArgumentError.new("'#{type.inspect}' is not a valid ActiveRecord model class")
+      end
+      @model_class = type
+    end
+
     def reflection_for(association_name)
-      reflection = table.reflect_on_association(association_name)
+      reflection = model_class.reflect_on_association(association_name)
 
       if reflection.nil?
-        raise ArgumentError.new("Association #{association_name} not found in #{table.name} model")
+        raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
       end
 
       reflection
     end
   end
 
-  delegate :table, :viewmodel_for, :viewmodel_for_association, to: :class
+  delegate :model_class, :viewmodel_for, :viewmodel_for_association, to: :class
 
   def initialize(model)
-    unless model.is_a?(table)
-      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{table.name}")
+    unless model.is_a?(model_class)
+      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
     end
 
     super(model)
@@ -264,13 +287,13 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def destroy!
-    table.transaction do
+    model_class.transaction do
       model.destroy!
     end
   end
 
   def deserialize_associated(association_name, hash_data)
-    table.transaction do
+    model_class.transaction do
       case hash_data
       when Array
         self.public_send(:"#{association_name}=", hash_data)
@@ -285,7 +308,7 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def delete_associated(association_name, associated)
-    table.transaction do
+    model_class.transaction do
       self.public_send(:"delete_#{association_name}", associated)
       # Ensure the model is saved and hooks are run in case the implementor
       # overrides `delete_x`
@@ -369,7 +392,7 @@ class ActiveRecordViewModel < ViewModel
       missing_model_ids = hash_data.map { |h| viewmodel.update_id(h) }.reject { |id| id.nil? || model_cache.has_key?(id) }
 
       if missing_model_ids.present?
-        viewmodel.table.includes(viewmodel.eager_includes).find_all!(missing_model_ids).each { |model| model_cache[model.id] = model }
+        viewmodel.model_scope.find_all!(missing_model_ids).each { |model| model_cache[model.id] = model }
       end
 
       # if we're writing an ordered list, put the members in the target order.
@@ -405,7 +428,7 @@ class ActiveRecordViewModel < ViewModel
             update_cases << " WHEN #{model.id} THEN #{i + 1}"
           end
 
-          viewmodel.table.where(id: assoc_models).update_all(<<-SQL)
+          viewmodel.model_class.where(id: assoc_models).update_all(<<-SQL)
             #{viewmodel._list_attribute} = CASE id #{update_cases} END
           SQL
         end

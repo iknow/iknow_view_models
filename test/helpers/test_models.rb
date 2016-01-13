@@ -80,34 +80,29 @@ class Parent < ActiveRecord::Base
 end
 
 class LabelView < ActiveRecordViewModel
-  table :label
+  self.model_class_name = :label
   attributes :text
 end
 
 class ChildView < ActiveRecordViewModel
-  table :child
   attributes :name, :position
   acts_as_list :position
 end
 
 class TargetView < ActiveRecordViewModel
-  table :target
   attributes :text
   association :label
 end
 
 class ParentView < ActiveRecordViewModel
-  table :parent
   attributes :name, :poly_type
   associations :children, :label, :target, :poly
 end
 
 class PolyOneView < ActiveRecordViewModel
-  table :poly_one
   attributes :number
 end
 
 class PolyTwoView < ActiveRecordViewModel
-  table :poly_two
   attributes :text
 end
