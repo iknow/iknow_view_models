@@ -74,6 +74,16 @@ module ActiveRecordViewModel::Controller
       @viewmodel
     end
 
+    def association_controller(association_name)
+      vm = self.viewmodel
+      controller = Class.new(self.superclass) do
+        include ActiveRecordViewModel::AssociationController
+        self.target_viewmodel = vm
+        self.association_name = association_name
+      end
+      const_set(association_name.to_s.camelize + "Controller", controller)
+    end
+
     private
 
     def viewmodel_name=(name)
