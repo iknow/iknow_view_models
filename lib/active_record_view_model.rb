@@ -3,11 +3,17 @@ require "active_record"
 require "cerego_active_record_patches"
 
 class ActiveRecordViewModel < ViewModel
+  AssociationData = Struct.new(:reflection, :viewmodel_spec) do
+    delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
+  end
+
   # An AR ViewModel wraps a single AR model
   attribute :model
 
   class << self
     attr_reader :_members, :_associations, :_list_attribute
+
+    delegate :transaction, to: :model_class
 
     def model_class
       unless instance_variable_defined?(:@model_class)
@@ -19,6 +25,7 @@ class ActiveRecordViewModel < ViewModel
 
       @model_class
     end
+
     def inherited(subclass)
       # copy ViewModel setup
       subclass._attributes = self._attributes
@@ -95,35 +102,54 @@ class ActiveRecordViewModel < ViewModel
       _list_attribute.present?
     end
 
-    def association(target, viewmodel: nil, viewmodels: nil)
-      reflection = reflection_for(target)
+    def association(association_name, viewmodel: nil, viewmodels: nil)
+      reflection = reflection_for(association_name)
 
       viewmodel_spec = viewmodel || viewmodels
 
-      _members << target
-      _associations[target] = viewmodel_spec
+      _members << association_name
+      _associations[association_name] = AssociationData.new(reflection, viewmodel_spec)
 
       @generated_accessor_module.module_eval do
-        define_method target do |**options|
-          read_association(reflection, viewmodel_spec)
+        define_method association_name do |**options|
+          read_association(association_name)
         end
 
-        define_method  :"#{target}=" do |data, **options|
-          write_association(reflection, viewmodel_spec, data)
+        define_method  :"#{association_name}=" do |data, **options|
+          write_association(association_name, data)
         end
 
-        define_method :"build_#{target}" do |data, **options|
-          build_association(reflection, viewmodel_spec, data)
+        define_method :"build_#{association_name}" do |data, **options|
+          build_association(association_name, data)
         end
 
-        define_method :"delete_#{target}" do |associated, **options|
-          delete_association(reflection, viewmodel_spec, associated)
+        define_method :"delete_#{association_name}" do |associated, **options|
+          delete_association(association_name, associated)
         end
       end
     end
 
     def associations(*assocs)
       assocs.each { |assoc| association(assoc) }
+    end
+
+    def association_data(association_name)
+      association_data = self._associations[association_name]
+      raise ArgumentError.new("Invalid association") if association_data.nil?
+      association_data
+    end
+
+    ## Load an instance of the viewmodel by id
+    def find(id, scope: nil, eager_include: true, **options)
+      scope = model_scope(eager_include: eager_include, **options).merge(scope)
+      self.new(scope.find(id))
+    end
+
+    ## Load instances of the viewmodel by scope
+    ## TODO: is this too much of a encapsulation violation?
+    def load(scope: nil, eager_include: true, **options)
+      scope = model_scope(eager_include: eager_include, **options).merge(scope)
+      scope.map { |model| self.new(model) }
     end
 
     def deserialize_from_view(hash_data, model_cache: nil, root_node: true)
@@ -154,10 +180,8 @@ class ActiveRecordViewModel < ViewModel
     # specify "when type A, go on to load these, but type B go on to load
     # those?"
     def eager_includes(**options)
-      _associations.each_with_object({}) do |(assoc_name, viewmodel_spec), h|
-        reflection = reflection_for(assoc_name)
-
-        if reflection.polymorphic?
+      _associations.each_with_object({}) do |(assoc_name, association_data), h|
+        if association_data.polymorphic?
           # The regular AR preloader doesn't support child includes that are
           # conditional on type.  If we want to go through polymorphic includes,
           # we'd need to manually specify the viewmodel spec so that the
@@ -167,29 +191,20 @@ class ActiveRecordViewModel < ViewModel
         else
           # if we have a known non-polymorphic association class, we can find
           # child viewmodels and recurse.
-          viewmodel = viewmodel_for(reflection.klass, viewmodel_spec)
+          viewmodel = viewmodel_for(association_data.klass, association_data.viewmodel_spec)
           children = viewmodel.eager_includes(**options)
         end
 
-        h[reflection.name] = children
+        h[assoc_name] = children
       end
     end
 
-    def model_scope(**options)
-      self.model_class.includes(self.eager_includes(**options))
-    end
-
-    # TODO: remove?
-    def each_association
-      _associations.each do |assoc_name, viewmodel_spec|
-        reflection = reflection_for(assoc_name)
-        if reflection.polymorphic?
-          yield(assoc_name, nil)
-        else
-          viewmodel = viewmodel_for(reflection.klass, viewmodel_spec)
-          yield(assoc_name, viewmodel)
-        end
+    def model_scope(eager_include: true, **options)
+      scope = self.model_class.all
+      if eager_include
+        scope = scope.includes(self.eager_includes(**options))
       end
+      scope
     end
 
     # internal
@@ -202,16 +217,7 @@ class ActiveRecordViewModel < ViewModel
       hash_data["id"]
     end
 
-    # internal
-    def viewmodel_for_association(association, override_spec)
-      klass = association.klass
 
-      if klass.nil?
-        raise ViewModel::DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
-      end
-
-      viewmodel_for(klass, override_spec)
-    end
 
     # internal
     def viewmodel_for(klass, override_spec)
@@ -230,7 +236,7 @@ class ActiveRecordViewModel < ViewModel
           raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for associated class '#{klass.name}' not found")
         end
       else
-        raise ArgumentError("Invalid viewmodel specification: ")
+        raise ArgumentError.new("Invalid viewmodel specification: '#{override_spec}'")
       end
 
       viewmodel
@@ -266,7 +272,7 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  delegate :model_class, :viewmodel_for, :viewmodel_for_association, to: :class
+  delegate :model_class, to: :class
 
   def initialize(model)
     unless model.is_a?(model_class)
@@ -293,6 +299,7 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def deserialize_associated(association_name, hash_data)
+    view = nil
     model_class.transaction do
       case hash_data
       when Array
@@ -316,6 +323,12 @@ class ActiveRecordViewModel < ViewModel
       model.save!
       self.run_post_save_hooks
     end
+  end
+
+  def find_associated(association_name, id, eager_include: true, **options)
+    associated_viewmodel = viewmodel_for_association(association_name)
+    association_scope = self.model.association(association_name).association_scope
+    associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include)
   end
 
   # Update the model based on attributes in the hash. Internal implementation, private to
@@ -360,13 +373,13 @@ class ActiveRecordViewModel < ViewModel
 
   private
 
-  def read_association(reflection, viewmodel_spec)
-    associated = model.public_send(reflection.name)
+  def read_association(association_name)
+    associated = model.public_send(association_name)
     return nil if associated.nil?
 
-    association = model.association(reflection.name)
-    viewmodel = viewmodel_for_association(association, viewmodel_spec)
-    if reflection.collection?
+    association_data = self.class.association_data(association_name)
+    viewmodel = viewmodel_for_association(association_name)
+    if association_data.collection?
       associated = associated.map { |x| viewmodel.new(x) }
       associated.sort_by!(&:_list_position) if viewmodel._list_member?
       associated
@@ -377,11 +390,13 @@ class ActiveRecordViewModel < ViewModel
 
   # Create or update an entire associated subtree, replacing the current
   # contents if necessary.
-  def write_association(reflection, viewmodel_spec, hash_data)
-    association = model.association(reflection.name)
+  def write_association(association_name, hash_data)
+    association_data = self.class.association_data(association_name)
 
-    if reflection.collection?
-      viewmodel = viewmodel_for_association(association, viewmodel_spec)
+    association = model.association(association_name)
+
+    if association_data.collection?
+      viewmodel = viewmodel_for_association(association_name)
 
       # preload any existing models: if they're referred to, we require them to
       # exist.
@@ -389,7 +404,7 @@ class ActiveRecordViewModel < ViewModel
         raise ViewModel::DeserializationError.new("Invalid hash data array for multiple association: '#{hash_data.inspect}'")
       end
 
-      model_cache = model.public_send(reflection.name).index_by(&:id)
+      model_cache = model.public_send(association_name).index_by(&:id)
       missing_model_ids = hash_data.map { |h| viewmodel.update_id(h) }.reject { |id| id.nil? || model_cache.has_key?(id) }
 
       if missing_model_ids.present?
@@ -438,13 +453,13 @@ class ActiveRecordViewModel < ViewModel
       assoc_views
     else
       # single association
-      previous_assoc_model = model.public_send(reflection.name)
+      previous_assoc_model = model.public_send(association_name)
 
       if hash_data.nil?
         is_new_record = false
         assoc_model = nil
       elsif hash_data.is_a?(Hash)
-        viewmodel = viewmodel_for_association(association, viewmodel_spec)
+        viewmodel = viewmodel_for_association(association_name)
         is_new_record = !viewmodel.is_update_hash?(hash_data)
         model_cache = nil
 
@@ -464,8 +479,8 @@ class ActiveRecordViewModel < ViewModel
         raise ViewModel::DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
       end
 
-      if reflection.macro == :belongs_to
-        garbage_collect_belongs_to_association(reflection, previous_assoc_model, assoc_model, is_new_record)
+      if association_data.reflection.macro == :belongs_to
+        garbage_collect_belongs_to_association(association_data.reflection, previous_assoc_model, assoc_model, is_new_record)
       end
 
       association.replace(assoc_model)
@@ -476,10 +491,12 @@ class ActiveRecordViewModel < ViewModel
   # Create or update a single member of an associated subtree. For a collection
   # association, this appends to the collection, otherwise it has the same
   # effect as `write_association`.
-  def build_association(reflection, viewmodel_spec, hash_data)
-    if reflection.collection?
-      association = model.association(reflection.name)
-      viewmodel   = viewmodel_for_association(association, viewmodel_spec)
+  def build_association(association_name, hash_data)
+    association_data = self.class.association_data(association_name)
+
+    if association_data.collection?
+      association = model.association(association_name)
+      viewmodel   = viewmodel_for_association(association_name)
       assoc_view  = viewmodel.deserialize_from_view(hash_data, root_node: false)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
@@ -489,7 +506,7 @@ class ActiveRecordViewModel < ViewModel
       end
       assoc_view
     else
-      write_association(reflection, viewmodel_spec, hash_data)
+      write_association(association_name, hash_data)
     end
   end
 
@@ -497,12 +514,14 @@ class ActiveRecordViewModel < ViewModel
   # the provided associated viewmodel. The associated model will be
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
-  def delete_association(reflection, viewmodel_spec, associated)
-    association = model.association(reflection.name)
-    if reflection.collection?
+  def delete_association(association_name, associated)
+    association_data = self.class.association_data(association_name)
+
+    if association_data.collection?
+      association = model.association(association_name)
       association.delete(associated.model)
     else
-      write_association(reflection, viewmodel_spec, nil)
+      write_association(assocation_name, nil)
     end
   end
 
@@ -517,6 +536,19 @@ class ActiveRecordViewModel < ViewModel
 
   protected def pending_post_save_hooks?
     @post_save_hooks.present?
+  end
+
+  def viewmodel_for_association(association_name)
+    association_data = self.class.association_data(association_name)
+
+    association = model.association(association_name)
+    klass = association.klass
+
+    if klass.nil?
+      raise ViewModel::DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
+    end
+
+    self.class.viewmodel_for(klass, association_data.viewmodel_spec)
   end
 
   def reorder_list_members(viewmodel, hashes)

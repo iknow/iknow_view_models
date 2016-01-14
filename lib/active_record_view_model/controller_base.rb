@@ -1,17 +1,18 @@
 module ActiveRecordViewModel::ControllerBase
   extend ActiveSupport::Concern
 
-  included do
-    CeregoViewModels.renderable!(self)
-    delegate :viewmodel, to: self
-
-    rescue_from StandardError,                               with: :render_error
-    rescue_from ActiveRecord::RecordNotFound,                with: ->(ex){ render_error(ex, 404)}
-    rescue_from ActiveRecordViewModel::DeserializationError, with: ->(ex){ render_error(ex, 400)}
+  class RenderError < Exception
+    attr_accessor :code
+    def initialize(msg, code)
+      super(msg)
+      self.code = code
+    end
   end
 
-  def render_error(exception, status = 500)
-    render_viewmodel(ExceptionView.new(exception, status), status: status)
+  class BadRequest < RenderError
+    def initialize(msg)
+      super(msg, 400)
+    end
   end
 
   class ExceptionView < ViewModel
@@ -27,4 +28,19 @@ module ActiveRecordViewModel::ControllerBase
       end
     end
   end
+
+  included do
+    CeregoViewModels.renderable!(self)
+    delegate :viewmodel, to: self
+
+    rescue_from StandardError,                               with: :render_error
+    rescue_from RenderError,                                 with: ->(ex){ render_error(ex, ex.code) }
+    rescue_from ActiveRecord::RecordNotFound,                with: ->(ex){ render_error(ex, 404)}
+    rescue_from ActiveRecordViewModel::DeserializationError, with: ->(ex){ render_error(ex, 400)}
+  end
+
+  def render_error(exception, status = 500)
+    render_viewmodel(ExceptionView.new(exception, status), status: status)
+  end
+
 end

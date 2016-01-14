@@ -10,6 +10,30 @@ require_relative "../helpers/test_models.rb"
 
 class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
+  def test_find
+    child = Child.new(name: "c1")
+    parent = Parent.new(name: "p", children: [child])
+    parent.save!
+
+    parentview = ParentView.find(parent.id)
+    assert_equal(parent, parentview.model)
+
+    childview = parentview.find_associated(:children, child.id)
+    assert_equal(child, childview.model)
+  end
+
+  def test_load
+    p1 = Parent.create(name: "p1")
+    p2 = Parent.create(name: "p2")
+
+    parentviews = ParentView.load
+    assert_equal(2, parentviews.size)
+
+    h = ParentViews.index_by(&:id)
+    assert_equal(p1, h[p1.id].model)
+    assert_equal(p2, h[p2.id].model)
+  end
+
   def test_serialize_view
     child = Child.new(name: "c1")
     label = Label.new(text: "hello")

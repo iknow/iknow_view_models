@@ -5,19 +5,21 @@ module ActiveRecordViewModel::Controller
   include ActiveRecordViewModel::ControllerBase
 
   included do
-    delegate :viewmodel, to: self
+    delegate :viewmodel, to: :class
   end
 
-  def show(**view_options)
-    model = viewmodel.model_scope(**view_options).find(params[:id])
-    view = viewmodel.new(model)
-    render_viewmodel({ data: view }, **view_options)
+  def show(scope: nil, **view_options)
+    viewmodel.transaction do
+      view = viewmodel.find(params[:id], scope: scope, **view_options)
+      render_viewmodel({ data: view }, **view_options)
+    end
   end
 
   def index(scope: nil, **view_options)
-    models = viewmodel.model_scope(**view_options).merge(scope).to_a
-    views = models.map { |m| viewmodel.new(m) }
-    render_viewmodel({ data: views }, **view_options)
+    viewmodel.transaction do
+      views = viewmodel.load(scope: scope, **view_options)
+      render_viewmodel({ data: views }, **view_options)
+    end
   end
 
   def create(**view_options)
@@ -28,10 +30,12 @@ module ActiveRecordViewModel::Controller
     deserialize(params[:id], **view_options)
   end
 
-  def delete
-    model = viewmodel.model_scope(**view_options).find(params[:id])
-    view = viewmodel.new(model)
-    view.destroy!
+  def destroy
+    viewmodel.transaction do
+      view = viewmodel.find(params[:id], eager_load: false)
+      view.destroy!
+    end
+    render_viewmodel({ data: nil })
   end
 
   private
@@ -40,18 +44,23 @@ module ActiveRecordViewModel::Controller
     data = params[:data]
 
     unless data.is_a?(Hash)
-      raise DataServiceError.new(HTTP_BAD_REQUEST, "Empty or invalid data submitted")
+      raise BadRequest.new("Empty or invalid data submitted")
     end
 
     if requested_id.present?
-      raise "not an update" unless viewmodel.is_update_hash?(data)
-      raise "incorrect update" unless viewmodel.update_id(data) == requested_id
-    else
-      raise "not a create" if viewmodel.is_update_hash?
+      if !viewmodel.is_update_hash?(data)
+        raise BadRequest.new("Not an update action: provided data doesn't represent an existing object")
+      elsif viewmodel.update_id(data) != requested_id
+        raise BadRequest.new("Invalid update action: provided data represents a different object")
+      end
+    elsif viewmodel.is_update_hash?
+      raise BadRequest.new("Not a create action: provided data represents an existing object")
     end
 
-    view = viewmodel.deserialize_from_view(data)
-    render_viewmodel({ data: view }, **view_options)
+    viewmodel.transaction do
+      view = viewmodel.deserialize_from_view(data)
+      render_viewmodel({ data: view }, **view_options)
+    end
   end
 
   class_methods do
