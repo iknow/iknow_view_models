@@ -334,7 +334,7 @@ class ActiveRecordViewModel < ViewModel
   # Update the model based on attributes in the hash. Internal implementation, private to
   # class and metaclass.
   def _update_from_view(hash_data, save: true)
-    valid_members = self.class._members.map(&:to_s)
+    valid_members = self.class._members.map(&:to_s) + ["_list_position"]
 
     # check for bad data
     bad_keys = hash_data.keys.reject {|k| valid_members.include?(k) }
@@ -367,7 +367,14 @@ class ActiveRecordViewModel < ViewModel
 
   def _list_position=(value)
     raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
-    ###    model.define_singleton_method(:scope_condition){ "0" } if model.new_record?
+    # This setter is used when reassigning all positions in the list: because
+    # the whole list is being rewritten, we want to disable acts_as_list's
+    # ability to alter the order after each position change.
+
+    # We only need to do this if it's a new record (and what's more, if we do it
+    # to an existing record it will prevent a moved child from being removed
+    # from its old parent)
+    model.define_singleton_method(:scope_condition){ "1 = 0" } if model.new_record?
     model.public_send("#{self.class._list_attribute}=", value)
   end
 
@@ -426,27 +433,6 @@ class ActiveRecordViewModel < ViewModel
       assoc_views.each do |v|
         if v.pending_post_save_hooks?
           register_post_save_hook { v.run_post_save_hooks }
-        end
-      end
-
-      if assoc_views.present? && viewmodel._list_member?
-        # after save of the parent, force the updated models into their target positions.
-
-        # downside: this will get run every time, even if we're only adding new
-        # records (positions will be correct) or editing non-position fields
-        # (nothing changed). How can we identify if the positions in the models
-        # need to change, with the understanding that in the event of moving a
-        # member in from another list, acts_as_list could have clobbered other
-        # previously existing members of this list?
-        register_post_save_hook do
-          update_cases = ""
-          assoc_models.each_with_index do |model, i|
-            update_cases << " WHEN #{model.id} THEN #{i + 1}"
-          end
-
-          viewmodel.model_class.where(id: assoc_models).update_all(<<-SQL)
-            #{viewmodel._list_attribute} = CASE id #{update_cases} END
-          SQL
         end
       end
 
@@ -568,6 +554,11 @@ class ActiveRecordViewModel < ViewModel
           [0, pos]
         end
       end
+    end
+
+    hashes.each_with_index do |h, i|
+      # Use our internal setter that neuters the acts_as_list hook scope
+      h["_list_position"] = i + 1
     end
 
     hashes

@@ -23,13 +23,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_load
+    Parent.destroy_all
     p1 = Parent.create(name: "p1")
     p2 = Parent.create(name: "p2")
 
     parentviews = ParentView.load
     assert_equal(2, parentviews.size)
 
-    h = ParentViews.index_by(&:id)
+    h = parentviews.index_by(&:id)
     assert_equal(p1, h[p1.id].model)
     assert_equal(p2, h[p2.id].model)
   end
@@ -235,7 +236,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view["children"].each { |c| c.delete("position") }
     view["children"].reverse!
-    view["children"].unshift({ "name" => "c3" })
+    view["children"].insert(1, { "name" => "c3" })
 
     ParentView.deserialize_from_view(view)
 
@@ -243,10 +244,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(3, parent.children.size)
     tc1, tc2, tc3 = parent.children.order(:position)
 
-    assert_equal("c3", tc1.name)
+    assert_equal(child2, tc1)
     assert_equal(1, tc1.position)
 
-    assert_equal(child2, tc2)
+    assert_equal("c3", tc2.name)
     assert_equal(2, tc2.position)
 
     assert_equal(child1, tc3)
@@ -381,6 +382,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     assert_equal(3, old_parent.children.size)
     oc1, oc2, oc3 = old_parent.children.order(:position)
+
     assert_equal("c0", oc1.name)
     assert_equal(1, oc1.position)
     assert_equal("c1", oc2.name)
