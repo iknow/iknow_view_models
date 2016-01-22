@@ -3,8 +3,8 @@
 require 'jbuilder'
 
 class ViewModel
-  class DeserializationError < StandardError
-  end
+  class DeserializationError < StandardError; end
+  class SerializationError < StandardError; end
 
   class << self
     attr_accessor :_attributes
@@ -67,6 +67,7 @@ class ViewModel
       Jbuilder.new { |json| serialize(viewmodel, json, **options) }.attributes!
     end
 
+    # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
     def deserialize_from_view(hash_data, **options)
       raise DeserializationError.new("Deserialization not defined for '#{self.name}'")
     end
@@ -81,6 +82,7 @@ class ViewModel
   # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
   # overridden in subclasses to (for example) implement caching.
   def serialize(json, **options)
+    visible!(**options)
     serialize_view(json, **options)
   end
 
@@ -108,4 +110,25 @@ class ViewModel
   def preload_model(**options)
     ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes(**options)).run
   end
+
+  def visible?(**options)
+    true
+  end
+
+  def visible!(**options)
+    unless visible?(**options)
+      raise SerializationError.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
+    end
+  end
+
+  def editable?(**options)
+    visible?(**options)
+  end
+
+  def editable!(**options)
+    unless editable?(**options)
+      raise DeserializationError.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
+    end
+  end
+
 end

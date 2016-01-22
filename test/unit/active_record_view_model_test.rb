@@ -35,6 +35,54 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(p2, h[p2.id].model)
   end
 
+  def test_visibility
+    child = Child.new(name: "c1")
+    parent = Parent.new(name: "p", children: [child])
+    parent.save!
+
+    parentview = ParentView.new(parent)
+
+    assert_raises(ViewModel::SerializationError) do
+      parentview.to_hash(can_view: false)
+    end
+  end
+
+  def test_editability
+    assert_raises(ViewModel::DeserializationError) do
+      # create
+      ParentView.deserialize_from_view({ "name" => "p" }, can_edit: false)
+    end
+
+    p = Parent.create(name: "p", target: Target.new(text: "t"))
+
+
+    assert_raises(ViewModel::DeserializationError) do
+      # edit
+      v = ParentView.new(p).to_hash.merge("name" => "p2")
+      ParentView.deserialize_from_view(v, can_edit: false)
+    end
+
+    assert_raises(ViewModel::DeserializationError) do
+      # destroy
+      ParentView.new(p).destroy!(can_edit: false)
+    end
+
+    assert_raises(ViewModel::DeserializationError) do
+      # append child
+      ParentView.new(p).deserialize_associated(:children, {"text" => "hi"}, can_edit: false)
+    end
+
+    assert_raises(ViewModel::DeserializationError) do
+      # replace children
+      ParentView.new(p).deserialize_associated(:children, [{"text" => "hi"}], can_edit: false)
+    end
+
+    assert_raises(ViewModel::DeserializationError) do
+      # destroy child
+      ParentView.new(p).delete_associated(:target, TargetView.new(p.target), can_edit: false)
+    end
+  end
+
   def test_serialize_view
     child = Child.new(name: "c1")
     label = Label.new(text: "hello")

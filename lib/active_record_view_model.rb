@@ -152,7 +152,7 @@ class ActiveRecordViewModel < ViewModel
       scope.map { |model| self.new(model) }
     end
 
-    def deserialize_from_view(hash_data, model_cache: nil, root_node: true)
+    def deserialize_from_view(hash_data, model_cache: nil, root_node: true, **options)
       model_class.transaction do
         if is_update_hash?(hash_data)
           # Update an existing model. If this model isn't the root of the tree
@@ -164,13 +164,13 @@ class ActiveRecordViewModel < ViewModel
                   else
                     model_cache[id]
                   end
-          self.new(model)._update_from_view(hash_data, save: true)
+          self.new(model)._update_from_view(hash_data, save: true, **options)
         else
           # Create a new model. If we're not the root of the tree we need to
           # refrain from saving, so that foreign keys to the parent can be
           # populated when the parent and association are saved.
           model = model_class.new
-          self.new(model)._update_from_view(hash_data, save: root_node)
+          self.new(model)._update_from_view(hash_data, save: root_node, **options)
         end
       end
     end
@@ -216,8 +216,6 @@ class ActiveRecordViewModel < ViewModel
     def update_id(hash_data)
       hash_data["id"]
     end
-
-
 
     # internal
     def viewmodel_for(klass, override_spec)
@@ -292,20 +290,22 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def destroy!
+  def destroy!(**options)
     model_class.transaction do
+      editable!(**options)
       model.destroy!
     end
   end
 
-  def deserialize_associated(association_name, hash_data)
+  def deserialize_associated(association_name, hash_data, **options)
     view = nil
     model_class.transaction do
+      editable!(**options)
       case hash_data
       when Array
-        view = self.public_send(:"#{association_name}=", hash_data)
+        view = self.public_send(:"#{association_name}=", hash_data, **options)
       when Hash
-        view = self.public_send(:"build_#{association_name}", hash_data)
+        view = self.public_send(:"build_#{association_name}", hash_data, **options)
       else
         raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
       end
@@ -315,9 +315,10 @@ class ActiveRecordViewModel < ViewModel
     view
   end
 
-  def delete_associated(association_name, associated)
+  def delete_associated(association_name, associated, **options)
     model_class.transaction do
-      self.public_send(:"delete_#{association_name}", associated)
+      editable!(**options)
+      self.public_send(:"delete_#{association_name}", associated, **options)
       # Ensure the model is saved and hooks are run in case the implementor
       # overrides `delete_x`
       model.save!
@@ -325,15 +326,20 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
+  def load_associated(association_name, **options)
+    self.public_send(association_name, **options)
+  end
+
   def find_associated(association_name, id, eager_include: true, **options)
     associated_viewmodel = viewmodel_for_association(association_name)
     association_scope = self.model.association(association_name).association_scope
-    associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include)
+    associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include, **options)
   end
 
-  # Update the model based on attributes in the hash. Internal implementation, private to
-  # class and metaclass.
-  def _update_from_view(hash_data, save: true)
+  # Update the model based on attributes in the hash.
+  # Internal implementation, private to class and metaclass.
+  def _update_from_view(hash_data, save: true, **options)
+    editable!(**options)
     valid_members = self.class._members.map(&:to_s) + ["_list_position"]
 
     # check for bad data
@@ -348,7 +354,7 @@ class ActiveRecordViewModel < ViewModel
 
       if hash_data.has_key?(member)
         val = hash_data[member]
-        self.public_send("#{member}=", val)
+        self.public_send("#{member}=", val, **options)
       end
     end
 
@@ -360,12 +366,14 @@ class ActiveRecordViewModel < ViewModel
     self
   end
 
+  # internal
   def _list_position
     raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     model.public_send(self.class._list_attribute)
   end
 
-  def _list_position=(value)
+  # internal
+  def _list_position=(value, **options)
     raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
     # This setter is used when reassigning all positions in the list: because
     # the whole list is being rewritten, we want to disable acts_as_list's
@@ -376,6 +384,19 @@ class ActiveRecordViewModel < ViewModel
     # from its old parent)
     model.define_singleton_method(:scope_condition){ "1 = 0" } if model.new_record?
     model.public_send("#{self.class._list_attribute}=", value)
+  end
+
+  protected
+
+  # internal
+  def run_post_save_hooks
+    @post_save_hooks.each { |hook| hook.call }
+    @post_save_hooks = []
+  end
+
+  # internal
+  def pending_post_save_hooks?
+    @post_save_hooks.present?
   end
 
   private
@@ -513,15 +534,6 @@ class ActiveRecordViewModel < ViewModel
 
   def register_post_save_hook(&block)
     @post_save_hooks << block
-  end
-
-  protected def run_post_save_hooks
-    @post_save_hooks.each { |hook| hook.call }
-    @post_save_hooks = []
-  end
-
-  protected def pending_post_save_hooks?
-    @post_save_hooks.present?
   end
 
   def viewmodel_for_association(association_name)

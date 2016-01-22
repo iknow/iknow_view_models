@@ -79,6 +79,16 @@ class Parent < ActiveRecord::Base
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 end
 
+module TrivialAccessControl
+  def visible?(can_view: true)
+    can_view
+  end
+
+  def editable?(can_edit: true)
+    can_edit
+  end
+end
+
 class LabelView < ActiveRecordViewModel
   self.model_class_name = :label
   attributes :text
@@ -87,6 +97,8 @@ end
 class ChildView < ActiveRecordViewModel
   attributes :name, :position
   acts_as_list :position
+
+  include TrivialAccessControl
 end
 
 class TargetView < ActiveRecordViewModel
@@ -97,6 +109,8 @@ end
 class ParentView < ActiveRecordViewModel
   attributes :name, :poly_type
   associations :children, :label, :target, :poly
+
+  include TrivialAccessControl
 end
 
 class PolyOneView < ActiveRecordViewModel

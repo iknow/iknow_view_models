@@ -30,10 +30,10 @@ module ActiveRecordViewModel::Controller
     deserialize(params[:id], **view_options)
   end
 
-  def destroy
+  def destroy(**view_options)
     viewmodel.transaction do
-      view = viewmodel.find(params[:id], eager_load: false)
-      view.destroy!
+      view = viewmodel.find(params[:id], eager_load: false, **view_options)
+      view.destroy!(**view_options)
     end
     render_viewmodel({ data: nil })
   end
@@ -58,7 +58,7 @@ module ActiveRecordViewModel::Controller
     end
 
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(data)
+      view = viewmodel.deserialize_from_view(data, **view_options)
       render_viewmodel({ data: view }, **view_options)
     end
   end

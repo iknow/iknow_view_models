@@ -7,8 +7,8 @@ module ActiveRecordViewModel::AssociationController
   # List items associated with the target
   def index(**view_options)
     target_viewmodel.transaction do
-      target_view = target_viewmodel.find(viewmodel_id, eager_include: false)
-      associated_views = target_view.send(association_name)
+      target_view = target_viewmodel.find(viewmodel_id, eager_include: false, **view_options)
+      associated_views = target_view.load_associated(association_name, **view_options)
 
       render_viewmodel({ data: associated_views }, **view_options)
     end
@@ -17,9 +17,9 @@ module ActiveRecordViewModel::AssociationController
   # Deserialize items of the associated type and associate them with the target.
   # For a multiple association, can provide a single item to append to the
   # collection or an array of items to replace the collection.
-  def create
+  def create(**view_options)
     target_viewmodel.transaction do
-      target_view = target_viewmodel.find(viewmodel_id, eager_include: false)
+      target_view = target_viewmodel.find(viewmodel_id, eager_include: false, **view_options)
 
       data = params[:data]
 
@@ -35,12 +35,12 @@ module ActiveRecordViewModel::AssociationController
   # Remove the association between the target and the provided item, garbage
   # collecting the item if specified as `dependent:` by the association.
   # Can't work for polymorphic associations.
-  def destroy
+  def destroy(**view_options)
     target_view = target_viewmodel.find(viewmodel_id, eager_include: false)
 
     # Is this really appropriate? These should all be in a transaction.
     associated_view = target_view.find_associated(association_name, associated_id, eager_include: false)
-    target_view.delete_associated(association_name, associated_view)
+    target_view.delete_associated(association_name, associated_view, **view_options)
 
     render_viewmodel({ data: nil })
   end
