@@ -29,20 +29,6 @@ module ActiveRecordViewModel::NestedController
     end
   end
 
-  # Remove the association between the owner and the provided item, garbage
-  # collecting the item if specified as `dependent:` by the association.
-  # Can't work for polymorphic associations.
-  def destroy
-    owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false)
-
-      associated_view = owner_view.find_associated(association_name, associated_id, eager_include: false)
-      owner_view.delete_associated(association_name, associated_view, **view_options)
-
-      render_viewmodel({ data: nil })
-    end
-  end
-
   private
 
   def owner_viewmodel_id
