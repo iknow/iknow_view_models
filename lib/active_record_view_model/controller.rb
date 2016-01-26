@@ -65,7 +65,7 @@ module ActiveRecordViewModel::Controller
       elsif viewmodel.update_id(data) != requested_id
         raise BadRequest.new("Invalid update action: provided data represents a different object")
       end
-    elsif viewmodel.is_update_hash?
+    elsif viewmodel.is_update_hash?(data)
       raise BadRequest.new("Not a create action: provided data represents an existing object")
     end
 

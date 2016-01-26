@@ -25,7 +25,7 @@ module ActiveRecordViewModel::NestedController
       end
 
       assoc_view = owner_view.deserialize_associated(association_name, data)
-      render_viewmodel({ data: associated_views }, **view_options)
+      render_viewmodel({ data: assoc_view }, **view_options)
     end
   end
 
