@@ -16,7 +16,7 @@ module ActiveRecordViewModel::Controller
 
   def show(scope: nil)
     viewmodel.transaction do
-      view = viewmodel.find(params[:id], scope: scope, **view_options)
+      view = viewmodel.find(viewmodel_id, scope: scope, **view_options)
       render_viewmodel({ data: view }, **view_options)
     end
   end
@@ -33,12 +33,12 @@ module ActiveRecordViewModel::Controller
   end
 
   def update
-    deserialize(params[:id])
+    deserialize(viewmodel_id)
   end
 
   def destroy(**view_options)
     viewmodel.transaction do
-      view = viewmodel.find(params[:id], eager_load: false, **view_options)
+      view = viewmodel.find(viewmodel_id, eager_load: false, **view_options)
       view.destroy!(**view_options)
     end
     render_viewmodel({ data: nil })
@@ -52,21 +52,26 @@ module ActiveRecordViewModel::Controller
 
   private
 
+  def viewmodel_id
+    id_param = params[:id]
+    Integer(id_param)
+  end
+
   def deserialize(requested_id)
     data = params[:data]
 
     unless data.is_a?(Hash)
-      raise BadRequest.new("Empty or invalid data submitted")
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")
     end
 
     if requested_id.present?
       if !viewmodel.is_update_hash?(data)
-        raise BadRequest.new("Not an update action: provided data doesn't represent an existing object")
+        raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not an update action: provided data doesn't represent an existing object")
       elsif viewmodel.update_id(data) != requested_id
-        raise BadRequest.new("Invalid update action: provided data represents a different object")
+        raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid update action: provided data represents a different object")
       end
     elsif viewmodel.is_update_hash?(data)
-      raise BadRequest.new("Not a create action: provided data represents an existing object")
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not a create action: provided data represents an existing object")
     end
 
     viewmodel.transaction do
