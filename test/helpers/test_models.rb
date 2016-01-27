@@ -15,6 +15,11 @@ when :pg
   end
 end
 
+# Set up transactional tests
+class ActiveSupport::TestCase
+  include ActiveRecord::TestFixtures
+end
+
 ActiveRecord::Schema.define do
   self.verbose = false
   create_table :labels do |t|
