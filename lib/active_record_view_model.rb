@@ -285,7 +285,7 @@ class ActiveRecordViewModel < ViewModel
   def serialize_view(json, **options)
     self.class._members.each do |member_name|
       json.set! member_name do
-        self.class.serialize(self.public_send(member_name), json, **options)
+        self.class.serialize(self.public_send(member_name, **options), json, **options)
       end
     end
   end
