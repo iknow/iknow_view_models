@@ -116,15 +116,15 @@ class ActiveRecordViewModel < ViewModel
         end
 
         define_method  :"#{association_name}=" do |data, **options|
-          write_association(association_name, data)
+          write_association(association_name, data, **options)
         end
 
         define_method :"build_#{association_name}" do |data, **options|
-          build_association(association_name, data)
+          build_association(association_name, data, **options)
         end
 
         define_method :"delete_#{association_name}" do |associated, **options|
-          delete_association(association_name, associated)
+          delete_association(association_name, associated, **options)
         end
       end
     end
@@ -416,9 +416,9 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # Create or update an entire associated subtree, replacing the current
-  # contents if necessary.
-  def write_association(association_name, hash_data)
+  # Create or update an entire associated subtree from a serialized hash,
+  # replacing the current contents if necessary.
+  def write_association(association_name, hash_data, **options)
     association_data = self.class.association_data(association_name)
 
     association = model.association(association_name)
@@ -445,7 +445,7 @@ class ActiveRecordViewModel < ViewModel
       end
 
       assoc_views = hash_data.map do |hash|
-        viewmodel.deserialize_from_view(hash, model_cache: model_cache, root_node: false)
+        viewmodel.deserialize_from_view(hash, model_cache: model_cache, root_node: false, **options)
       end
 
       assoc_models = assoc_views.map(&:model)
@@ -471,11 +471,11 @@ class ActiveRecordViewModel < ViewModel
         model_cache = nil
 
         # Might have already eager loaded the model if the target isn't being changed
-        if !is_new_record && previous_assoc_model.id == viewmodel.update_id(hash_data)
+        if !is_new_record && previous_assoc_model.present? && previous_assoc_model.id == viewmodel.update_id(hash_data)
           model_cache = { previous_assoc_model.id => previous_assoc_model }
         end
 
-        assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false, model_cache: model_cache)
+        assoc_view = viewmodel.deserialize_from_view(hash_data, root_node: false, model_cache: model_cache, **options)
 
         if assoc_view.pending_post_save_hooks?
           register_post_save_hook { assoc_view.run_post_save_hooks }
@@ -498,13 +498,13 @@ class ActiveRecordViewModel < ViewModel
   # Create or update a single member of an associated subtree. For a collection
   # association, this appends to the collection, otherwise it has the same
   # effect as `write_association`.
-  def build_association(association_name, hash_data)
+  def build_association(association_name, hash_data, **options)
     association_data = self.class.association_data(association_name)
 
     if association_data.collection?
       association = model.association(association_name)
       viewmodel   = viewmodel_for_association(association_name)
-      assoc_view  = viewmodel.deserialize_from_view(hash_data, root_node: false)
+      assoc_view  = viewmodel.deserialize_from_view(hash_data, root_node: false, **options)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
 
@@ -513,7 +513,7 @@ class ActiveRecordViewModel < ViewModel
       end
       assoc_view
     else
-      write_association(association_name, hash_data)
+      write_association(association_name, hash_data, **options)
     end
   end
 
@@ -521,14 +521,14 @@ class ActiveRecordViewModel < ViewModel
   # the provided associated viewmodel. The associated model will be
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
-  def delete_association(association_name, associated)
+  def delete_association(association_name, associated, **options)
     association_data = self.class.association_data(association_name)
 
     if association_data.collection?
       association = model.association(association_name)
       association.delete(associated.model)
     else
-      write_association(assocation_name, nil)
+      write_association(assocation_name, nil, **options)
     end
   end
 
