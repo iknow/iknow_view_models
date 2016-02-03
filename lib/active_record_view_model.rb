@@ -47,11 +47,16 @@ class ActiveRecordViewModel < ViewModel
       _members << attr
 
       @generated_accessor_module.module_eval do
-        define_method attr do |**options|
+        define_method attr do
           model.public_send(attr)
         end
 
-        define_method "#{attr}=" do |value, **options|
+        define_method "serialize_#{attr}" do |json, **options|
+          value = self.public_send(attr)
+          self.class.serialize(value, json, **options)
+        end
+
+        define_method "deserialize_#{attr}" do |value, **options|
           model.public_send("#{attr}=", value)
         end
       end
@@ -62,13 +67,14 @@ class ActiveRecordViewModel < ViewModel
       attrs.each { |attr| attribute(attr) }
     end
 
-    # `acts_as_enum`s can be assigned as strings, but return the AR model. We
-    # want to serialize the string.
+    # `acts_as_enum`s can be assigned from strings, but the model attribute
+    # still returns the associated AR model. We want to serialize the string.
     def acts_as_enum(*attrs)
       attrs.each do |attr|
         @generated_accessor_module.module_eval do
-          redefine_method(attr) do |**options|
-            model.public_send(attr).enum_constant
+          redefine_method("serialize_#{attr}") do |json, **options|
+            value = self.public_send(attr)
+            self.class.serialize(value.enum_constant, json, **options)
           end
         end
       end
@@ -89,7 +95,7 @@ class ActiveRecordViewModel < ViewModel
           # viewmodel deserialization relies on being able to reset attributes to
           # their current value without effect, handle this case specially by only
           # invoking the setter on the model if the value is different.
-          redefine_method("#{attr}=") do |value, **options|
+          redefine_method("deserialize_#{attr}") do |value, **options|
             if value != model.public_send(attr)
               model.public_send("#{attr}=", value)
             end
@@ -111,16 +117,21 @@ class ActiveRecordViewModel < ViewModel
       _associations[association_name] = AssociationData.new(reflection, viewmodel_spec)
 
       @generated_accessor_module.module_eval do
-        define_method association_name do |**options|
+        define_method association_name do
           read_association(association_name)
         end
 
-        define_method  :"#{association_name}=" do |data, **options|
-          write_association(association_name, data, **options)
+        define_method "serialize_#{association_name}" do |json, **options|
+          associated = self.public_send(association_name)
+          self.class.serialize(associated, json, **options)
         end
 
-        define_method :"build_#{association_name}" do |data, **options|
-          build_association(association_name, data, **options)
+        define_method  :"deserialize_#{association_name}" do |hash_data, **options|
+          deserialize_association(association_name, hash_data, **options)
+        end
+
+        define_method :"append_#{association_name}" do |data, **options|
+          append_association(association_name, data, **options)
         end
 
         define_method :"delete_#{association_name}" do |associated, **options|
@@ -285,7 +296,7 @@ class ActiveRecordViewModel < ViewModel
   def serialize_view(json, **options)
     self.class._members.each do |member_name|
       json.set! member_name do
-        self.class.serialize(self.public_send(member_name, **options), json, **options)
+        self.public_send("serialize_#{member_name}", json, **options)
       end
     end
   end
@@ -303,9 +314,9 @@ class ActiveRecordViewModel < ViewModel
       editable!(**options)
       case hash_data
       when Array
-        view = self.public_send(:"#{association_name}=", hash_data, **options)
+        view = self.public_send(:"deserialize_#{association_name}", hash_data, **options)
       when Hash
-        view = self.public_send(:"build_#{association_name}", hash_data, **options)
+        view = self.public_send(:"append_#{association_name}", hash_data, **options)
       else
         raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
       end
@@ -354,7 +365,7 @@ class ActiveRecordViewModel < ViewModel
 
       if hash_data.has_key?(member)
         val = hash_data[member]
-        self.public_send("#{member}=", val, **options)
+        self.public_send("deserialize_#{member}", val, **options)
       end
     end
 
@@ -366,19 +377,15 @@ class ActiveRecordViewModel < ViewModel
     self
   end
 
-  # internal
-  def _list_position
+  # This special internal deserializer is used when deserializing an entire list
+  # collection. Because the whole list is being rewritten, we want to disable
+  # acts_as_list's ability to alter the order after each position change. If we
+  # don't do this, because new elements are only saved on their parent's save,
+  # acts_as_list will shift down all subsequent existing list members on each
+  # new record insertion, even though their positions have already been
+  # correctly updated.
+  def deserialize__list_position(value, **options)
     raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
-    model.public_send(self.class._list_attribute)
-  end
-
-  # internal
-  def _list_position=(value, **options)
-    raise ViewModel::DeserializationError.new("ViewModel does not represent a list member") unless self.class._list_member?
-    # This setter is used when reassigning all positions in the list: because
-    # the whole list is being rewritten, we want to disable acts_as_list's
-    # ability to alter the order after each position change.
-
     # We only need to do this if it's a new record (and what's more, if we do it
     # to an existing record it will prevent a moved child from being removed
     # from its old parent)
@@ -406,19 +413,21 @@ class ActiveRecordViewModel < ViewModel
     return nil if associated.nil?
 
     association_data = self.class.association_data(association_name)
-    viewmodel = viewmodel_for_association(association_name)
+    associated_viewmodel = viewmodel_for_association(association_name)
     if association_data.collection?
-      associated = associated.map { |x| viewmodel.new(x) }
-      associated.sort_by!(&:_list_position) if viewmodel._list_member?
+      associated = associated.map { |x| associated_viewmodel.new(x) }
+      if associated_viewmodel._list_member?
+        associated.sort_by! { |a| a.public_send(associated_viewmodel._list_attribute) }
+      end
       associated
     else
-      viewmodel.new(associated)
+      associated_viewmodel.new(associated)
     end
   end
 
   # Create or update an entire associated subtree from a serialized hash,
   # replacing the current contents if necessary.
-  def write_association(association_name, hash_data, **options)
+  def deserialize_association(association_name, hash_data, **options)
     association_data = self.class.association_data(association_name)
 
     association = model.association(association_name)
@@ -496,9 +505,9 @@ class ActiveRecordViewModel < ViewModel
   end
 
   # Create or update a single member of an associated subtree. For a collection
-  # association, this appends to the collection, otherwise it has the same
-  # effect as `write_association`.
-  def build_association(association_name, hash_data, **options)
+  # association, this deserializes and appends to the collection, otherwise it
+  # has the same effect as `deserialize_association`.
+  def append_association(association_name, hash_data, **options)
     association_data = self.class.association_data(association_name)
 
     if association_data.collection?
@@ -513,7 +522,7 @@ class ActiveRecordViewModel < ViewModel
       end
       assoc_view
     else
-      write_association(association_name, hash_data, **options)
+      deserialize_association(association_name, hash_data, **options)
     end
   end
 
@@ -528,7 +537,9 @@ class ActiveRecordViewModel < ViewModel
       association = model.association(association_name)
       association.delete(associated.model)
     else
-      write_association(assocation_name, nil, **options)
+      # Delete using `deserialize_association` of nil to ensure that belongs_to
+      # garbage collection is performed.
+      deserialize_association(assocation_name, nil, **options)
     end
   end
 
