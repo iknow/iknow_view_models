@@ -24,7 +24,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent1.save!
 
     @parent2 = Parent.new(name: "p2",
-                          children: [Child.new(name: "p2c1"), Child.new(name: "p2c2")])
+                          children: [Child.new(name: "p2c1"), Child.new(name: "p2c2")],
+                          label: Label.new(text: "p2l"))
     @parent2.save!
   end
 
@@ -296,9 +297,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_move_child_to_new
-    child = Child.new(name: "c2")
-    old_parent = Parent.new(name: "old_p", children: [Child.new(name: "c1"), child, Child.new(name: "c3")])
-    old_parent.save!
+    child = @parent1.children[1]
 
     child_view = ChildView.new(child).to_hash
 
@@ -307,65 +306,61 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     parent = pv.model
 
     # child should be removed from old parent and positions updated
-    old_parent.reload
-    assert_equal(2, old_parent.children.size)
-    oc1, oc2 = old_parent.children.order(:position)
-    assert_equal("c1", oc1.name)
+    @parent1.reload
+    assert_equal(2, @parent1.children.size)
+    oc1, oc2 = @parent1.children.order(:position)
+    assert_equal("p1c1", oc1.name)
     assert_equal(1, oc1.position)
-    assert_equal("c3", oc2.name)
+    assert_equal("p1c3", oc2.name)
     assert_equal(2, oc2.position)
 
     # child should be added to new parent with valid position
     assert_equal(2, parent.children.size)
     nc1, nc2 = parent.children.order(:position)
     assert_equal(child, nc1)
-    assert_equal("c2", nc1.name)
+    assert_equal("p1c2", nc1.name)
     assert_equal(1, nc1.position)
     assert_equal("new", nc2.name)
     assert_equal(2, nc2.position)
   end
 
   def test_move_child_to_existing
-    old_child = Child.new(name: "c2")
-    old_parent = Parent.new(name: "old_p", children: [Child.new(name: "c0"), Child.new(name: "c1"), old_child, Child.new(name: "c3")])
-    old_parent.save!
+    child = @parent1.children[1]
 
-    new_child = Child.new(name: "newc")
-    new_parent = Parent.new(name: "new_p", children: [new_child])
-    new_parent.save!
-
-    view = ParentView.new(new_parent).to_hash
-    view["children"] << ChildView.new(old_child).to_hash
+    view = ParentView.new(@parent2).to_hash
+    view["children"] << ChildView.new(child).to_hash
 
     ParentView.deserialize_from_view(view)
 
-    # child should be removed from old parent and positions updated
-    old_parent.reload
-    new_parent.reload
+    @parent1.reload
+    @parent2.reload
 
-    assert_equal(3, old_parent.children.size)
-    oc1, oc2, oc3 = old_parent.children.order(:position)
-    assert_equal("c0", oc1.name)
+    # child should be removed from old parent and positions updated
+    assert_equal(2, @parent1.children.size)
+    oc1, oc2 = @parent1.children.order(:position)
+    assert_equal("p1c1", oc1.name)
     assert_equal(1, oc1.position)
-    assert_equal("c1", oc2.name)
+    assert_equal("p1c3", oc2.name)
     assert_equal(2, oc2.position)
-    assert_equal("c3", oc3.name)
-    assert_equal(3, oc3.position)
 
     # child should be added to new parent with valid position
-    assert_equal(2, new_parent.children.size)
-    nc1, nc2 = new_parent.children.order(:position)
-    assert_equal("newc", nc1.name)
+    assert_equal(3, @parent2.children.size)
+    nc1, nc2, nc3 = @parent2.children.order(:position)
+
+    assert_equal("p2c1", nc1.name)
     assert_equal(1, nc1.position)
-    assert_equal(old_child, nc2)
-    assert_equal("c2", nc2.name)
+
+    assert_equal("p2c2", nc2.name)
     assert_equal(2, nc2.position)
+
+    assert_equal(child, nc3)
+    assert_equal("p1c2", nc3.name)
+    assert_equal(3, nc3.position)
   end
 
   def test_move_and_edit_child_to_new
-    child = Child.new(name: "c2")
-    old_parent = Parent.new(name: "old_p", children: [Child.new(name: "c1"), child, Child.new(name: "c3")])
-    old_parent.save!
+    child = @parent1.children[1]
+
 
     child_view = ChildView.new(child).to_hash
     child_view["name"] = "changed"
@@ -375,12 +370,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     parent = pv.model
 
     # child should be removed from old parent and positions updated
-    old_parent.reload
-    assert_equal(2, old_parent.children.size)
-    oc1, oc2 = old_parent.children.order(:position)
-    assert_equal("c1", oc1.name)
+    @parent1.reload
+    assert_equal(2, @parent1.children.size)
+    oc1, oc2 = @parent1.children.order(:position)
+    assert_equal("p1c1", oc1.name)
     assert_equal(1, oc1.position)
-    assert_equal("c3", oc2.name)
+    assert_equal("p1c3", oc2.name)
     assert_equal(2, oc2.position)
 
     # child should be added to new parent with valid position
@@ -394,43 +389,39 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_move_and_edit_child_to_existing
-    old_child = Child.new(name: "c2")
-    old_parent = Parent.new(name: "old_p", children: [Child.new(name: "c0"), Child.new(name: "c1"), old_child, Child.new(name: "c3")])
-    old_parent.save!
-
-    new_child = Child.new(name: "newc")
-    new_parent = Parent.new(name: "new_p", children: [new_child])
-    new_parent.save!
+    old_child = @parent1.children[1]
 
     old_child_view = ChildView.new(old_child).to_hash
     old_child_view["name"] = "changed"
-    view = ParentView.new(new_parent).to_hash
+    view = ParentView.new(@parent2).to_hash
     view["children"] << old_child_view
 
     ParentView.deserialize_from_view(view)
 
+    @parent1.reload
+    @parent2.reload
+
     # child should be removed from old parent and positions updated
-    old_parent.reload
-    new_parent.reload
+    assert_equal(2, @parent1.children.size)
+    oc1, oc2 = @parent1.children.order(:position)
 
-    assert_equal(3, old_parent.children.size)
-    oc1, oc2, oc3 = old_parent.children.order(:position)
-
-    assert_equal("c0", oc1.name)
+    assert_equal("p1c1", oc1.name)
     assert_equal(1, oc1.position)
-    assert_equal("c1", oc2.name)
+    assert_equal("p1c3", oc2.name)
     assert_equal(2, oc2.position)
-    assert_equal("c3", oc3.name)
-    assert_equal(3, oc3.position)
 
     # child should be added to new parent with valid position
-    assert_equal(2, new_parent.children.size)
-    nc1, nc2 = new_parent.children.order(:position)
-    assert_equal("newc", nc1.name)
+    assert_equal(3, @parent2.children.size)
+    nc1, nc2, nc3 = @parent2.children.order(:position)
+    assert_equal("p2c1", nc1.name)
     assert_equal(1, nc1.position)
-    assert_equal(old_child, nc2)
-    assert_equal("changed", nc2.name)
+
+    assert_equal("p2c1", nc1.name)
     assert_equal(2, nc2.position)
+
+    assert_equal(old_child, nc3)
+    assert_equal("changed", nc3.name)
+    assert_equal(3, nc3.position)
   end
 
   ### belongs_to
@@ -454,29 +445,39 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_belongs_to_create
-    p = Parent.create(name: "p")
+    @parent1.label = nil
+    @parent1.save!
+    @parent1.reload
 
-    view = ParentView.new(p).to_hash
+    view = ParentView.new(@parent1).to_hash
     view["label"] = { "text" => "cheese" }
 
     ParentView.deserialize_from_view(view)
-    p.reload
+    @parent1.reload
 
-    assert(p.label.present?)
-    assert_equal("cheese", p.label.text)
+    assert(@parent1.label.present?)
+    assert_equal("cheese", @parent1.label.text)
+  end
+
+  def test_belongs_to_replace
+    old_label = @parent1.label
+
+    view = ParentView.new(@parent1).to_hash
+    view["label"] = { "text" => "cheese" }
+
+    ParentView.deserialize_from_view(view)
+    @parent1.reload
+
+    assert(@parent1.label.present?)
+    assert_equal("cheese", @parent1.label.text)
+    assert(Label.where(id: old_label).blank?)
   end
 
   def test_belongs_to_move_and_replace
-    l1 = Label.new(text: "l1")
-    p1 = Parent.new(name: "p1", label: l1)
-    p1.save!
+    old_p2_label = @parent2.label
 
-    l2 = Label.new(text: "l2")
-    p2 = Parent.new(name: "p2", label: l2)
-    p2.save!
-
-    v1 = ParentView.new(p1).to_hash
-    v2 = ParentView.new(p2).to_hash
+    v1 = ParentView.new(@parent1).to_hash
+    v2 = ParentView.new(@parent2).to_hash
 
     # move l1 to p2
     # l2 should be garbage collected
@@ -486,62 +487,53 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     ParentView.deserialize_from_view(v2)
 
-    p1.reload
-    p2.reload
+    @parent1.reload
+    @parent2.reload
 
-    assert(p1.label.blank?)
-    assert(p2.label.present?)
-    assert_equal("l1", p2.label.text)
+    assert(@parent1.label.blank?)
+    assert(@parent2.label.present?)
+    assert_equal("p1l", @parent2.label.text)
+    assert(Label.where(id: old_p2_label).blank?)
   end
 
   def test_belongs_to_build_new_association
-    l = Label.new(text: "l1")
-    p = Parent.new(name: "p1", label: l)
-    p.save!
+    old_label = @parent1.label
 
-    ParentView.new(p).deserialize_associated(:label, { "text" => "l2" })
+    ParentView.new(@parent1).deserialize_associated(:label, { "text" => "l2" })
 
-    p.reload
+    @parent1.reload
 
-    assert(Label.where(id: l.id).blank?)
-    assert_equal("l2", p.label.text)
+    assert(Label.where(id: old_label.id).blank?)
+    assert_equal("l2", @parent1.label.text)
   end
 
   def test_belongs_to_update_existing_association
-    l = Label.new(text: "l1")
-    p = Parent.new(name: "p1", label: l)
-    p.save!
+    label = @parent1.label
+    lv = LabelView.new(label).to_hash
+    lv["text"] = "renamed"
 
-    lv = LabelView.new(l).to_hash
-    lv["text"] = "l2"
+    ParentView.new(@parent1).deserialize_associated(:label, lv)
 
-    ParentView.new(p).deserialize_associated(:label, lv)
+    @parent1.reload
 
-    p.reload
-
-    assert_equal(l, p.label)
-    assert_equal("l2", p.label.text)
+    assert_equal(label, @parent1.label)
+    assert_equal("renamed", @parent1.label.text)
   end
 
   def test_belongs_to_move_existing_association
-    l1 = Label.new(text: "l1")
-    p1 = Parent.new(name: "p1", label: l1)
-    p1.save!
+    old_p1_label = @parent1.label
+    old_p2_label = @parent2.label
 
-    l2 = Label.new(text: "l2")
-    p2 = Parent.new(name: "p2", label: l2)
-    p2.save!
+    ParentView.new(@parent2).deserialize_associated("label", { "id" => old_p1_label.id })
 
-    ParentView.new(p2).deserialize_associated("label", { "id" => l1.id })
+    @parent1.reload
+    @parent2.reload
 
-    p1.reload
-    p2.reload
+    assert(@parent1.label.blank?)
+    assert(Label.where(id: old_p2_label.id).blank?)
 
-    assert(p1.label.blank?)
-    assert(Label.where(id: l2.id).blank?)
-
-    assert_equal(l1, p2.label)
-    assert_equal("l1", p2.label.text)
+    assert_equal(old_p1_label, @parent2.label)
+    assert_equal("p1l", @parent2.label.text)
   end
 
   ### has_one
@@ -568,87 +560,75 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p = Parent.create(name: "p")
 
     view = ParentView.new(p).to_hash
-    view["target"] = { }
+    view["target"] = { "text" => "t" }
 
     ParentView.deserialize_from_view(view)
     p.reload
 
     assert(p.target.present?)
+    assert_equal("t", p.target.text)
   end
 
   def test_has_one_move_and_replace
-    t1 = Target.new(text: "t1")
-    p1 = Parent.new(name: "p1", target: t1)
-    p1.save!
+    @parent2.create_target(text: "p2t")
 
-    t2 = Target.new(text: "t2")
-    p2 = Parent.new(name: "p2", target: t2)
-    p2.save!
+    t1 = @parent1.target
+    t2 = @parent2.target
 
-    v1 = ParentView.new(p1).to_hash
-    v2 = ParentView.new(p2).to_hash
+    v1 = ParentView.new(@parent1).to_hash
+    v2 = ParentView.new(@parent2).to_hash
 
     v2["target"] = v1["target"]
 
     ParentView.deserialize_from_view(v2)
-    p1.reload
-    p2.reload
+    @parent1.reload
+    @parent2.reload
 
-    assert(p1.target.blank?)
-    assert(p2.target.present?)
-    assert_equal(t1.text, p2.target.text)
+    assert(@parent1.target.blank?)
+    assert(@parent2.target.present?)
+    assert_equal(t1.text, @parent2.target.text)
 
     assert(Target.where(id: t2).blank?)
   end
 
   def test_has_one_build_new_association
-    t = Target.new(text: "t1")
-    p = Parent.new(name: "p1", target: t)
-    p.save!
+    old_target = @parent1.target
+    ParentView.new(@parent1).deserialize_associated(:target, { "text" => "new" })
 
-    ParentView.new(p).deserialize_associated(:target, { "text" => "t2" })
+    @parent1.reload
 
-    p.reload
-
-    assert(Target.where(id: t.id).blank?)
-    assert_equal("t2", p.target.text)
+    assert(Target.where(id: old_target.id).blank?)
+    assert_equal("new", @parent1.target.text)
   end
 
   def test_has_one_update_existing_association
-    t = Target.new(text: "t1")
-    p = Parent.new(name: "p1", target: t)
-    p.save!
-
+    t = @parent1.target
     tv = TargetView.new(t).to_hash
-    tv["text"] = "t2"
+    tv["text"] = "renamed"
 
-    ParentView.new(p).deserialize_associated(:target, tv)
+    ParentView.new(@parent1).deserialize_associated(:target, tv)
 
-    p.reload
+    @parent1.reload
 
-    assert_equal(t, p.target)
-    assert_equal("t2", p.target.text)
+    assert_equal(t, @parent1.target)
+    assert_equal("renamed", @parent1.target.text)
   end
 
   def test_has_one_move_existing_association
-    t1 = Target.new(text: "t1")
-    p1 = Parent.new(name: "p1", target: t1)
-    p1.save!
+    @parent2.create_target(text: "p2t")
+    t1 = @parent1.target
+    t2 = @parent2.target
 
-    t2 = Target.new(text: "t2")
-    p2 = Parent.new(name: "p2", target: t2)
-    p2.save!
+    ParentView.new(@parent2).deserialize_associated("target", { "id" => t1.id })
 
-    ParentView.new(p2).deserialize_associated("target", { "id" => t1.id })
+    @parent1.reload
+    @parent2.reload
 
-    p1.reload
-    p2.reload
-
-    assert(p1.target.blank?)
+    assert(@parent1.target.blank?)
     assert(Target.where(id: t2.id).blank?)
 
-    assert_equal(t1, p2.target)
-    assert_equal("t1", p2.target.text)
+    assert_equal(t1, @parent2.target)
+    assert_equal("p1t", @parent2.target.text)
   end
 
 
@@ -663,73 +643,61 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   # test building extra child in association
   def test_has_many_build_new_association
-    child = Child.new(name: "c1")
-    parent = Parent.new(name: "p", children: [child])
-    parent.save!
+    ParentView.new(@parent1).deserialize_associated(:children, { "name" => "new" })
 
-    ParentView.new(parent).deserialize_associated(:children, { "name" => "c2" })
+    @parent1.reload
 
-    parent.reload
-
-    assert_equal(2, parent.children.size)
-    c1, c2 = parent.children.order(:position)
-    assert_equal(child, c1)
-    assert_equal("c2", c2.name)
+    assert_equal(4, @parent1.children.size)
+    lc = @parent1.children.order(:position).last
+    assert_equal("new", lc.name)
   end
 
   def test_has_many_update_existing_association
-    child = Child.new(name: "c1")
-    parent = Parent.new(name: "p", children: [child])
-    parent.save!
+   child = @parent1.children[1]
 
     cv = ChildView.new(child).to_hash
-    cv["name"] = "c2"
+    cv["name"] = "newname"
 
-    ParentView.new(parent).deserialize_associated(:children, cv)
+    ParentView.new(@parent1).deserialize_associated(:children, cv)
 
-    parent.reload
+    @parent1.reload
 
-    assert_equal(1, parent.children.size)
-    assert_equal(child, parent.children.first)
-    assert_equal("c2", parent.children.first.name)
+    assert_equal(3, @parent1.children.size)
+    c1, c2, c3 = @parent1.children.order(:position)
+    assert_equal("p1c1", c1.name)
+
+    assert_equal(child, c2)
+    assert_equal("newname", c2.name)
+
+    assert_equal("p1c3", c3.name)
   end
 
   def test_has_many_move_existing_association
-    c1 = Child.new(name: "c1")
-    p1 = Parent.new(name: "p1", children: [c1])
-    p1.save!
+    p1c2 = @parent1.children[1]
 
-    c2 = Child.new(name: "c2")
-    p2 = Parent.new(name: "p2", children: [c2])
-    p2.save!
+    ParentView.new(@parent2).deserialize_associated("children", { "id" => p1c2.id })
 
+    @parent1.reload
+    @parent2.reload
 
-    ParentView.new(p2).deserialize_associated("children", { "id" => c1.id })
+    assert_equal(2, @parent1.children.size)
+    assert_equal(["p1c1", "p1c3"], @parent1.children.map(&:name))
 
-    p1.reload
-    p2.reload
-
-    assert_equal(0, p1.children.size)
-
-    assert_equal(2, p2.children.size)
-    p1c1, p1c2 = p2.children.order(:position)
-    assert_equal(c2, p1c1)
-    assert_equal(c1, p1c2)
+    assert_equal(3, @parent2.children.size)
+    assert_equal(["p2c1", "p2c2", "p1c2"], @parent2.children.map(&:name))
+    assert_equal(p1c2, @parent2.children[2])
   end
 
   def test_delete_association
-    c1 = Child.new(name: "c1")
-    c2 = Child.new(name: "c2")
-    p1 = Parent.new(name: "p1", children: [c1, c2])
-    p1.save!
+    p1c2 = @parent1.children[1]
 
-    ParentView.new(p1).delete_associated("children", ChildView.new(c1))
-    p1.reload
+    ParentView.new(@parent1).delete_associated("children", ChildView.new(p1c2))
+    @parent1.reload
 
-    assert_equal(1, p1.children.size)
-    assert_equal(c2, p1.children.first)
-    assert_equal(1, p1.children.first.position)
+    assert_equal(2, @parent1.children.size)
+    assert_equal(["p1c1", "p1c3"], @parent1.children.map(&:name))
+    assert_equal([1, 2], @parent1.children.map(&:position))
 
-    assert(Child.where(id: c1).blank?)
+    assert(Child.where(id: p1c2).blank?)
   end
 end
