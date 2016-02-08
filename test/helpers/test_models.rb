@@ -10,7 +10,7 @@ when :sqlite
   ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
 when :pg
   ActiveRecord::Base.establish_connection adapter: "postgresql", database: "candreae"
-  %w[labels parents children targets poly_ones poly_twos].each do |t|
+  %w[labels parents children targets poly_ones poly_twos owners].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
 end
@@ -32,6 +32,13 @@ ActiveRecord::Schema.define do
     t.string :poly_type
     t.integer :poly_id
   end
+
+  create_table :owners do |t|
+    t.integer :deleted_id
+    t.integer :ignored_id
+  end
+  add_foreign_key :owners, :labels, column: :deleted_id
+  add_foreign_key :owners, :labels, column: :ignored_id
 
   create_table :children do |t|
     t.references :parent, null: false, foreign_key: true
@@ -84,6 +91,11 @@ class Parent < ActiveRecord::Base
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 end
 
+class Owner < ActiveRecord::Base
+  belongs_to :deleted, class_name: Label.name, dependent: :delete
+  belongs_to :ignored, class_name: Label.name
+end
+
 module TrivialAccessControl
   def visible?(can_view: true)
     can_view
@@ -124,4 +136,8 @@ end
 
 class PolyTwoView < ActiveRecordViewModel
   attributes :text
+end
+
+class OwnerView < ActiveRecordViewModel
+  associations :deleted, :ignored
 end

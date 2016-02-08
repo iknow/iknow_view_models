@@ -288,14 +288,6 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(4, tc4.position)
   end
 
-  def test_build_explicit_position
-    skip
-  end
-
-  def test_build_implicit_position
-    skip
-  end
-
   def test_move_child_to_new
     child = @parent1.children[1]
 
@@ -536,6 +528,37 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("p1l", @parent2.label.text)
   end
 
+  # test belongs_to garbage collection - dependent: delete_all
+  def test_gc_dependent_delete_all
+    o = Owner.create(deleted: Label.new(text: "one"))
+    l = o.deleted
+
+    ov = OwnerView.new(o).to_hash
+    ov["deleted"] = { "text" => "two" }
+    OwnerView.deserialize_from_view(ov)
+
+    o.reload
+
+    assert_equal("two", o.deleted.text)
+    assert(l != o.deleted)
+    assert(Label.where(id: l.id).blank?)
+  end
+
+  def test_no_gc_dependent_ignore
+    o = Owner.create(ignored: Label.new(text: "one"))
+    l = o.ignored
+
+    ov = OwnerView.new(o).to_hash
+    ov["ignored"] = { "text" => "two" }
+    OwnerView.deserialize_from_view(ov)
+
+    o.reload
+
+    assert_equal("two", o.ignored.text)
+    assert(l != o.ignored)
+    assert_equal(1, Label.where(id: l.id).count)
+  end
+
   ### has_one
 
   def test_has_one_nil_association
@@ -631,16 +654,6 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("p1t", @parent2.target.text)
   end
 
-
-  # test other dependent: delete_all
-  def test_dependent_delete_all
-    skip
-  end
-
-  def test_dependent_ignore
-    skip
-  end
-
   # test building extra child in association
   def test_has_many_build_new_association
     ParentView.new(@parent1).deserialize_associated(:children, { "name" => "new" })
@@ -650,6 +663,18 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(4, @parent1.children.size)
     lc = @parent1.children.order(:position).last
     assert_equal("new", lc.name)
+  end
+
+  def test_has_many_build_new_association_with_explicit_position
+    ParentView.new(@parent2).deserialize_associated(:children, { "name" => "new", "position" => 2 })
+
+    @parent2.reload
+
+    children = @parent2.children.order(:position)
+
+    assert_equal(3, children.size)
+    assert_equal(["p2c1", "new",  "p2c2"], children.map(&:name))
+    assert_equal([1, 2, 3], children.map(&:position))
   end
 
   def test_has_many_update_existing_association
