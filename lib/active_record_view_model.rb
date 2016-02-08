@@ -337,8 +337,8 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def load_associated(association_name, **options)
-    self.public_send(association_name, **options)
+  def load_associated(association_name)
+    self.public_send(association_name)
   end
 
   def find_associated(association_name, id, eager_include: true, **options)

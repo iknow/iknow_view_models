@@ -5,7 +5,7 @@ module ActiveRecordViewModel::NestedController
   def index
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, **view_options)
-      associated_views = owner_view.load_associated(association_name, **view_options)
+      associated_views = owner_view.load_associated(association_name)
 
       render_viewmodel({ data: associated_views }, **view_options)
     end
