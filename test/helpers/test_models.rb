@@ -141,3 +141,74 @@ end
 class OwnerView < ActiveRecordViewModel
   associations :deleted, :ignored
 end
+
+
+## Dummy Rails Controllers
+class DummyController
+  attr_reader :params, :json_response, :status
+
+  def initialize(**params)
+    @params = params.with_indifferent_access
+    @status = 200
+  end
+
+  def invoke(method)
+    begin
+      self.public_send(method)
+    rescue Exception => ex
+      handler = self.class.rescue_block(ex.class)
+      case handler
+      when nil
+        raise
+      when Symbol
+        self.send(handler, ex)
+      when Proc
+        self.instance_exec(ex, &handler)
+      end
+    end
+  end
+
+  def render(json:, status:)
+    @json_response = json
+    @status = status unless status.nil?
+  end
+
+  def hash_response
+    JSON.parse(json_response)
+  end
+
+  class << self
+    def rescue_from(type, with:)
+      @rescue_blocks ||= {}
+      @rescue_blocks[type] = with
+    end
+
+    def rescue_block(type)
+      @rescue_blocks.try { |bs| bs.to_a.reverse.detect { |btype, h| type <= btype }.last }
+    end
+  end
+end
+
+# Provide dummy Rails env
+class Rails
+  def self.env
+    'production'
+  end
+end
+
+class ParentController < DummyController
+  include ActiveRecordViewModel::Controller
+
+  def initialize(**args)
+    super
+  end
+end
+
+class ChildController < DummyController
+  include ActiveRecordViewModel::Controller
+  nested_in :parent, as: :children
+
+  def initialize(**args)
+    super
+  end
+end
