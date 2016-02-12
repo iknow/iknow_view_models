@@ -149,22 +149,13 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
   end
 
-  def test_nested_create_replace
+  def test_nested_create_bad_data
     data = [{ "name" => "nc" }]
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
     childcontroller.invoke(:create)
 
-    @parent.reload
-
-    assert_equal(1, @parent.children.count)
-    c = @parent.children.first
-    assert_equal("nc", c.name)
-
-    assert_equal(200, childcontroller.status)
-    assert_equal(childcontroller.hash_response,
-                 { "data" => [ChildView.new(c).to_hash] })
-
+    assert_equal(400, childcontroller.status)
   end
 
 end
