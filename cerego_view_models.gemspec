@@ -20,6 +20,7 @@ Gem::Specification.new do |spec|
 
   spec.add_dependency "activerecord"
   spec.add_dependency "activesupport"
+  spec.add_dependency "iknow_params"
   spec.add_dependency "cerego_active_record_patches"
   spec.add_dependency "acts_as_list"
 
