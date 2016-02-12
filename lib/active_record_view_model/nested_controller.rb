@@ -11,18 +11,14 @@ module ActiveRecordViewModel::NestedController
     end
   end
 
-  # Deserialize items of the associated type and associate them with the owner.
-  # For a multiple association, can provide a single item to append to the
-  # collection or an array of items to replace the collection.
+  # Deserialize an item of the associated type and associate it with the owner.
+  # For a collection association, this appends to the collection.
   def create
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, **view_options)
 
       data = params[:data]
-
-      unless data.present? && (data.is_a?(Hash) || data.is_a?(Array))
-        raise BadRequest.new("Empty or invalid data submitted")
-      end
+      raise BadRequest.new("Empty or invalid data submitted") unless data.present?
 
       assoc_view = owner_view.deserialize_associated(association_name, data)
       render_viewmodel({ data: assoc_view }, **view_options)

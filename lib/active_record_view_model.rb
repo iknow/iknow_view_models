@@ -313,8 +313,6 @@ class ActiveRecordViewModel < ViewModel
     model_class.transaction do
       editable!(**options)
       case hash_data
-      when Array
-        view = self.public_send(:"deserialize_#{association_name}", hash_data, **options)
       when Hash
         view = self.public_send(:"append_#{association_name}", hash_data, **options)
       else
