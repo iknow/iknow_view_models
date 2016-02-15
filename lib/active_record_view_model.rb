@@ -165,7 +165,12 @@ class ActiveRecordViewModel < ViewModel
                   else
                     model_cache[id]
                   end
-          self.new(model)._update_from_view(hash_data, save: true, **options)
+          viewmodel = self.new(model)
+          if hash_data.size > 1
+            # includes data to recursively deserialize
+            viewmodel._update_from_view(hash_data, save: true, **options)
+          end
+          viewmodel
         else
           # Create a new model. If we're not the root of the tree we need to
           # refrain from saving, so that foreign keys to the parent can be
