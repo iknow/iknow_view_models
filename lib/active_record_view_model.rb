@@ -15,17 +15,6 @@ class ActiveRecordViewModel < ViewModel
 
     delegate :transaction, to: :model_class
 
-    def model_class
-      unless instance_variable_defined?(:@model_class)
-        # try to auto-detect the model class based on our name
-        match = /(.*)View$/.match(self.name)
-        raise ArgumentError.new("Could not auto-determine AR model name from ViewModel name '#{self.name}'") if match.nil?
-        self.model_class_name = match[1]
-      end
-
-      @model_class
-    end
-
     def inherited(subclass)
       # copy ViewModel setup
       subclass._attributes = self._attributes
@@ -43,6 +32,7 @@ class ActiveRecordViewModel < ViewModel
       attribute(:id)
     end
 
+    # Specifies an attribute from the model to be serialized in this view
     def attribute(attr)
       _members << attr
 
@@ -62,13 +52,9 @@ class ActiveRecordViewModel < ViewModel
       end
     end
 
-    def all_attributes
-      attrs = model_class.attribute_names - model_class.reflect_on_all_associations(:belongs_to).map(&:foreign_key)
-      attrs.each { |attr| attribute(attr) }
-    end
-
-    # `acts_as_enum`s can be assigned from strings, but the model attribute
-    # still returns the associated AR model. We want to serialize the string.
+    # Specifies that an attribute refers to an `acts_as_enum` constant.  This
+    # provides special serialization behaviour to ensure that the constant's
+    # string value is serialized rather than the model object.
     def acts_as_enum(*attrs)
       attrs.each do |attr|
         @generated_accessor_module.module_eval do
@@ -80,6 +66,8 @@ class ActiveRecordViewModel < ViewModel
       end
     end
 
+    # Specifies that the model backing this viewmodel is a member of an
+    # `acts_as_list` collection.
     def acts_as_list(attr = :position)
       @_list_attribute = attr
 
@@ -108,8 +96,15 @@ class ActiveRecordViewModel < ViewModel
       _list_attribute.present?
     end
 
+    # Specifies an association from the model to be recursively serialized using
+    # another viewmodel. If the target viewmodel is not specified, attempt to
+    # locate a default viewmodel based on the name of the associated model.
     def association(association_name, viewmodel: nil, viewmodels: nil)
-      reflection = reflection_for(association_name)
+      reflection = model_class.reflect_on_association(association_name)
+
+      if reflection.nil?
+        raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
+      end
 
       viewmodel_spec = viewmodel || viewmodels
 
@@ -140,14 +135,9 @@ class ActiveRecordViewModel < ViewModel
       end
     end
 
+    # Specify multiple associations at once
     def associations(*assocs)
       assocs.each { |assoc| association(assoc) }
-    end
-
-    def association_data(association_name)
-      association_data = self._associations[association_name]
-      raise ArgumentError.new("Invalid association") if association_data.nil?
-      association_data
     end
 
     ## Load an instance of the viewmodel by id
@@ -165,11 +155,11 @@ class ActiveRecordViewModel < ViewModel
 
     def deserialize_from_view(hash_data, model_cache: nil, root_node: true, **options)
       model_class.transaction do
-        if is_update_hash?(hash_data)
+        if _is_update_hash?(hash_data)
           # Update an existing model. If this model isn't the root of the tree
           # being modified, we need to first save the model to have any changes
           # applied before calling `replace` on the parent's association.
-          id = update_id(hash_data)
+          id = _update_id(hash_data)
           model = if model_cache.nil?
                     model_scope.find(id)
                   else
@@ -202,12 +192,26 @@ class ActiveRecordViewModel < ViewModel
         else
           # if we have a known non-polymorphic association class, we can find
           # child viewmodels and recurse.
-          viewmodel = viewmodel_for(association_data.klass, association_data.viewmodel_spec)
+          viewmodel = _viewmodel_for(association_data.klass, association_data.viewmodel_spec)
           children = viewmodel.eager_includes(**options)
         end
 
         h[assoc_name] = children
       end
+    end
+
+    # Returns the AR model class wrapped by this viewmodel. If this has not been
+    # set via `model_class_name=`, attempt to automatically resolve based on the
+    # name of this viewmodel.
+    def model_class
+      unless instance_variable_defined?(:@model_class)
+        # try to auto-detect the model class based on our name
+        match = /(.*)View$/.match(self.name)
+        raise ArgumentError.new("Could not auto-determine AR model name from ViewModel name '#{self.name}'") if match.nil?
+        self.model_class_name = match[1]
+      end
+
+      @model_class
     end
 
     def model_scope(eager_include: true, **options)
@@ -219,17 +223,24 @@ class ActiveRecordViewModel < ViewModel
     end
 
     # internal
-    def is_update_hash?(hash_data)
+    def _association_data(association_name)
+      association_data = self._associations[association_name]
+      raise ArgumentError.new("Invalid association") if association_data.nil?
+      association_data
+    end
+
+    # internal
+    def _is_update_hash?(hash_data)
       hash_data.has_key?("id")
     end
 
     # internal
-    def update_id(hash_data)
+    def _update_id(hash_data)
       hash_data["id"]
     end
 
     # internal
-    def viewmodel_for(klass, override_spec)
+    def _viewmodel_for(klass, override_spec)
       case override_spec
       when ActiveRecordViewModel
         viewmodel = override_spec
@@ -253,12 +264,14 @@ class ActiveRecordViewModel < ViewModel
 
     private
 
+    # Set the AR model to be wrapped by this viewmodel
     def model_class_name=(name)
       type = name.to_s.camelize.safe_constantize
       raise ArgumentError.new("Could not find model class '#{name}'") if type.nil?
       self.model_class = type
     end
 
+    # Set the AR model to be wrapped by this viewmodel
     def model_class=(type)
       if instance_variable_defined?(:@model_class)
         raise ArgumentError.new("Model class for ViewModel '#{self.name}' already set")
@@ -268,16 +281,6 @@ class ActiveRecordViewModel < ViewModel
         raise ArgumentError.new("'#{type.inspect}' is not a valid ActiveRecord model class")
       end
       @model_class = type
-    end
-
-    def reflection_for(association_name)
-      reflection = model_class.reflect_on_association(association_name)
-
-      if reflection.nil?
-        raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
-      end
-
-      reflection
     end
   end
 
@@ -410,7 +413,7 @@ class ActiveRecordViewModel < ViewModel
     associated = model.public_send(association_name)
     return nil if associated.nil?
 
-    association_data = self.class.association_data(association_name)
+    association_data = self.class._association_data(association_name)
     associated_viewmodel = viewmodel_for_association(association_name)
     if association_data.collection?
       associated = associated.map { |x| associated_viewmodel.new(x) }
@@ -426,7 +429,7 @@ class ActiveRecordViewModel < ViewModel
   # Create or update an entire associated subtree from a serialized hash,
   # replacing the current contents if necessary.
   def deserialize_association(association_name, hash_data, **options)
-    association_data = self.class.association_data(association_name)
+    association_data = self.class._association_data(association_name)
 
     association = model.association(association_name)
 
@@ -440,7 +443,7 @@ class ActiveRecordViewModel < ViewModel
       end
 
       model_cache = model.public_send(association_name).index_by(&:id)
-      missing_model_ids = hash_data.map { |h| viewmodel.update_id(h) }.reject { |id| id.nil? || model_cache.has_key?(id) }
+      missing_model_ids = hash_data.map { |h| viewmodel._update_id(h) }.reject { |id| id.nil? || model_cache.has_key?(id) }
 
       if missing_model_ids.present?
         viewmodel.model_scope.find_all!(missing_model_ids).each { |model| model_cache[model.id] = model }
@@ -474,11 +477,11 @@ class ActiveRecordViewModel < ViewModel
         assoc_model = nil
       elsif hash_data.is_a?(Hash)
         viewmodel = viewmodel_for_association(association_name)
-        is_new_record = !viewmodel.is_update_hash?(hash_data)
+        is_new_record = !viewmodel._is_update_hash?(hash_data)
         model_cache = nil
 
         # Might have already eager loaded the model if the target isn't being changed
-        if !is_new_record && previous_assoc_model.present? && previous_assoc_model.id == viewmodel.update_id(hash_data)
+        if !is_new_record && previous_assoc_model.present? && previous_assoc_model.id == viewmodel._update_id(hash_data)
           model_cache = { previous_assoc_model.id => previous_assoc_model }
         end
 
@@ -506,7 +509,7 @@ class ActiveRecordViewModel < ViewModel
   # association, this deserializes and appends to the collection, otherwise it
   # has the same effect as `deserialize_association`.
   def append_association(association_name, hash_data, **options)
-    association_data = self.class.association_data(association_name)
+    association_data = self.class._association_data(association_name)
 
     if association_data.collection?
       association = model.association(association_name)
@@ -529,7 +532,7 @@ class ActiveRecordViewModel < ViewModel
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
   def delete_association(association_name, associated, **options)
-    association_data = self.class.association_data(association_name)
+    association_data = self.class._association_data(association_name)
 
     if association_data.collection?
       association = model.association(association_name)
@@ -546,7 +549,7 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def viewmodel_for_association(association_name)
-    association_data = self.class.association_data(association_name)
+    association_data = self.class._association_data(association_name)
 
     association = model.association(association_name)
     klass = association.klass
@@ -555,7 +558,7 @@ class ActiveRecordViewModel < ViewModel
       raise ViewModel::DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
     end
 
-    self.class.viewmodel_for(klass, association_data.viewmodel_spec)
+    self.class._viewmodel_for(klass, association_data.viewmodel_spec)
   end
 
   def reorder_list_members(viewmodel, hashes)

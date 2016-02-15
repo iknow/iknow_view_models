@@ -66,12 +66,12 @@ module ActiveRecordViewModel::Controller
     end
 
     if requested_id.present?
-      if !viewmodel.is_update_hash?(data)
+      if !viewmodel._is_update_hash?(data)
         raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not an update action: provided data doesn't represent an existing object")
-      elsif viewmodel.update_id(data) != requested_id
+      elsif viewmodel._update_id(data) != requested_id
         raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid update action: provided data represents a different object")
       end
-    elsif viewmodel.is_update_hash?(data)
+    elsif viewmodel._is_update_hash?(data)
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not a create action: provided data represents an existing object")
     end
 
