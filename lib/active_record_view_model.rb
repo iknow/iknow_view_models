@@ -608,11 +608,6 @@ class ActiveRecordViewModel < ViewModel
       # Additionally, ensure that the new target, if it already
       # existed and was not already the current target, doesn't belong to
       # another association.
-
-      # TODO: we might not want to support this. It's expensive, requires an
-      # index, and, doesn't play well with nullness or fkey constraints. This
-      # ties into a bigger question: how do we support moving a child from one
-      # parent to another, with each of the different association types?
       if new_target.present? && !is_new_record
         # We might not have an inverse specified: only update if present
         reflection.inverse_of.try do |inverse_reflection|
@@ -626,38 +621,29 @@ class ActiveRecordViewModel < ViewModel
 
   ####### TODO LIST ########
 
-  ## Create tools for customizing visibility and access control
-  # Besides manually rewriting setters/getters.  We could could consider
-  # visibility filters along the lines of `jsonapi-resources`.
-
-  ## Do we want to support defining any kind of constraints on associations?
-
   ## Eager loading
   # - Come up with a way to represent (and perform!) type-conditional eager
-  #  loads for polymorphic associations
+  #   loads for polymorphic associations
 
   ## Support for single table inheritance (if necessary)
 
-  ## Ensure that we have correct behaviour when a polymorphic relationship is changed to an entity of a different type
+  ## Ensure that we have correct behaviour when a polymorphic relationship is
+  ## changed to an entity of a different type:
   # - does the old one get correctly garbage collected?
 
   ## Throw an error if the same entity is specified twice
 
   ## Replace acts_as_list
-  # - It's not ok that we rewrite the positions every time, even if nothing is changed
-  # - acts_as_list performs O(n) aggregate queries across the list context
-  # - acts_as_list's activerecord hooks don't update other affected model objects, so
-  #   the models built in a newly deserialized viewmodel may not reflect reality
-  # -  our post-save hook *definitely* doesn't update the model objects
-  # - if we take it out, what's our solution for services that manipulate the
-  #   models directly?  we don't want to leave them to rewrite position
-  #   manipulation. Should we require that the model includes our own
+  # - acts_as_list performs unnecessary O(n) aggregate queries across the list
+  #   context on each update, and requires a really nasty patch to neuter the
+  #   list context scope on new element insertions when rewriting the list
+  #   (`deserialize__list_position`). If we know that updates will always go via
+  #   ViewModels, we could do better by reimplementing list handling
+  #   explicitly. An option would be to require that the model includes our own
   #   lightweight *explicitly used* acts_as_list replacement, which the
-  #   viewmodel can use as well as other code?
+  #   viewmodel can use alongside as well as other service code?
 
   ## Belongs-to garbage collection
-  # - may or may not be desirable
-  # - doesn't have a post-save hook
   # - Check that post save hooks for garbage collection can't clobber changes:
   #   consider what would happen if a A record had two references to B, and we
   #   change from {b1: x, b2: null} to {b1: null, b2: x} - the post-save hook
@@ -666,10 +652,10 @@ class ActiveRecordViewModel < ViewModel
 
   ### Controllers
 
-  ## Consider better support for queries or pagination
+  # - Consider better support for queries or pagination
 
-  ## Generate controllers for writing to associations
-
-  ## if we remove acts_as_list, how will DELETE actions ensure that the list is maintained?
-  # - could have a `#destroy` method to the viewmodel which maintains the list, and always use that?
+  # - Consider ways to represent `has_many:through:`, if we want to allow
+  #   skipping a view for the join. If so, how do we manage manipulation of the
+  #   association itself, do we allow attributes (such as ordering?) on the join
+  #   table?
 end
