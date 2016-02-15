@@ -54,8 +54,7 @@ module ActiveRecordViewModel::Controller
   private
 
   def viewmodel_id
-    id_param = params[:id]
-    Integer(id_param)
+    parse_integer_param(:id)
   end
 
   def deserialize(requested_id)

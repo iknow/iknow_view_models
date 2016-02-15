@@ -29,16 +29,12 @@ module ActiveRecordViewModel::NestedController
 
   def owner_viewmodel_id
     id_param_name = owner_viewmodel.model_class.name.underscore + "_id"
-    id_param = params[id_param_name]
-    raise ArgumentError.new("Missing model id: '#{id_param_name}'") if id_param.nil?
-    id_param
+    parse_integer_param(id_param_name)
   end
 
   def associated_id
     id_param_name = association_name.singularize + "_id"
-    id_param = params[id_param_name]
-    raise ArgumentError.new("Missing model id: '#{id_param_name}'") if id_param.nil?
-    id_param
+    parse_integer_param(id_param_name)
   end
 
   included do
