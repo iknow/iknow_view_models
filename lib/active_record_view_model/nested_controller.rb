@@ -30,7 +30,7 @@ module ActiveRecordViewModel::NestedController
       data = params[:data]
       raise BadRequest.new("Empty or invalid data submitted") unless data.present?
 
-      assoc_view = owner_view.deserialize_associated(association_name, data)
+      assoc_view = owner_view.deserialize_associated(association_name, data, **view_options)
       render_viewmodel({ data: assoc_view }, **view_options)
     end
   end
