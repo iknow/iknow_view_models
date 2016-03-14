@@ -1,3 +1,13 @@
+# Controller for accessing a ViewModel which is necessarily owned by a parent model.
+
+# Expects the following routes:
+# GET    /parents/:parent_id/children       #index
+# POST   /parents/:parent_id/children       #create
+# GET    /children/:id                      #show
+# PATCH  /children/:id                      #update
+# PUT    /children/:id                      #update
+# DELETE /children/:id                      #destroy
+
 module ActiveRecordViewModel::NestedController
   extend ActiveSupport::Concern
 

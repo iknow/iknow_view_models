@@ -1,6 +1,15 @@
 require 'active_record_view_model/controller_base'
 require 'active_record_view_model/nested_controller'
 
+# Controller for accessing an ActiveRecordViewModel
+# Provides for the following routes:
+# GET    /models      #index
+# POST   /models      #create
+# GET    /models/:id  #show
+# PATCH  /models/:id  #update
+# PUT    /models/:id  #update
+# DELETE /models/:id  #destroy
+
 module ActiveRecordViewModel::Controller
   extend ActiveSupport::Concern
   include ActiveRecordViewModel::ControllerBase
@@ -10,7 +19,7 @@ module ActiveRecordViewModel::Controller
     delegate :viewmodel, to: :class
   end
 
-  def initialize(*args, **kwargs)
+  def initialize(**args)
     super
     @view_options = {}
   end
