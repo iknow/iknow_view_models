@@ -699,18 +699,22 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_has_many_move_existing_association
     p1c2 = @parent1.children[1]
+    assert_equal(2, p1c2.position)
 
     ParentView.new(@parent2).deserialize_associated("children", { "id" => p1c2.id })
 
     @parent1.reload
     @parent2.reload
 
-    assert_equal(2, @parent1.children.size)
-    assert_equal(["p1c1", "p1c3"], @parent1.children.map(&:name))
+    p1c = @parent1.children.order(:position)
+    assert_equal(2, p1c.size)
+    assert_equal(["p1c1", "p1c3"], p1c.map(&:name))
 
-    assert_equal(3, @parent2.children.size)
-    assert_equal(["p2c1", "p2c2", "p1c2"], @parent2.children.map(&:name))
-    assert_equal(p1c2, @parent2.children[2])
+    p2c = @parent2.children.order(:position)
+    assert_equal(3, p2c.size)
+    assert_equal(["p2c1", "p2c2", "p1c2"], p2c.map(&:name))
+    assert_equal(p1c2, p2c[2])
+    assert_equal(3, p2c[2].position)
   end
 
   def test_delete_association
