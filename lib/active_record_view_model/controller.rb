@@ -46,7 +46,7 @@ module ActiveRecordViewModel::Controller
     deserialize(viewmodel_id)
   end
 
-  def destroy(**view_options)
+  def destroy
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, eager_load: false, **view_options)
       view.destroy!(**view_options)
