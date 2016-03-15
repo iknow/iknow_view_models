@@ -198,17 +198,9 @@ end
 
 class ParentController < DummyController
   include ActiveRecordViewModel::Controller
-
-  def initialize(**args)
-    super
-  end
 end
 
 class ChildController < DummyController
   include ActiveRecordViewModel::Controller
   nested_in :parent, as: :children
-
-  def initialize(**args)
-    super
-  end
 end

@@ -19,7 +19,7 @@ module ActiveRecordViewModel::Controller
     delegate :viewmodel, to: :class
   end
 
-  def initialize(**args)
+  def initialize(*)
     super
     @view_options = {}
   end
