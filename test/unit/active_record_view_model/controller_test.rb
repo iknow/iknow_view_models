@@ -109,6 +109,40 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
                  { "errors"=>[{"status"=>400, "detail"=>"Not a create action: provided data represents an existing object"}]})
   end
 
+  def test_create_invalid_shallow_validation
+    data = { "children" => [{ "age" => 42 }] }
+    parentcontroller = ParentController.new(data: data)
+    parentcontroller.invoke(:create)
+
+    assert_equal(parentcontroller.hash_response,
+                 { "errors" => [{ "status" => 500,
+                                  "detail" => "Validation failed: Children is invalid" }] })
+  end
+
+  def test_create_invalid_shallow_constraint
+    data = { "children" => [{ "age" => 1 }] }
+    parentcontroller = ParentController.new(data: data)
+    parentcontroller.invoke(:create)
+
+    assert_equal(500, parentcontroller.status)
+    assert_match(%r{check constraint}i,
+                 parentcontroller.hash_response["errors"].first["detail"],
+                 "Database error propagated" )
+  end
+
+  # TODO this test is only marginally useful
+  def test_create_invalid_deep
+    data = { 'cdr' => { 'cdr' => { 'cdr' => { 'car' => 42 } } } }
+    controller = LinkedListController.new(data: data)
+    controller.invoke(:create)
+
+    assert_equal(
+        { "errors" => [{ "status" => 500,
+                         "detail" => "Validation failed: Cdr is invalid" }] },
+        controller.hash_response)
+    assert_equal(500, controller.status)
+  end
+
   def test_destroy_missing
     parentcontroller = ParentController.new(id: 9999)
     parentcontroller.invoke(:destroy)

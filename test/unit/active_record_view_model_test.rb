@@ -29,6 +29,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent2.save!
   end
 
+  def test_relations_must_be_validated
+    ex = assert_raises(ArgumentError) do
+      Class.new(ActiveRecordViewModel) do
+        self.model_class = UnvalidatedLinkedList
+        association :cdr
+      end
+    end
+    assert_match(%r{validation enabled}, ex.message)
+  end
+
   def test_find
     parentview = ParentView.find(@parent1.id)
     assert_equal(@parent1, parentview.model)
@@ -97,7 +107,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                    "target"   => { "id" => @parent1.target.id, "text" => @parent1.target.text, "label" => nil },
                    "poly_type" => @parent1.poly_type,
                    "poly"      => { "id" => @parent1.poly.id, "number" => @parent1.poly.number },
-                   "children" => @parent1.children.map{|child| {"id" => child.id, "name" => child.name, "position" => child.position }}})
+                   "children" => @parent1.children.map{|child| {"id" => child.id, "name" => child.name, "position" => child.position, "age" => nil }}})
   end
 
   def test_eager_includes

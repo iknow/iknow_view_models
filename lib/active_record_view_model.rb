@@ -106,6 +106,12 @@ class ActiveRecordViewModel < ViewModel
         raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
       end
 
+      unless reflection.validate?
+        # If the record is not validated then we will ignore save failures
+        # and partially store user data.
+        raise ArgumentError.new("Association #{association_name} does not have validation enabled")
+      end
+
       viewmodel_spec = viewmodel || viewmodels
 
       _members << association_name

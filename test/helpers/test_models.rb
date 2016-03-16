@@ -9,8 +9,9 @@ case db
 when :sqlite
   ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
 when :pg
-  ActiveRecord::Base.establish_connection adapter: "postgresql", database: "candreae"
-  %w[labels parents children targets poly_ones poly_twos owners].each do |t|
+  ActiveRecord::Base.establish_connection adapter: "postgresql", database: "cerego_view_models"
+  %w[labels parents children targets poly_ones poly_twos owners
+     linked_lists unvalidated_linked_lists].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
 end
@@ -46,6 +47,17 @@ ActiveRecord::Schema.define do
     t.integer :position
   end
 
+  # Add an `:age` column to `:children`. SQLite doesn't support modifying
+  # constraints on tables, we have to do this on creation.
+  case db
+  when :sqlite, :pg
+    execute <<-SQL
+      ALTER TABLE children ADD COLUMN age integer CHECK(age > 21)
+    SQL
+  else
+    raise "Unable to add column with check contstraint for db engine #{db}"
+  end
+
   create_table :targets do |t|
     t.string :text
     t.references :parent, null: false, foreign_key: true
@@ -59,41 +71,62 @@ ActiveRecord::Schema.define do
   create_table :poly_twos do |t|
     t.string :text
   end
+
+  create_table :linked_lists do |t|
+    t.integer :car
+    t.integer :cdr_id
+  end
+
+  create_table :unvalidated_linked_lists do |t|
+    t.integer :car
+    t.integer :cdr_id
+  end
 end
 
 class Label < ActiveRecord::Base
-  has_one :parent
-  has_one :target
+  has_one :parent, validate: true
+  has_one :target, validate: true
 end
 
 class Child < ActiveRecord::Base
-  belongs_to :parent, inverse_of: :children
+  belongs_to :parent, inverse_of: :children, validate: true
   acts_as_list scope: :parent
+  validates :age, numericality: {less_than: 42}, allow_nil: true
 end
 
 class Target < ActiveRecord::Base
-  belongs_to :parent, inverse_of: :target
-  belongs_to :label, dependent: :destroy
+  belongs_to :parent, inverse_of: :target, validate: true
+  belongs_to :label, dependent: :destroy, validate: true
 end
 
 class PolyOne < ActiveRecord::Base
-  has_one :parent, as: :poly
+  has_one :parent, as: :poly, validate: true
 end
 
 class PolyTwo < ActiveRecord::Base
-  has_one :parent, as: :poly
+  has_one :parent, as: :poly, validate: true
 end
 
 class Parent < ActiveRecord::Base
   has_many   :children, dependent: :destroy, inverse_of: :parent
-  belongs_to :label,    dependent: :destroy
-  has_one    :target,   dependent: :destroy, inverse_of: :parent
-  belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
+  belongs_to :label,    dependent: :destroy, validate: true
+  has_one    :target,   dependent: :destroy, inverse_of: :parent, validate: true
+  belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent, validate: true
 end
 
 class Owner < ActiveRecord::Base
-  belongs_to :deleted, class_name: Label.name, dependent: :delete
-  belongs_to :ignored, class_name: Label.name
+  belongs_to :deleted, class_name: Label.name, dependent: :delete, validate: true
+  belongs_to :ignored, class_name: Label.name, validate: true
+end
+
+class LinkedList < ActiveRecord::Base
+  validates :car, numericality: {less_than: 42}, allow_nil: true
+  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy, validate: true
+end
+
+class UnvalidatedLinkedList < ActiveRecord::Base
+  validates :car, numericality: {less_than: 42}, allow_nil: true
+  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
 end
 
 module TrivialAccessControl
@@ -112,7 +145,7 @@ class LabelView < ActiveRecordViewModel
 end
 
 class ChildView < ActiveRecordViewModel
-  attributes :name, :position
+  attributes :name, :position, :age
   acts_as_list :position
 
   include TrivialAccessControl
@@ -140,6 +173,11 @@ end
 
 class OwnerView < ActiveRecordViewModel
   associations :deleted, :ignored
+end
+
+class LinkedListView < ActiveRecordViewModel
+  attributes :car
+  associations :cdr
 end
 
 
@@ -203,4 +241,8 @@ end
 class ChildController < DummyController
   include ActiveRecordViewModel::Controller
   nested_in :parent, as: :children
+end
+
+class LinkedListController < DummyController
+  include ActiveRecordViewModel::Controller
 end
