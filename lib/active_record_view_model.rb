@@ -148,15 +148,17 @@ class ActiveRecordViewModel < ViewModel
 
     ## Load an instance of the viewmodel by id
     def find(id, scope: nil, eager_include: true, **options)
-      scope = model_scope(eager_include: eager_include, **options).merge(scope)
-      self.new(scope.find(id))
+      find_scope = model_scope(eager_include: eager_include, **options)
+      find_scope = find_scope.merge(scope) if scope
+      self.new(find_scope.find(id))
     end
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
     def load(scope: nil, eager_include: true, **options)
-      scope = model_scope(eager_include: eager_include, **options).merge(scope)
-      scope.map { |model| self.new(model) }
+      load_scope = model_scope(eager_include: eager_include, **options)
+      load_scope = load_scope.merge(scope) if scope
+      load_scope.map { |model| self.new(model) }
     end
 
     def deserialize_from_view(hash_data, model_cache: nil, root_node: true, **options)

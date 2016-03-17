@@ -18,8 +18,8 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activerecord"
-  spec.add_dependency "activesupport"
+  spec.add_dependency "activerecord", ">= 5.0.beta", "< 5.1"
+  spec.add_dependency "activesupport", ">= 5.0.beta", "< 5.1"
   spec.add_dependency "iknow_params"
   spec.add_dependency "cerego_active_record_patches"
   spec.add_dependency "acts_as_list"
