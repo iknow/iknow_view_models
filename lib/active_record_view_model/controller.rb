@@ -67,7 +67,7 @@ module ActiveRecordViewModel::Controller
   end
 
   def deserialize(requested_id)
-    data = params[:data]
+    data = params[:data].to_h
 
     unless data.is_a?(Hash)
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")

@@ -14,7 +14,13 @@ module CeregoViewModels
           ViewModel.serialize(viewmodel, json, **options)
         end
 
-        render(json: response, status: status)
+        ## jbuilder prevents this from working
+        ##  - https://github.com/rails/jbuilder/issues/317
+        ##  - https://github.com/rails/rails/issues/23923
+
+        # render(json: response, status: status)
+
+        render(plain: response, status: status, content_type: 'application/json')
       end
     end
   end
