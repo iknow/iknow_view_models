@@ -1,9 +1,13 @@
-require "acts_as_list"
+require "cerego_view_models"
+require "active_record_view_model"
+require "active_record_view_model/controller"
+
+require "acts_as_manual_list"
 
 require "logger"
 ActiveRecord::Base.logger = Logger.new(STDOUT)
 
-db = :sqlite
+db = :pg
 
 case db
 when :sqlite
@@ -44,7 +48,7 @@ ActiveRecord::Schema.define do
   create_table :children do |t|
     t.references :parent, null: false, foreign_key: true
     t.string :name
-    t.integer :position
+    t.float :position
   end
 
   # Add an `:age` column to `:children`. SQLite doesn't support modifying
@@ -83,48 +87,52 @@ ActiveRecord::Schema.define do
   end
 end
 
-class Label < ActiveRecord::Base
-  has_one :parent, validate: true
-  has_one :target, validate: true
+class ApplicationRecord < ActiveRecord::Base
+  self.abstract_class = true
 end
 
-class Child < ActiveRecord::Base
-  belongs_to :parent, inverse_of: :children, validate: true
-  acts_as_list scope: :parent
+class Label < ApplicationRecord
+  has_one :parent
+  has_one :target
+end
+
+class Child < ApplicationRecord
+  belongs_to :parent, inverse_of: :children
+  #acts_as_manual_list scope: :parent
   validates :age, numericality: {less_than: 42}, allow_nil: true
 end
 
-class Target < ActiveRecord::Base
-  belongs_to :parent, inverse_of: :target, validate: true
+class Target < ApplicationRecord
+  belongs_to :parent, inverse_of: :target
   belongs_to :label, dependent: :destroy, validate: true
 end
 
-class PolyOne < ActiveRecord::Base
-  has_one :parent, as: :poly, validate: true
+class PolyOne < ApplicationRecord
+  has_one :parent, as: :poly
 end
 
-class PolyTwo < ActiveRecord::Base
-  has_one :parent, as: :poly, validate: true
+class PolyTwo < ApplicationRecord
+  has_one :parent, as: :poly
 end
 
-class Parent < ActiveRecord::Base
-  has_many   :children, dependent: :destroy, inverse_of: :parent
+class Parent < ApplicationRecord
+  has_many   :children, dependent: :destroy, inverse_of: :parent, validate: true
   belongs_to :label,    dependent: :destroy, validate: true
   has_one    :target,   dependent: :destroy, inverse_of: :parent, validate: true
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent, validate: true
 end
 
-class Owner < ActiveRecord::Base
+class Owner < ApplicationRecord
   belongs_to :deleted, class_name: Label.name, dependent: :delete, validate: true
   belongs_to :ignored, class_name: Label.name, validate: true
 end
 
-class LinkedList < ActiveRecord::Base
+class LinkedList < ApplicationRecord
   validates :car, numericality: {less_than: 42}, allow_nil: true
   belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy, validate: true
 end
 
-class UnvalidatedLinkedList < ActiveRecord::Base
+class UnvalidatedLinkedList < ApplicationRecord
   validates :car, numericality: {less_than: 42}, allow_nil: true
   belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
 end
@@ -186,6 +194,7 @@ class DummyController
   attr_reader :params, :json_response, :status
 
   def initialize(**params)
+    # in Rails 5, this will not be a hash, which weakens the value of the test.
     @params = params.with_indifferent_access
     @status = 200
   end
@@ -206,9 +215,20 @@ class DummyController
     end
   end
 
-  def render(json:, status:)
-    @json_response = json
+  def render(status:, **options)
+    if options.has_key?(:json)
+      @response_body = options[:json]
+      @content_type = options[:content_type] || 'application/json'
+    elsif options.has_key?(:plain)
+      @response_body = options[:plain]
+      @content_type = options[:content_type] || 'text/plain'
+    end
     @status = status unless status.nil?
+  end
+
+  def json_response
+    raise "Not a JSON response" unless @content_type == 'application/json'
+    @response_body
   end
 
   def hash_response
