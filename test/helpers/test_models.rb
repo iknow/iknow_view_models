@@ -15,6 +15,7 @@ when :sqlite
 when :pg
   ActiveRecord::Base.establish_connection adapter: "postgresql", database: "cerego_view_models"
   %w[labels parents children targets poly_ones poly_twos owners
+     grand_parents
      linked_lists unvalidated_linked_lists].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
@@ -31,11 +32,15 @@ ActiveRecord::Schema.define do
     t.string :text
   end
 
+  create_table :grand_parents do |t|
+  end
+
   create_table :parents do |t|
     t.string :name
     t.references :label, foreign_key: true
     t.string :poly_type
     t.integer :poly_id
+    t.references :grand_parent, foreign_key: true
   end
 
   create_table :owners do |t|
@@ -64,9 +69,11 @@ ActiveRecord::Schema.define do
 
   create_table :targets do |t|
     t.string :text
-    t.references :parent, null: false, foreign_key: true
+    t.references :parent, foreign_key: true
     t.references :label, foreign_key: true
   end
+
+
 
   create_table :poly_ones do |t|
     t.integer :number
@@ -98,7 +105,7 @@ end
 
 class Child < ApplicationRecord
   belongs_to :parent, inverse_of: :children
-  #acts_as_manual_list scope: :parent
+  acts_as_manual_list scope: :parent
   validates :age, numericality: {less_than: 42}, allow_nil: true
 end
 
@@ -119,7 +126,10 @@ class Parent < ApplicationRecord
   has_many   :children, dependent: :destroy, inverse_of: :parent, validate: true
   belongs_to :label,    dependent: :destroy, validate: true
   has_one    :target,   dependent: :destroy, inverse_of: :parent, validate: true
+
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent, validate: true
+
+  belongs_to :grand_parent, inverse_of: :parents
 end
 
 class Owner < ApplicationRecord
@@ -135,6 +145,10 @@ end
 class UnvalidatedLinkedList < ApplicationRecord
   validates :car, numericality: {less_than: 42}, allow_nil: true
   belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
+end
+
+class GrandParent < ApplicationRecord
+  has_many :parents, inverse_of: :grand_parent
 end
 
 module TrivialAccessControl
@@ -165,7 +179,7 @@ class TargetView < ActiveRecordViewModel
 end
 
 class ParentView < ActiveRecordViewModel
-  attributes :name, :poly_type
+  attributes :name
   associations :children, :label, :target, :poly
 
   include TrivialAccessControl
@@ -186,6 +200,10 @@ end
 class LinkedListView < ActiveRecordViewModel
   attributes :car
   associations :cdr
+end
+
+class GrandParentView < ActiveRecordViewModel
+  association :parents
 end
 
 
