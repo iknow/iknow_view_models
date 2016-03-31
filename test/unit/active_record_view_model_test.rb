@@ -405,7 +405,13 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     child_view = ChildView.new(child).to_hash
     child_view["name"] = "changed"
 
-    view = { "name" => "new_p", "children" => [child_view, { "name" => "new" }] }
+    view = { "_type" => "Parent",
+             "name" => "new_p",
+             "children" => [child_view, { "name" => "new" }],
+             "_aux" => [{ "_type" => "Parent",
+                          "id" => @parent1.id,
+                          "children" => [{ "id" => @parent1.children[0].id }, { "id" => @parent1.children[2].id }]
+                        }] }
     pv = ParentView.deserialize_from_view(view)
     parent = pv.model
 

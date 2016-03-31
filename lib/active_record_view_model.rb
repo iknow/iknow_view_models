@@ -157,8 +157,8 @@ class ActiveRecordViewModel < ViewModel
 
       # now we have dropped the references to @points_to old models, we can do their deletes
 
-      @pointed_to.each do |_, update|
-        update.run!(context)
+      @pointed_to.each do |name, update|
+        model.association(name).target = update.run!(context)
       end
 
       model
@@ -455,29 +455,37 @@ class ActiveRecordViewModel < ViewModel
       load_scope.map { |model| self.new(model) }
     end
 
+    def deserialize_one(hash_data, context:, **options)
+      if _is_update_hash?(hash_data)
+        id = _update_id(hash_data)
+        model = model_scope.find(id)
+        viewmodel = self.new(model)
+        update = viewmodel._update_from_view(hash_data, context: context, **options)
+        context.add_node_update(update)
+      else
+        model = model_class.new
+        viewmodel = self.new(model)
+        update = viewmodel._update_from_view(hash_data, context: context, **options)
+        context.add_node_update(update)
+      end
+
+      viewmodel
+    end
+
     def deserialize_from_view(hash_data, **options)
       context = DeserializeContext.new
 
       model_class.transaction do
-        if _is_update_hash?(hash_data)
-          # Update an existing model. If this model isn't the root of the tree
-          # being modified, we need to first save the model to have any changes
-          # applied before calling `replace` on the parent's association.
-          id = _update_id(hash_data)
-          model = model_scope.find(id)
-          viewmodel = self.new(model)
-          update = viewmodel._update_from_view(hash_data, context: context, **options)
-          context.add_node_update(update)
-        else
-          model = model_class.new
-          viewmodel = self.new(model)
-          update = viewmodel._update_from_view(hash_data, context: context, **options)
-          context.add_node_update(update)
+        extra = hash_data.delete("_aux")
+        result = self.deserialize_one(hash_data, context: context, **options)
+        if extra
+          extra.each do |extra_data|
+            self.deserialize_one(extra_data, context: context, **options)
+          end
         end
-
         context.execute!
 
-        viewmodel
+        result
       end
     end
 
