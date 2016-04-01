@@ -324,6 +324,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = { "name" => "new_p",
              "children" => [child_view, { "name" => "new" }] }
 
+    view["_aux"] = [{"id" => @parent1.id,
+                    "children" => [{"id" => @parent1.children[0].id},
+                                   {"id" => @parent1.children[2].id}]}]
+
     pv = ParentView.deserialize_from_view(view)
 
     parent = pv.model
@@ -348,6 +352,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view = ParentView.new(@parent2).to_hash
     view["children"] << ChildView.new(child).to_hash
+
+    view["_aux"] = [{"id" => @parent1.id,
+                    "children" => [{"id" => @parent1.children[0].id},
+                                   {"id" => @parent1.children[2].id}]}]
 
     ParentView.deserialize_from_view(view)
 
@@ -437,6 +445,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     old_child_view["name"] = "changed"
     view = ParentView.new(@parent2).to_hash
     view["children"] << old_child_view
+
+    view["_aux"] = [{"id" => @parent1.id,
+                    "children" => [{"id" => @parent1.children[0].id},
+                                   {"id" => @parent1.children[2].id}]}]
 
     ParentView.deserialize_from_view(view)
 
@@ -553,6 +565,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     # p1 should now have no label
 
     v2["label"] = v1["label"]
+
+    v2["_aux"] = [{"id" => @parent1.id, "label" => nil}]
 
     ParentView.deserialize_from_view(v2)
 
@@ -679,6 +693,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     v2 = ParentView.new(@parent2).to_hash
 
     v2["target"] = v1["target"]
+    v2["_aux"] = [{"id" => @parent1.id, "target" => nil}]
 
     ParentView.deserialize_from_view(v2)
     @parent1.reload
