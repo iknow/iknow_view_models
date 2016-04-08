@@ -161,51 +161,54 @@ module TrivialAccessControl
   end
 end
 
-class LabelView < ActiveRecordViewModel
-  self.model_class_name = :label
-  attributes :text
+module Views
+  class Label < ActiveRecordViewModel
+    self.model_class_name = :label
+    attributes :text
+  end
+
+  class Child < ActiveRecordViewModel
+    attributes :name, :position, :age
+    acts_as_list :position
+
+    include TrivialAccessControl
+  end
+
+  class Target < ActiveRecordViewModel
+    attributes :text
+    association :label
+  end
+
+  class PolyOne < ActiveRecordViewModel
+    attributes :number
+  end
+
+  class PolyTwo < ActiveRecordViewModel
+    attributes :text
+  end
+
+  class Parent < ActiveRecordViewModel
+    attributes :name
+    associations :children, :label, :target
+    association :poly, viewmodels: [PolyOne, PolyTwo]
+
+    include TrivialAccessControl
+  end
+
+  class Owner < ActiveRecordViewModel
+    associations :deleted, :ignored
+  end
+
+  class LinkedList < ActiveRecordViewModel
+    attributes :car
+    associations :cdr
+  end
+
+  class GrandParent < ActiveRecordViewModel
+    association :parents
+  end
+
 end
-
-class ChildView < ActiveRecordViewModel
-  attributes :name, :position, :age
-  acts_as_list :position
-
-  include TrivialAccessControl
-end
-
-class TargetView < ActiveRecordViewModel
-  attributes :text
-  association :label
-end
-
-class ParentView < ActiveRecordViewModel
-  attributes :name
-  associations :children, :label, :target, :poly
-
-  include TrivialAccessControl
-end
-
-class PolyOneView < ActiveRecordViewModel
-  attributes :number
-end
-
-class PolyTwoView < ActiveRecordViewModel
-  attributes :text
-end
-
-class OwnerView < ActiveRecordViewModel
-  associations :deleted, :ignored
-end
-
-class LinkedListView < ActiveRecordViewModel
-  attributes :car
-  associations :cdr
-end
-
-class GrandParentView < ActiveRecordViewModel
-  association :parents
-end
-
 
 ## Dummy Rails Controllers
 class DummyController

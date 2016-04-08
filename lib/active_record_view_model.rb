@@ -4,13 +4,12 @@ require "active_record"
 require "view_model"
 
 require "cerego_active_record_patches"
-require "iknow_list_utils"
 require "lazily"
 
 module Views; end
 
 class ActiveRecordViewModel < ViewModel
-  using IknowListUtils
+  require "active_record_view_model/update_operation"
 
   ID_ATTRIBUTE = "id"
   TYPE_ATTRIBUTE = "_type"
@@ -22,7 +21,7 @@ class ActiveRecordViewModel < ViewModel
       if viewmodel_classes.nil?
         # If the association isn't polymorphic, we may be able to guess from the reflection
         model_class = reflection.klass
-        if klass.nil?
+        if model_class.nil?
           raise ViewModel::DeserializationError.new("Couldn't derive target class for polymorphic association `#{reflection.name}`")
         end
         viewmodel_class = ActiveRecordViewModel.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
@@ -81,7 +80,6 @@ class ActiveRecordViewModel < ViewModel
     attr_reader :_members, :_associations, :_list_attribute_name
 
     delegate :transaction, to: :model_class
-    delegate :id, to: :model
 
     # The user-facing name of this viewmodel: serialized in the TYPE_ATTRIBUTE
     # field
@@ -94,6 +92,8 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def for_view_name(name)
+      raise ViewModel::DeserializationError.new("view name cannot be nil") if name.nil?
+
       class_name = "#{Views.name}::#{name}"
       viewmodel_class = class_name.safe_constantize
       if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
@@ -110,7 +110,7 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def initialize_members
-      @_members = []
+      @_members = {}
       @_associations = {}
 
       @generated_accessor_module = Module.new
@@ -119,7 +119,7 @@ class ActiveRecordViewModel < ViewModel
 
     # Specifies an attribute from the model to be serialized in this view
     def attribute(attr)
-      _members << attr
+      _members[attr.to_s] = :attribute
 
       @generated_accessor_module.module_eval do
         define_method attr do
@@ -183,8 +183,8 @@ class ActiveRecordViewModel < ViewModel
 
       viewmodel_spec = viewmodel || viewmodels
 
-      _members << association_name
-      _associations[association_name] = AssociationData.new(reflection, viewmodel_spec)
+      _members[association_name.to_s] = :association
+      _associations[association_name.to_s] = AssociationData.new(reflection, viewmodel_spec)
 
       @generated_accessor_module.module_eval do
         define_method association_name do
@@ -218,20 +218,22 @@ class ActiveRecordViewModel < ViewModel
       load_scope.map { |model| self.new(model) }
     end
 
-    def self.deserialize_from_view(subtree_hash, view_options)
+    def deserialize_from_view(subtree_hash, **view_options)
       # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
       # for linked partially-constructed node updates
       worklist = {}
 
       # hash of { UpdateOperation::ViewModelReference => ViewModel } for models
       # that have been released by nodes we've already visited
-      released_viewmodels = []
+      released_viewmodels = {}
 
       id        = subtree_hash.delete(ID_ATTRIBUTE)
       type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
 
+      raise ViewModel::DeserializationError.new("Missing #{TYPE_ATTRIBUTE} field in update hash") if type_name.nil?
+
       # Check specified type: must match expected viewmodel class
-      if ActiveRecordViewModel.for_view_name(name) != self
+      if ActiveRecordViewModel.for_view_name(type_name) != self
         raise "Specified type #{type_name} doesn't match deserializing viewmodel #{self.view_name}"
       end
 
@@ -256,7 +258,7 @@ class ActiveRecordViewModel < ViewModel
 
       updated_viewmodel = root_update.run!(view_options)
 
-      released_viewmodels.each do |vm|
+      released_viewmodels.each_value do |vm|
         # this is insufficient, we're not storing how we *got*
         # to this released model so we don't know how to cleanup
         vm.model.destroy!
@@ -280,7 +282,8 @@ class ActiveRecordViewModel < ViewModel
         else
           # if we have a known non-polymorphic association class, we can find
           # child viewmodels and recurse.
-          viewmodel = _viewmodel_for(association_data.klass, association_data.viewmodel_spec)
+          viewmodel = association_data.viewmodel_class
+
           children = viewmodel.eager_includes(**options)
         end
 
@@ -294,9 +297,7 @@ class ActiveRecordViewModel < ViewModel
     def model_class
       unless instance_variable_defined?(:@model_class)
         # try to auto-detect the model class based on our name
-        match = /(.*)View$/.match(self.name)
-        raise ArgumentError.new("Could not auto-determine AR model name from ViewModel name '#{self.name}'") if match.nil?
-        self.model_class_name = match[1]
+        self.model_class_name = self.view_name
       end
 
       @model_class
@@ -312,7 +313,7 @@ class ActiveRecordViewModel < ViewModel
 
     # internal
     def _association_data(association_name)
-      association_data = self._associations[association_name]
+      association_data = self._associations[association_name.to_s]
       raise ArgumentError.new("Invalid association") if association_data.nil?
       association_data
     end
@@ -340,6 +341,7 @@ class ActiveRecordViewModel < ViewModel
   end
 
   delegate :model_class, to: :class
+  delegate :id, to: :model
 
   def initialize(model = model_class.new)
     unless model.is_a?(model_class)
@@ -353,7 +355,7 @@ class ActiveRecordViewModel < ViewModel
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
 
-    self.class._members.each do |member_name|
+    self.class._members.keys.each do |member_name|
       json.set! member_name do
         self.public_send("serialize_#{member_name}", json, **options)
       end

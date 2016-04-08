@@ -2,8 +2,10 @@
 class ActiveRecordViewModel::UpdateOperation
   # Key for deferred resolution of an AR model
   ViewModelReference = Struct.new(:viewmodel_class, :model_id) do
-    def self.from_view_model(vm)
-      self.new(vm.class, vm.id)
+    class << self
+      def from_view_model(vm)
+        self.new(vm.class, vm.id)
+      end
     end
   end
 
@@ -78,7 +80,7 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       # update user-specified attributes
-      valid_members = viewmodel.class._members.map(&:to_s).to_set
+      valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
       bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
       if bad_keys.present?
         raise ViewModel::DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{viewmodel.class.name}")
@@ -92,8 +94,12 @@ class ActiveRecordViewModel::UpdateOperation
       # Update points-to associations before save
       points_to.each do |association_data, child_operation|
         association = model.association(association_data.name)
-        child_viewmodel = pointed_operation.run!(view_options)
-        association.replace(child_viewmodel.model)
+        child_model = if child_operation
+                        child_operation.run!(view_options).model
+                      else
+                        nil
+                      end
+        association.replace(child_model)
       end
 
       viewmodel.editable! if model.changed? # but what about our pointed-from children: if we release child, better own parent
@@ -106,11 +112,14 @@ class ActiveRecordViewModel::UpdateOperation
         association = model.association(association_data.name)
 
         new_target =
-          if child_operation.is_a?(Array)
+          case child_operation
+          when nil
+            nil
+          when ActiveRecordViewModel::UpdateOperation
+            child_operation.run!(view_options).model
+          when Array
             viewmodels = child_operation.map { |op| op.run(view_options) }
             viewmodels.map(&:model)
-          else
-            child_operation.run!(view_options).model
           end
 
         association.target = new_target
@@ -120,34 +129,39 @@ class ActiveRecordViewModel::UpdateOperation
     viewmodel
   end
 
-  private
-
   # Splits an update hash up into attributes, points-to associations and
   # pointed-to associations (in the context of our viewmodel), and recurses
   # into associations to create updates.
   def process_subtree_hash(subtree_hash, worklist, released_viewmodels)
     subtree_hash.each do |k, v|
-      association_data = self.viewmodel.class._association_data(k)
-      if association_data.nil?
-        # attribute
+      case  self.viewmodel.class._members[k]
+      when :attribute
         attributes[k] = v
-      else
+
+      when :association
         association_name = k
         association_hash = v
 
+        association_data = self.viewmodel.class._association_data(k)
+
         if association_data.collection?
-          self.pointed_to[association_name] = construct_updates_for_collection_association(association_data, association_hash, worklist, released_viewmodels)
+          self.pointed_to[association_data] = construct_updates_for_collection_association(association_data, association_hash, worklist, released_viewmodels)
         else
           target =
             case association_data.pointer_location
             when :remote; self.pointed_to
             when :local;  self.points_to
             end
-          target[association_name] = construct_update_for_single_association(association_data, association_hash, worklist, released_viewmodels)
+          target[association_data] = construct_update_for_single_association(association_data, association_hash, worklist, released_viewmodels)
         end
+
+      else
+        raise "wat" # TODO
       end
     end
   end
+
+  private
 
   def construct_update_for_single_association(association_data, child_hash, worklist, released_viewmodels)
     model = self.viewmodel.model
@@ -252,7 +266,7 @@ class ActiveRecordViewModel::UpdateOperation
     # release previously attached children that are no longer referred to
     previous_children.each_value do |model|
       viewmodel = child_viewmodel_class.new(model)
-      key = ViewModelReference.from_viewmodel(viewmodel)
+      key = ViewModelReference.from_view_model(viewmodel)
       released_viewmodels[key] = viewmodel
     end
 
@@ -262,7 +276,7 @@ class ActiveRecordViewModel::UpdateOperation
       get_position = ->(index){ child_viewmodels[index].try(&:_list_attribute) }
       set_position = ->(index, pos){ positions[index] = pos }
 
-      ActsAsManualList.update_positions(child_viewmodels.size.times, # indexes
+      ActsAsManualList.update_positions((0...child_viewmodels.size), # indexes
                                         position_getter: get_position,
                                         position_setter: set_position)
     end

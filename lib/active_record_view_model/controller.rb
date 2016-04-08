@@ -103,8 +103,7 @@ module ActiveRecordViewModel::Controller
 
     def nested_in(owner, as:)
       include ActiveRecordViewModel::NestedController
-      owner_name = owner.to_s.camelize + "View"
-      self.owner_viewmodel = owner_name.safe_constantize
+      self.owner_viewmodel = ActiveRecordViewModel.for_view_name(owner.to_s.camelize)
       raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
       self.association_name = as
     end
