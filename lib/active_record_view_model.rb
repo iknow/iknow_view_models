@@ -7,13 +7,38 @@ require "cerego_active_record_patches"
 require "iknow_list_utils"
 require "lazily"
 
+module Views; end
+
 class ActiveRecordViewModel < ViewModel
   using IknowListUtils
 
-  METADATA = ["_type"]
+  ID_ATTRIBUTE = "id"
+  TYPE_ATTRIBUTE = "_type"
 
-  AssociationData = Struct.new(:reflection, :viewmodel_spec) do
+  AssociationData = Struct.new(:reflection, :viewmodel_classes) do
     delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
+
+    def initialize(reflection, viewmodel_classes = nil)
+      if viewmodel_classes.nil?
+        # If the association isn't polymorphic, we may be able to guess from the reflection
+        model_class = reflection.klass
+        if klass.nil?
+          raise ViewModel::DeserializationError.new("Couldn't derive target class for polymorphic association `#{reflection.name}`")
+        end
+        viewmodel_class = ActiveRecordViewModel.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
+        viewmodel_classes = [viewmodel_class]
+      end
+
+      super(reflection, Array.wrap(viewmodel_classes))
+
+      @model_to_viewmodel = viewmodel_classes.each_with_object({}) do |vm, h|
+        h[vm.model_class] = vm
+      end
+
+      @name_to_viewmodel = viewmodel_classes.each_with_object({}) do |vm, h|
+        h[vm.view_name] = vm
+      end
+    end
 
     def pointer_location # TODO name
       case reflection.macro
@@ -23,101 +48,81 @@ class ActiveRecordViewModel < ViewModel
         :remote
       end
     end
-  end
 
-  class DeserializeContext
-
-    def initialize
-      @root_updates = Array.new
-      @post_execute_hooks = Array.new
-      @releases = Hash.new
-      @takes = Hash.new
-    end
-
-    def add_node_update(update)
-      @root_updates << update
-
-      update.each_child do |u|
-        u.releases.each do |m|
-          @releases[m] = u
-        end
-
-        u.takes.each do |m|
-          # TODO check for duplicate takes?
-          @takes[m] = u
-        end
+    def viewmodel_class_for_model(model_class)
+      vm_class = @model_to_viewmodel[model_class]
+      if vm_class.nil?
+        raise ArgumentError.new("Can't find corresponding viewmodel to model '#{model_class.name}' for association '#{reflection.name}'")
       end
-
+      vm_class
     end
 
-    def detect_moves
-      @takes.each do |taken_model, take_update|
-        puts "#{taken_model.class.name}(#{taken_model.id}) is taken by #{take_update}"
-        if (release = @releases[taken_model])
-          release.move_to!(taken_model, take_update)
-        else
-          puts "Update plan:"
-          @root_updates.each(&:print)
-
-          # This can't be a warning, otherwise the old association won't be cleared out
-          # the release is both the permission to release an object, and clearing the old association
-          raise "Missing release for taken object #{taken_model.class.name}(id=#{taken_model.id})"
-        end
+    def viewmodel_class_for_name(name)
+      vm_class = @name_to_viewmodel[name]
+      if vm_class.nil?
+        raise ArgumentError.new("Can't find corresponding viewmodel with name '#{name}' for association '#{reflection.name}'")
       end
+      vm_class
     end
 
-    def execute!
-      detect_moves
-      puts "Update plan:"
-      @root_updates.each(&:print)
-      @root_updates.each { |u| u.run!(self) }
-      @post_execute_hooks.each(&:call)
-    end
-
-    def register_post_execute_hook(&hook)
-      @post_execute_hooks << hook
+    def viewmodel_class
+      unless viewmodel_classes.size == 1
+        raise ArgumentError.new("More than one possible class for association '#{reflection.name}'")
+      end
+      viewmodel_classes.first
     end
   end
 
-  class NodeUpdate
-    attr_reader :model
+  # Key for deferred resolution of an AR model
+  ViewModelReference = Struct.new(:viewmodel_class, :model_id) do
+    def self.from_view_model(vm)
+      self.new(vm.class, vm.id)
+    end
+  end
 
-    def initialize(model)
-      @model = model
-      @attributes = Hash.new
-      @points_to = Hash.new
-      @pointed_to = Hash.new
-      @inverse = Hash.new
+  # inverse association and record to update a change in parent from a child
+  ParentData = Struct.new(:association_reflection, :model)
+
+  # Partially parsed tree of user-specified update hashes, created during deserialization.
+  UpdateOperation = Struct.new(:viewmodel,
+                               :attributes, # attr => serialized value
+                               :points_to,  # association => UpdateOperation (returns single new viewmodel to update fkey)
+                               :pointed_to, # association => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
+                               :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
+                               :reposition_to # if this node participates in a list under its parent, what should its position be?
+                              ) do
+    def initialize(viewmodel, attributes, points_to, pointed_to, reparent_to: nil, reposition_to: nil)
+      super(viewmodel, attributes, points_to, pointed_to, reparent_to, reposition_to)
     end
 
-    def add_attribute_update(name, value)
-      @attributes[name] = value
+    def self.create_deferred_stub(hash, reparent_to: nil, reposition_to: nil)
+      self.new(nil, nil, nil, nil, reparent_to, reposition_to)
+      @deferred_subtree_hash = hash
     end
 
-    def add_points_to_association_update(name, update)
-      @points_to[name] = update
+    def stub?
+      viewmodel.nil?
     end
 
-    def add_pointed_to_association_update(name, update)
-      @pointed_to[name] = update
+    def self.populate_stub(viewmodel, attributes, points_to, pointed_to)
+      raise "bad" unless stub? #TODO
+      self.viewmodel  = viewmodel
+      self.attributes = attributes
+      self.points_to  = points_to
+      self.pointed_to = pointed_to
+      self
     end
 
-    def add_inverse_update(name, update)
-      @inverse[name] = update
+    def deferred_subtree_hash
+      raise "bad" unless stub? #TODO
+      h = @deferred_subtree_hash
+      @deferred_subtree_hash = nil
+      h
     end
 
-    def releases
-      []
-    end
-
-    def takes
-      []
-    end
-
-    def each_child
-      yield(self)
-      @points_to.each { |_, u| u.each_child { |u| yield(u) } }
-      @pointed_to.each { |_, u| u.each_child { |u| yield(u) } }
+    def run(view_options)
+      viewmodel.execute_update_operation(self, view_options)
+      viewmodel
     end
 
     def print(prefix = nil)
@@ -130,155 +135,291 @@ class ActiveRecordViewModel < ViewModel
         puts "#{prefix}#{name} = "
         value.print("#{prefix}  ")
       end
-      @inverse.each do |name, value|
-        puts "#{prefix}#{name} = <inverse>"
-      end
-      puts "#{prefix}save!"
       @pointed_to.each do |name, value|
         puts "#{prefix}#{name} = "
         value.print("#{prefix}  ")
       end
     end
+  end
 
-    def run!(context)
-      @attributes.each do |attr, value|
-        model.public_send(:"#{attr}=", value)
+  def self.deserialize_from_view(subtree_hash, view_options)
+    # hash of { ViewmodelReference => stub UpdateOperation } for linked partially-constructed node updates
+    worklist = {}
+
+    # hash of { ViewModelReference => ViewModel } for models that have been released by nodes we've already visited
+    released_viewmodels = []
+
+    id        = subtree_hash.delete(ID_ATTRIBUTE)
+    type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
+
+    # Check specified type: must match expected viewmodel class
+    if false # TODO: type_name must match this class
+      raise "Inappropriate child type" #TODO
+    end
+
+    root_model =
+      if id.present?
+        model_scope.find(id) # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
+      else
+        model_class.new
       end
 
-      @points_to.each do |name, update|
-        model.association(name).replace(update.run!(context))
+    root_viewmodel = self.new(root_model)
+    root_update = root_viewmodel.construct_update_for_subtree(subtree_hash, worklist, released_viewmodels)
+
+    while worklist.present?
+      key = worklist.keys.detect { |key| released_viewmodels.has_key?(key) }
+      raise "can't resolve anything in worklist: #{worklist.inspect}" if key.nil?
+
+      stub_update = worklist.delete(key)
+      viewmodel = released_viewmodels.delete(key)
+      viewmodel.resume_constructing_update_from_stub(stub_update, worklist, released_viewmodels)
+    end
+
+    root_update.run(view_options)
+
+    released_viewmodels.each do |vm|
+      # this is insufficient, we're not storing how we *got*
+      # to this released model so we don't know how to cleanup
+      vm.model.destroy!
+    end
+  end
+
+  # divide up the hash into attributes and associations, and recursively
+  # construct update trees for each association (either building new models or
+  # associating them with loaded models). When a tree cannot be immediately
+  # constructed because its model referent isn't loaded, put a stub in the
+  # worklist.
+  def construct_update_for_subtree(subtree_hash, worklist, released_viewmodels, reparent_to: nil, reposition_to: nil)
+    attributes, points_to, pointed_to = process_subtree_hash(subtree_hash, worklist, released_viewmodels)
+
+    UpdateOperation.new(self, attributes, points_to, pointed_to, reparent_to: reparent_to, reposition_to: reposition_to)
+  end
+
+  # Once a subtree stub can be associated with its viewmodel referent, continue
+  # recursing into the subtree
+  def resume_constructing_update_from_stub(update_stub, worklist, released_viewmodels)
+    subtree_hash = update_stub.deferred_subtree_hash
+
+    attributes, points_to, pointed_to = process_subtree_hash(subtree_hash, worklist, released_viewmodels)
+
+    update_stub.populate_stub(self, attributes, points_to, pointed_to)
+  end
+
+  # Splits an update hash up into attributes, points-to associations and
+  # pointed-to associations (in the context of this viewmodel), and recurses
+  # into associations to create updates.
+  def process_subtree_hash(subtree_hash, attributes, points_to, pointed_to, worklist, released_viewmodels)
+    attributes = {}
+    points_to  = {}
+    pointed_to = {}
+
+    subtree_hash.each do |k, v|
+      association_data = self.class._association_data(k)
+      if association_data.nil?
+        # attribute
+        attributes[k] = v
+      else
+        association_name = k
+        association_hash = v
+
+        if association_data.collection?
+          pointed_to[association_name] = construct_updates_for_collection_association(association_data, association_hash, worklist, released_viewmodels)
+        else
+          target =
+            case association_data.pointer_location
+            when :remote; pointed_to
+            when :local;  points_to
+            end
+          target[association_name] = construct_update_for_single_association(association_data, association_hash, worklist, released_viewmodels)
+        end
+      end
+    end
+
+    return attributes, points_to, pointed_to
+  end
+
+  def construct_update_for_single_association(association_data, child_hash, worklist, released_viewmodels)
+    previous_child_model = model.public_send(association_data.name)
+
+    if previous_child_model.present?
+      previous_child_viewmodel_class = association_data.viewmodel_class_for(previous_child_model.class)
+      previous_child_viewmodel = previous_child_viewmodel_class.new(previous_child_model)
+
+      # Release the previous child if present: if the replacement hash refers to
+      # it, it will immediately take it back.
+      key = ViewModelReference.from_view_model(previous_child_viewmodel)
+      released_viewmodels[key] = previous_child_viewmodel
+    end
+
+    if child_hash.nil?
+      nil
+    elsif child_hash.is_a?(Hash)
+      id        = child_hash.delete(ID_ATTRIBUTE)
+      type_name = child_hash.delete(TYPE_ATTRIBUTE)
+      child_viewmodel_class = association_data.viewmodel_class_for_name(type_name)
+
+      child_viewmodel =
+        case
+        when id.nil?
+          child_viewmodel_class.new
+        when taken_child = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+          child_viewmodel_class.new(taken_child)
+        else
+          # not-yet-seen child: create a deferred update
+          nil
+        end
+
+      # if the association's pointer is in the child, need to provide it with a ParentData to update
+      parent_data =
+        if association_data.pointer_location == :remote
+          ParentData.new(association_data.reflection.inverse_of, model)
+        else
+          nil
+        end
+
+      child_update =
+        if child_viewmodel.nil?
+          key = ViewModelReference.new(child_viewmodel_class, child_hash[ID_ATTRIBUTE])
+          stub = UpdateOperation.create_deferred_stub(child_hash, reparent_to: parent_data)
+          worklist[key] = stub
+          stub
+        else
+          child_viewmodel.construct_update_for_subtree(child_hash, worklist, released_viewmodels, reparent_to: parent_data)
+        end
+
+      child_update
+    else
+      raise ViewModel::DeserializationError.new("Invalid hash data for single association: '#{child_hash.inspect}'")
+    end
+  end
+
+  def construct_updates_for_collection_association(association_data, child_hashes, worklist, released_viewmodels)
+    child_viewmodel_class = association_data.viewmodel_class
+    child_model_class = child_viewmodel_class.model_class
+
+    # reference back to this model, so we can set the link while updating the children
+    parent_data = ParentData.new(association_data.reflection.inverse_of, model)
+
+    unless child_hashes.is_a?(Array)
+      raise ViewModel::DeserializationError.new("Invalid hash data array for multiple association: '#{child_hashes.inspect}'")
+    end
+
+    # load children already attached to this model
+    previous_children = model.public_send(association_data.name).index_by(&:id)
+
+    # Construct viewmodels for incoming hash data. Where a child hash references
+    # an existing model not currently attached to this parent, it must be found
+    # before recursing into that child. If the model is available in released
+    # models we can recurse into them, otherwise we must attach a stub
+    # UpdateOperation (and add it to the worklist to process later)
+    child_viewmodels = child_hashes.map do |child_hash|
+      id        = child_hash.delete(ID_ATTRIBUTE)
+      type_name = child_hash.delete(TYPE_ATTRIBUTE)
+
+      # Check specified type: must match expected viewmodel class
+      if association_data.viewmodel_class_for_name(type_name) != child_viewmodel_class
+        raise "Inappropriate child type" #TODO
       end
 
-      @inverse.each do |name, update|
-        model.association(name).replace(update.model)
+      case
+      when id.nil?
+        child_viewmodel_class.new
+      when existing_child = previous_children.delete(id)
+        child_viewmodel_class.new(existing_child)
+      when taken_child_viewmodel = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+        taken_child_viewmodel
+      else
+        # Refers to child that hasn't yet been seen: create a deferred update.
+        nil
       end
+    end
+
+    # release previously attached children that are no longer referred to
+    previous_children.each_value do |model|
+      viewmodel = child_viewmodel_class.new(model)
+      key = ViewModelReference.from_viewmodel(viewmodel)
+      released_viewmodels[key] = viewmodel
+    end
+
+    # calculate new positions for children if in a list
+    positions = Array.new(child_viewmodels.length)
+    if child_viewmodel_class._list_member?
+      get_position = ->(index){ child_viewmodels[index].try(&:_list_attribute) }
+      set_position = ->(index, pos){ positions[index] = pos }
+
+      ActsAsManualList.update_positions(child_viewmodels.size.times, # indexes
+                                        position_getter: get_position,
+                                        position_setter: set_position)
+    end
+
+    # Recursively build update operations for children
+    child_updates = child_viewmodels.zip(child_hashes, positions).map do |child_viewmodel, child_hash, position|
+      if child_viewmodel.nil?
+        key = ViewModelReference.new(child_viewmodel_class, hash[ID_ATTRIBUTE])
+        stub = UpdateOperation.create_deferred_stub(child_hash, reparent_to: parent_data, reposition_to: position)
+        worklist[key] = stub
+        stub
+      else
+        child_viewmodel.construct_update_for_subtree(child_hash, worklist, released_viewmodels, reparent_to: parent_data, reposition_to: position)
+      end
+    end
+
+    child_updates
+  end
+
+  def execute_update_operation(update_operation, view_options)
+    # TODO: editable! checks if this particular record is getting changed
+    model.class.transaction do
+      # update parent association
+      if (parent_data = update_operation.reparent_to).present?
+        association = model.association(parent_data.association_reflection.name)
+        association.replace(parent_data.model)
+      end
+
+      # update position
+      if (position = update_operation.reposition_to).present?
+        self._list_attribute = position
+      end
+
+      # update user-specified attributes
+      valid_members = self.class._members.map(&:to_s).to_set
+
+      if (bad_keys = update_operation.attributes.keys.reject { |k| valid_members.include?(k) }).present?
+        raise ViewModel::DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
+      end
+
+      update_operation.attributes.each do |attr_name, serialized_value|
+        raise "SHOULD NEVER BE REACHED" if attr_name == id
+        self.public_send("deserialize_#{attr_name}", serialized_value, **view_options)
+      end
+
+      # Update points-to associations before save
+      update_operation.points_to.each do |association, child_operation|
+        child_viewmodel = pointed_operation.run(view_options)
+        association.replace(child_viewmodel.model)
+      end
+
+      editable! if model.changed? # but what about our pointed-from children: if we release child, better own parent
 
       model.save!
 
-      # now we have dropped the references to @points_to old models, we can do their deletes
+      # Update association cache of pointed-from associations after save: the
+      # child update will have saved the pointer.
+      update_operation.pointed_to.each do |association, child_operation|
+        new_target =
+          if child_operation.is_a?(Array)
+            viewmodels = child_operation.map { |o| o.run(view_options) }
+            viewmodels.map(&:model)
+          else
+            child_operation.run(view_options).model
+          end
 
-      @pointed_to.each do |name, update|
-        model.association(name).target = update.run!(context)
+        association.target = new_target
       end
-
-      model
     end
   end
 
-  class AssociationChange
-    attr_reader :move, :from_model, :to_update, :association_data
-
-    def move_to!(model, update)
-      @move = true
-    end
-
-    def initialize(association_data, from_model, to_update)
-      @association_data = association_data
-      @from_model = from_model
-      @to_update = to_update
-    end
-
-    def print(prefix = nil)
-      puts "#{prefix}#{self.class.name}"
-      prefix = "#{prefix}  "
-      if from_model
-        puts "#{prefix} from: #{from_model.class.name}(id=#{from_model.id})"
-        puts "#{prefix}   move=#{@move.present?}"
-      end
-      if to_update
-        puts "#{prefix} to:"
-        to_update.print("#{prefix}  ")
-      end
-    end
-
-    def each_child
-      yield self
-      @to_update.each_child { |u| yield(u) } if @to_update
-    end
-
-    def releases
-      if @from_model
-        [@from_model]
-      else
-        []
-      end
-    end
-
-    def takes
-      if @to_update && !@to_update.model.new_record?
-        [@to_update.model]
-      else
-        []
-      end
-    end
-
-    def run!(context)
-      destroy_option = association_data.reflection.options[:dependent]
-      if from_model && !@move && [:delete, :destroy].include?(destroy_option)
-        case destroy_option
-        when :delete
-          context.register_post_execute_hook { from_model.delete }
-        when :destroy
-          context.register_post_execute_hook { from_model.destroy }
-        end
-      end
-      to_update.run!(context) if to_update
-    end
-  end
-
-  class AssociationCollectionChange
-    attr_reader :to_update, :releases, :takes
-
-    def initialize(releases, takes, to_update)
-      @releases = releases
-      @takes = takes
-      @to_update = to_update
-      @move = Hash.new
-    end
-
-    def move_to!(model, update)
-      @move[model] = update
-    end
-
-    def each_child
-      yield self
-      @to_update.each { |u| u.each_child { |c| yield(c) } }
-    end
-
-    def print(prefix = nil)
-      puts "#{prefix}#{self.class.name}"
-      prefix = "#{prefix}  "
-      if releases.present?
-        puts "#{prefix}releases: ["
-        @releases.each do |m|
-          puts "#{prefix} #{m.class.name}(id=#{m.id})"
-          puts "#{prefix}   move? #{@move[m]}"
-        end
-        puts "#{prefix}]"
-      end
-
-      if takes.present?
-        puts "#{prefix}takes: ["
-        takes.each do |m|
-          puts "#{prefix} #{m.class.name}(id=#{m.id})"
-        end
-        puts "#{prefix}]"
-      end
-
-      if to_update.present?
-        puts "#{prefix}to: ["
-        to_update.map { |u| u.print("#{prefix}  ") }
-        puts "#{prefix}]"
-      end
-    end
-
-    def run!(context)
-      @releases.each do |released_model|
-        released_model.delete unless @move[released_model]
-      end
-      to_update.map { |u| u.run!(context) }
-    end
-  end
 
   # An AR ViewModel wraps a single AR model
   attribute :model
@@ -287,6 +428,26 @@ class ActiveRecordViewModel < ViewModel
     attr_reader :_members, :_associations, :_list_attribute_name
 
     delegate :transaction, to: :model_class
+    delegate :id, to: :model
+
+    # The user-facing name of this viewmodel: serialized in the TYPE_ATTRIBUTE
+    # field
+    def view_name
+      prefix = "#{Views.name}::"
+      unless name.start_with?(prefix)
+        raise "Illegal AR viewmodel: must be defined under module '#{prefix}'"
+      end
+      self.name[prefix.length..-1]
+    end
+
+    def for_view_name(name)
+      class_name = "#{Views.name}::#{name}"
+      viewmodel_class = class_name.safe_constantize
+      if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
+        raise ArgumentError.new("ViewModel class '#{class_name}' not found")
+      end
+      viewmodel_class
+    end
 
     def inherited(subclass)
       # copy ViewModel setup
@@ -301,8 +462,6 @@ class ActiveRecordViewModel < ViewModel
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module
-
-      attribute(:id)
     end
 
     # Specifies an attribute from the model to be serialized in this view
@@ -320,7 +479,7 @@ class ActiveRecordViewModel < ViewModel
         end
 
         define_method "deserialize_#{attr}" do |value, **options|
-          deserialize_member(attr, value, **options)
+          model.public_send("#{attr}=", value)
         end
       end
     end
@@ -359,29 +518,6 @@ class ActiveRecordViewModel < ViewModel
       _list_attribute_name.present?
     end
 
-    def _reorder_list_members(data)
-      # If the position attribute is explicitly exposed in the viewmodel, then
-      # allow positions to be specified by the user by pre-sorting using any
-      # specified position values as a partial order, followed in original
-      # array order by models without position specified.
-      if _members.include?(_list_attribute_name)
-        data = data.map(&:dup)
-
-        n = 0
-        data.sort_by! do |h|
-          pos = h.delete(_list_attribute_name.to_s)
-          # TODO try to unify? not handle as two different sequences
-          if pos.nil?
-            [1, n += 1]
-          else
-            [0, pos]
-          end
-        end
-      end
-
-      data
-    end
-
     # Specifies an association from the model to be recursively serialized using
     # another viewmodel. If the target viewmodel is not specified, attempt to
     # locate a default viewmodel based on the name of the associated model.
@@ -390,19 +526,6 @@ class ActiveRecordViewModel < ViewModel
 
       if reflection.nil?
         raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
-      end
-
-      unless reflection.validate?
-        # If the record is not validated then we will ignore save failures
-        # and partially store user data.
-        raise ArgumentError.new("Association #{association_name} does not have validation enabled")
-      end
-
-      unless reflection.polymorphic?
-        inverse = reflection.inverse_of
-        if inverse.present? && inverse.validate?
-          raise ArgumentError.new("Association #{self} #{association_name}'s inverse (#{inverse}) has validation enabled, creating a cycle'")
-        end
       end
 
       viewmodel_spec = viewmodel || viewmodels
@@ -419,21 +542,8 @@ class ActiveRecordViewModel < ViewModel
           associated = self.public_send(association_name)
           self.class.serialize(associated, json, **options)
         end
-
-        define_method :"deserialize_#{association_name}" do |hash_data, **options|
-          deserialize_association(association_name, hash_data, **options)
-        end
-
-        define_method :"append_#{association_name}" do |data, **options|
-          append_association(association_name, data, **options)
-        end
-
-        define_method :"delete_#{association_name}" do |associated, **options|
-          delete_association(association_name, associated, **options)
-        end
       end
     end
-
 
     # Specify multiple associations at once
     def associations(*assocs)
@@ -453,40 +563,6 @@ class ActiveRecordViewModel < ViewModel
       load_scope = model_scope(eager_include: eager_include, **options)
       load_scope = load_scope.merge(scope) if scope
       load_scope.map { |model| self.new(model) }
-    end
-
-    def deserialize_one(hash_data, context:, **options)
-      if _is_update_hash?(hash_data)
-        id = _update_id(hash_data)
-        model = model_scope.find(id)
-        viewmodel = self.new(model)
-        update = viewmodel._update_from_view(hash_data, context: context, **options)
-        context.add_node_update(update)
-      else
-        model = model_class.new
-        viewmodel = self.new(model)
-        update = viewmodel._update_from_view(hash_data, context: context, **options)
-        context.add_node_update(update)
-      end
-
-      viewmodel
-    end
-
-    def deserialize_from_view(hash_data, **options)
-      context = DeserializeContext.new
-
-      model_class.transaction do
-        extra = hash_data.delete("_aux")
-        result = self.deserialize_one(hash_data, context: context, **options)
-        if extra
-          extra.each do |extra_data|
-            self.deserialize_one(extra_data, context: context, **options)
-          end
-        end
-        context.execute!
-
-        result
-      end
     end
 
 
@@ -542,39 +618,6 @@ class ActiveRecordViewModel < ViewModel
       association_data
     end
 
-    # internal
-    def _is_update_hash?(hash_data)
-      hash_data.has_key?("id")
-    end
-
-    # internal
-    def _update_id(hash_data)
-      hash_data["id"]
-    end
-
-    # internal
-    def _viewmodel_for(klass, override_spec)
-      case override_spec
-      when ActiveRecordViewModel
-        viewmodel = override_spec
-      when Hash
-        viewmodel = override_spec[klass.name]
-        if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
-          raise ArgumentError.new("ViewModel for associated class '#{klass.name}' not specified in manual association")
-        end
-      when nil
-        viewmodel_name = (klass.name + "View")
-        viewmodel = viewmodel_name.safe_constantize
-        if viewmodel.nil? || !(viewmodel < ActiveRecordViewModel)
-          raise ArgumentError.new("Default ViewModel class '#{viewmodel_name}' for associated class '#{klass.name}' not found")
-        end
-      else
-        raise ArgumentError.new("Invalid viewmodel specification: '#{override_spec}'")
-      end
-
-      viewmodel
-    end
-
     private
 
     # Set the AR model to be wrapped by this viewmodel
@@ -599,9 +642,7 @@ class ActiveRecordViewModel < ViewModel
 
   delegate :model_class, to: :class
 
-  def initialize(model = nil)
-    model ||= model_class.new
-
+  def initialize(model = model_class.new)
     unless model.is_a?(model_class)
       raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
     end
@@ -610,7 +651,9 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def serialize_view(json, **options)
-    json.set!("_type", self.model_class.name)
+    json.set!(ID_ATTRIBUTE, model.id)
+    json.set!(TYPE_ATTRIBUTE, self.class.view_name)
+
     self.class._members.each do |member_name|
       json.set! member_name do
         self.public_send("serialize_#{member_name}", json, **options)
@@ -625,13 +668,14 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  class UnimplementedException < Exception
-  end
-
+  class UnimplementedException < Exception; end
   def unimplemented
     raise UnimplementedException.new
   end
 
+  # Entry point for appending to a collection association of an existing record
+  # FIXME: no reason for this to be separate from append_association any more,
+  # since we're no longer providing overridable append_* hooks for each association.
   def deserialize_associated(association_name, hash_data, **options)
     unimplemented
 
@@ -640,7 +684,7 @@ class ActiveRecordViewModel < ViewModel
       editable!(**options)
       case hash_data
       when Hash
-        view = self.public_send(:"append_#{association_name}", hash_data, **options)
+        view = append_association(association_name, hash_data, **options)
       else
         raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
       end
@@ -649,15 +693,14 @@ class ActiveRecordViewModel < ViewModel
     view
   end
 
+  # Entry point for destroying the association between an existing record and a child:
+  # will be necessary for shared data.
   def delete_associated(association_name, associated, **options)
     unimplemented
 
     model_class.transaction do
       editable!(**options)
-      self.public_send(:"delete_#{association_name}", associated, **options)
-      # Ensure the model is saved and hooks are run in case the implementor
-      # overrides `delete_x`
-      model.save!
+      delete_association(association_name, associated, **options)
     end
   end
 
@@ -666,42 +709,10 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def find_associated(association_name, id, eager_include: true, **options)
-    associated_viewmodel = viewmodel_for_association(association_name)
+    association_data = self.class._association_data(association_name)
+    associated_viewmodel = association_data.viewmodel_class
     association_scope = self.model.association(association_name).association_scope
     associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include, **options)
-  end
-
-  # Update the model based on attributes in the hash.
-  # Internal implementation, private to class and metaclass.
-  def _update_from_view(hash_data, context:, **options)
-    editable!(**options)
-    valid_members = self.class._members.map(&:to_s)
-
-    # check for bad data
-    bad_keys = hash_data.keys.reject { |k| valid_members.include?(k) || METADATA.include?(k) }
-
-    if bad_keys.present?
-      raise ViewModel::DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{self.class.name}")
-    end
-
-    update = NodeUpdate.new(self.model)
-
-    valid_members.each do |member|
-      next if member == "id" || member == "_type"
-
-      if hash_data.has_key?(member)
-        val = hash_data[member]
-        self.public_send("deserialize_#{member}", val, update: update, context: context, **options)
-      end
-    end
-
-    update
-  end
-
-  # For a given assocaition, set the value, with full rails style updates
-  def _set_association(association_name, viewmodel_value)
-    # TODO how does this work?
-    model.association(association_name).replace(viewmodel_value.model)
   end
 
   private
@@ -711,7 +722,7 @@ class ActiveRecordViewModel < ViewModel
     return nil if associated.nil?
 
     association_data = self.class._association_data(association_name)
-    associated_viewmodel = viewmodel_for_association(association_name)
+    associated_viewmodel = association_data.viewmodel_class
     if association_data.collection?
       associated = associated.map { |x| associated_viewmodel.new(x) }
       if associated_viewmodel._list_member?
@@ -720,162 +731,6 @@ class ActiveRecordViewModel < ViewModel
       associated
     else
       associated_viewmodel.new(associated)
-    end
-  end
-
-  def deserialize_member(name, value, update:, context:, **options)
-    update.add_attribute_update(name, value)
-  end
-
-  def deserialize_association_collection(association_data, hash_data, update:, context:, **options)
-    inverse_reflection = association_data.reflection.inverse_of
-
-    viewmodel = viewmodel_for_association(association_data.name)
-
-    # preload any existing models: if they're referred to, we require them to
-    # exist.
-    unless hash_data.is_a?(Array)
-      raise ViewModel::DeserializationError.new(
-        "Invalid hash data array for multiple association: '#{hash_data.inspect}'")
-    end
-
-    # infer user order from position attributes and passed array
-    hash_data = viewmodel._reorder_list_members(hash_data) if viewmodel._list_member?
-
-    # load children already attached to this model
-    existing_children = model.public_send(association_data.name).index_by(&:id)
-
-    # load children not attached to this parent so they're available when
-    # building the viewmodels.
-
-    # TODO: double loading here, maybe
-    other_children_ids = hash_data
-                           .lazy
-                           .map { |x| x["id"] }
-                           .reject { |x| x.nil? || existing_children.include?(x) }
-                           .to_a
-
-    other_children = viewmodel.model_class
-                       .find_all!(other_children_ids)
-                       .index_by(&:id)
-
-    vm_children = hash_data.map do |x|
-      id = x["id"]
-      viewmodel.new(existing_children[id] || other_children[id])
-    end
-
-    discarded_children = existing_children.values - vm_children.map(&:model)
-    taken_children = (vm_children.map(&:model) - existing_children.values).reject(&:new_record?)
-
-    if inverse_reflection.nil?
-      raise "Reflection has no inverse, cannot insert into list #{self.class}##{association_data.name}"
-    end
-
-    updates = Array.new
-    vm_children.zip(hash_data) do |child, data|
-      new_update = child._update_from_view(data, context: context, **options)
-      unless existing_children.values.include?(child.model)
-        new_update.add_inverse_update(inverse_reflection.name, update)
-      end
-      updates << new_update
-    end
-
-    if viewmodel._list_member?
-      list_attr = viewmodel._list_attribute_name
-
-      viewmodel.model_class.interleaved_positions(
-        updates,
-        in_list: ->(x) { existing_children.values.include?(x.model) },
-        position: ->(x) { x.model.public_send(list_attr) }
-      ) do |u, new_position|
-        u.add_attribute_update(list_attr, new_position)
-      end
-    end
-
-    update.add_pointed_to_association_update(
-      association_data.name,
-      AssociationCollectionChange.new(discarded_children, taken_children, updates))
-
-    nil
-  end
-
-  def _add_association_update(parent_update, association_data, new_update)
-    if association_data.pointer_location == :local
-      parent_update.add_points_to_association_update(association_data.name, new_update)
-    else
-
-      parent_update.add_pointed_to_association_update(association_data.name, new_update)
-    end
-  end
-
-  def deserialize_association_single(association_data, hash_data, update:, context:, **options)
-    assoc_model = self.model.public_send(association_data.name)
-
-    if hash_data.nil?
-      # Remove the attachment to the label, only if the pointer will not be cleaned up as part of the release action.
-      if assoc_model
-        _add_association_update(update, association_data, AssociationChange.new(association_data, assoc_model, nil))
-      end
-    elsif hash_data.is_a?(Hash)
-      # This is an ugly hack to see if we can do polymorphism right
-      klass = if association_data.reflection.polymorphic?
-                if (type = hash_data["_type"])
-                  type.constantize # TODO gaping security vulnerability?
-                else
-                  raise DeserializationError.new("Missing type in polymorphic record")
-                end
-              else
-                association_data.reflection.klass
-              end
-
-      viewmodel = self.class._viewmodel_for(klass, association_data.viewmodel_spec)
-      is_new_record = !viewmodel._is_update_hash?(hash_data)
-
-      if is_new_record
-        assoc_view = viewmodel.new
-        assoc_update = assoc_view._update_from_view(hash_data, context: context, **options)
-        if association_data.pointer_location == :remote
-          assoc_update.add_inverse_update(association_data.reflection.inverse_of.name, update)
-        end
-
-        _add_association_update(update, association_data, AssociationChange.new(association_data, assoc_model, assoc_update))
-      else
-        if assoc_model.id == viewmodel._update_id(hash_data) && assoc_model.class == viewmodel.model_class
-          # current child is targetted, update in place
-          # ... what if type changes?
-          assoc_view = viewmodel.new(assoc_model)
-          assoc_update = assoc_view._update_from_view(hash_data, context: context, **options)
-          _add_association_update(update, association_data, assoc_update)
-
-        else
-          # reparenting something else
-          existing_model = viewmodel.model_class.find(viewmodel._update_id(hash_data))
-          assoc_view = viewmodel.new(existing_model)
-          assoc_update = assoc_view._update_from_view(hash_data, context: context, **options)
-          if association_data.pointer_location == :remote
-            assoc_update.add_inverse_update(association_data.reflection.inverse_of.name, update)
-          end
-          _add_association_update(update, association_data, AssociationChange.new(association_data, assoc_model, assoc_update))
-        end
-
-      end
-    else
-      raise ViewModel::DeserializationError.new("Invalid hash data for single association: '#{hash_data.inspect}'")
-    end
-
-    nil # no return value (TODO is this the ruby idiom?)
-  end
-
-  # Create or update an entire associated subtree from a serialized hash,
-  # replacing the current contents if necessary.
-  def deserialize_association(association_name, hash_data, update:, context:, **options)
-    association_data = self.class._association_data(association_name)
-    if association_data.collection?
-      deserialize_association_collection(
-        association_data, hash_data, update: update, context: context, **options)
-    else
-      deserialize_association_single(
-        association_data, hash_data, update: update, context: context, **options)
     end
   end
 
@@ -889,7 +744,7 @@ class ActiveRecordViewModel < ViewModel
 
     if association_data.collection?
       association = model.association(association_name)
-      viewmodel = viewmodel_for_association(association_name)
+      viewmodel = association_data.viewmodel_class
       assoc_view = viewmodel.deserialize_from_view(hash_data, **options)
       assoc_model = assoc_view.model
       association.concat(assoc_model)
@@ -919,19 +774,6 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def viewmodel_for_association(association_name)
-    association_data = self.class._association_data(association_name)
-
-    association = model.association(association_name)
-    klass = association.klass
-
-    if klass.nil?
-      raise ViewModel::DeserializationError.new("Couldn't identify target class for association `#{association.reflection.name}`: polymorphic type missing?")
-    end
-
-    self.class._viewmodel_for(klass, association_data.viewmodel_spec)
-  end
-
 
   ####### TODO LIST ########
 
@@ -946,23 +788,6 @@ class ActiveRecordViewModel < ViewModel
   # - does the old one get correctly garbage collected?
 
   ## Throw an error if the same entity is specified twice
-
-  ## Replace acts_as_list
-  # - acts_as_list performs unnecessary O(n) aggregate queries across the list
-  #   context on each update, and requires a really nasty patch to neuter the
-  #   list context scope on new element insertions when rewriting the list
-  #   (`deserialize__list_position`). If we know that updates will always go via
-  #   ViewModels, we could do better by reimplementing list handling
-  #   explicitly. An option would be to require that the model includes our own
-  #   lightweight *explicitly used* acts_as_list replacement, which the
-  #   viewmodel can use alongside as well as other service code?
-
-  ## Belongs-to garbage collection
-  # - Check that post save hooks for garbage collection can't clobber changes:
-  #   consider what would happen if a A record had two references to B, and we
-  #   change from {b1: x, b2: null} to {b1: null, b2: x} - the post-save hook
-  #   for removing the record from b1 would destroy it, even though it now
-  #   belongs to b2.
 
   ### Controllers
 
