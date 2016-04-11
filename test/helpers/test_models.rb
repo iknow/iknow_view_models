@@ -165,7 +165,7 @@ module Views
   end
 
   class Child < ActiveRecordViewModel
-    attributes :name, :position, :age
+    attributes :name, :age
     acts_as_list :position
 
     include TrivialAccessControl

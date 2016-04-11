@@ -66,16 +66,15 @@ class ActiveRecordViewModel::UpdateOperation
   def run!(view_options)
     model = viewmodel.model
 
-    debug_name = "#{model.class.name}:#{model.id}"
+    debug_name = "#{model.class.name}:#{model.id || '<new>'}"
     debug "-> #{debug_name}: Entering"
 
     # TODO: editable! checks if this particular record is getting changed
     model.class.transaction do
       # update parent association
       if reparent_to.present?
-        parent_name = reparent_to.association_reflection.name
-        debug "-> #{debug_name}: Updating parent pointer to #{parent_name}:#{reparent_to.model.id}"
-        association = model.association(parent_name)
+        debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.model.class.name}:#{reparent_to.model.id}'"
+        association = model.association(reparent_to.association_reflection.name)
         association.replace(reparent_to.model)
         debug "<- #{debug_name}: Updated parent pointer"
       end
@@ -98,7 +97,7 @@ class ActiveRecordViewModel::UpdateOperation
 
       # Update points-to associations before save
       points_to.each do |association_data, child_operation|
-        debug "-> #{debug_name}: Updating points-to association #{association_data.name}"
+        debug "-> #{debug_name}: Updating points-to association '#{association_data.name}'"
 
         association = model.association(association_data.name)
         child_model = if child_operation
@@ -107,7 +106,7 @@ class ActiveRecordViewModel::UpdateOperation
                         nil
                       end
         association.replace(child_model)
-        debug "<- #{debug_name}: Updated points-to association #{association_data.name}"
+        debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
       end
 
       viewmodel.editable! if model.changed? # but what about our pointed-from children: if we release child, better own parent
@@ -119,7 +118,7 @@ class ActiveRecordViewModel::UpdateOperation
       # Update association cache of pointed-from associations after save: the
       # child update will have saved the pointer.
       pointed_to.each do |association_data, child_operation|
-        debug "-> #{debug_name}: Updating pointed-to association #{association_data.name}"
+        debug "-> #{debug_name}: Updating pointed-to association '#{association_data.name}'"
 
         association = model.association(association_data.name)
 
@@ -136,7 +135,7 @@ class ActiveRecordViewModel::UpdateOperation
 
         association.target = new_target
 
-        debug "<- #{debug_name}: Updated pointed-to association #{association_data.name}"
+        debug "<- #{debug_name}: Updated pointed-to association '#{association_data.name}'"
       end
     end
 
@@ -222,7 +221,7 @@ class ActiveRecordViewModel::UpdateOperation
           taken_child
         else
           # not-yet-seen child: create a deferred update
-          nil
+          ViewModelReference.new(child_viewmodel_class, id)
         end
 
       # if the association's pointer is in the child, need to provide it with a ParentData to update
@@ -234,11 +233,10 @@ class ActiveRecordViewModel::UpdateOperation
         end
 
       child_update =
-        if child_viewmodel.nil?
-          key = ViewModelReference.new(child_viewmodel_class, id)
-          deferred_update = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data)
-          worklist[key] = deferred_update
-          deferred_update
+        case child_viewmodel
+        when ViewModelReference # deferred
+          reference = child_viewmodel
+          worklist[reference] = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data)
         else
           ActiveRecordViewModel::UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data)
         end
@@ -301,7 +299,7 @@ class ActiveRecordViewModel::UpdateOperation
         taken_child_viewmodel
       else
         # Refers to child that hasn't yet been seen: create a deferred update.
-        nil
+        ViewModelReference.new(child_viewmodel_class, id)
       end
     end
 
@@ -312,24 +310,28 @@ class ActiveRecordViewModel::UpdateOperation
       released_viewmodels[key] = viewmodel
     end
 
-    # calculate new positions for children if in a list
+    # Calculate new positions for children if in a list. Ignore previous
+    # positions for unresolved references: they'll always need to be updated
+    # anyway since their parent pointer will change.
     positions = Array.new(child_viewmodels.length)
     if child_viewmodel_class._list_member?
-      get_position = ->(index){ child_viewmodels[index].try(&:_list_attribute) }
       set_position = ->(index, pos){ positions[index] = pos }
+      get_previous_position = ->(index) do
+        vm = child_viewmodels[index]
+        vm._list_attribute unless vm.is_a?(ViewModelReference)
+      end
 
-      ActsAsManualList.update_positions((0...child_viewmodels.size), # indexes
-                                        position_getter: get_position,
+      ActsAsManualList.update_positions((0...child_viewmodels.size).to_a, # indexes
+                                        position_getter: get_previous_position,
                                         position_setter: set_position)
     end
 
     # Recursively build update operations for children
     child_updates = child_viewmodels.zip(child_hashes, positions).map do |child_viewmodel, child_hash, position|
-      if child_viewmodel.nil?
-        key = ViewModelReference.new(child_viewmodel_class, hash[ActiveRecordViewModel::ID_ATTRIBUTE])
-        deferred_update = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data, reposition_to: position)
-        worklist[key] = deferred_update
-        deferred_update
+      case child_viewmodel
+      when ViewModelReference # deferred
+        reference = child_viewmodel
+        worklist[reference] = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data, reposition_to: position)
       else
         ActiveRecordViewModel::UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data, reposition_to: position)
       end

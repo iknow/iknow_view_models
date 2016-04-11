@@ -37,16 +37,6 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ActiveRecord::Base.logger = nil
   end
 
-  def test_relations_must_be_validated
-    ex = assert_raises(ArgumentError) do
-      Class.new(ActiveRecordViewModel) do
-        self.model_class = UnvalidatedLinkedList
-        association :cdr
-      end
-    end
-    assert_match(%r{validation enabled}, ex.message)
-  end
-
   def test_find
     parentview = Views::Parent.find(@parent1.id)
     assert_equal(@parent1, parentview.model)
@@ -76,7 +66,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def test_editability
     assert_raises(ViewModel::DeserializationError) do
       # create
-      Views::Parent.deserialize_from_view({ "name" => "p" }, can_edit: false)
+      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, can_edit: false)
     end
 
     assert_raises(ViewModel::DeserializationError) do
@@ -92,12 +82,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
-      Views::Parent.new(@parent1).deserialize_associated(:children, { "text" => "hi" }, can_edit: false)
+      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, can_edit: false)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # replace children
-      Views::Parent.new(@parent1).deserialize_associated(:children, [{ "text" => "hi" }], can_edit: false)
+      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], can_edit: false)
     end
 
     assert_raises(ViewModel::DeserializationError) do
@@ -108,8 +98,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_serialize_view
     s = Views::Parent.new(@parent1)
-    assert_equal(s.to_hash,
-                 { "_type" => "Parent",
+    assert_equal({ "_type" => "Parent",
                    "id" => @parent1.id,
                    "name" => @parent1.name,
                    "label" => { "_type" => "Label",
@@ -125,23 +114,24 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                    "children" => @parent1.children.map { |child| { "_type" => "Child",
                                                                    "id" => child.id,
                                                                    "name" => child.name,
-                                                                   "position" => child.position,
-                                                                   "age" => nil } } })
+                                                                   "age" => nil } } },
+                s.to_hash)
   end
 
   def test_eager_includes
     p = Views::Parent.eager_includes
-    assert_equal({ :children => {}, :label => {}, :target => { :label => {} }, :poly => nil }, p)
+    assert_equal({ "children" => {}, "label" => {}, "target" => { "label" => {} }, "poly" => nil }, p)
   end
 
   def test_create_from_view
     view = {
+      "_type" => "Parent",
       "name" => "p",
-      "label" => { "text" => "l" },
-      "target" => { "text" => "t" },
-      "children" => [{ "name" => "c1" }, { "name" => "c2" }],
-      "poly" => { "_type" => "PolyTwo",
-                  "text" => "pol" }
+      "label" => { "_type" => "Label", "text" => "l" },
+      "target" => { "_type" => "Target", "text" => "t" },
+      "children" => [{ "_type" => "Child", "name" => "c1" },
+                     { "_type" => "Child", "name" => "c2" }],
+      "poly" => { "_type" => "PolyTwo", "text" => "pol" }
     }
 
     pv = Views::Parent.deserialize_from_view(view)
@@ -172,6 +162,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_bad_single_association
     view = {
+       "_type" => "Parent",
       "children" => nil
     }
     assert_raises(ViewModel::DeserializationError) do
@@ -190,6 +181,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_create_without_polymorphic_type
     view = {
+       "_type" => "Parent",
       "name" => "p",
       "poly" => { "text" => "pol" }
     }
@@ -203,9 +195,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     # @parent1 has a PolyOne in #setup
     old_poly = @parent1.poly
 
-    view = { "_type" => "Parent",
-             "id" => @parent1.id,
-             "poly" => { "_type" => "PolyTwo" } }
+    view = {
+      "_type" => "Parent",
+      "id" => @parent1.id,
+      "poly" => { "_type" => "PolyTwo" }
+    }
 
     Views::Parent.deserialize_from_view(view)
 
@@ -251,7 +245,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = Views::Parent.new(@parent1).to_hash
     old_children = @parent1.children
 
-    view["children"] = [{ "name" => "new_child" }]
+    view["children"] = [{ "_type" => "Child", "name" => "new_child" }]
     Views::Parent.deserialize_from_view(view)
 
     @parent1.reload
@@ -265,7 +259,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = Views::Parent.new(@parent1).to_hash
 
     view["children"].shift
-    view["children"] << { "name" => "c3" }
+    view["children"] << { "_type" => "Child", "name" => "c3" }
     Views::Parent.deserialize_from_view(view)
 
     @parent1.reload
@@ -279,35 +273,13 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert(Child.where(id: old_children[0].id).blank?)
   end
 
-  def test_edit_explicit_list_position
-    old_children = @parent1.children.order(:position).to_a
-
-    view = Views::Parent.new(@parent1).to_hash
-
-    view["children"][0]["position"] = 2
-    view["children"][1]["position"] = 1
-    view["children"] << { "name" => "c3" }
-    view["children"] << { "name" => "c4" }
-    Views::Parent.deserialize_from_view(view)
-
-    @parent1.reload
-    assert_equal(5, @parent1.children.size)
-    tc1, tc2, tc3, tc4, tc5 = @parent1.children.order(:position)
-    assert_equal(old_children[1], tc1)
-    assert_equal(old_children[0], tc2)
-    assert_equal(old_children[2], tc3)
-    assert_equal("c3", tc4.name)
-    assert_equal("c4", tc5.name)
-  end
-
   def test_edit_implicit_list_position
     old_children = @parent1.children.order(:position).to_a
 
     view = Views::Parent.new(@parent1).to_hash
 
-    view["children"].each { |c| c.delete("position") }
     view["children"].reverse!
-    view["children"].insert(1, { "name" => "c3" })
+    view["children"].insert(1, { "_type" => "Child", "name" => "c3" })
 
     Views::Parent.deserialize_from_view(view)
 
@@ -328,15 +300,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view = { "_type" => "Parent",
              "name" => "new_p",
-             "children" => [child_view, { "name" => "new" }] }
+             "children" => [child_view, { "_type" => "Child", "name" => "new" }] }
 
-    view["_aux"] = [{"id" => @parent1.id,
-                    "children" => [{"id" => @parent1.children[0].id},
-                                   {"id" => @parent1.children[2].id}]}]
+    release_view = { "_type" => "Parent", "id" => @parent1.id,
+                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id},
+                                    { "_type" => "Child", "id" => @parent1.children[2].id}]}
 
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = Views::Parent.deserialize_from_view([view, release_view])
 
-    parent = pv.model
+    new_parent = pv.first.model
+    new_parent.reload
 
     # child should be removed from old parent and positions updated
     @parent1.reload
@@ -346,8 +319,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("p1c3", oc2.name, "child3 name preserved")
 
     # child should be added to new parent with valid position
-    assert_equal(2, parent.children.size)
-    nc1, nc2 = parent.children.order(:position)
+    assert_equal(2, new_parent.children.size)
+    nc1, nc2 = new_parent.children.order(:position)
     assert_equal(child, nc1)
     assert_equal("p1c2", nc1.name)
     assert_equal("new", nc2.name)
@@ -359,11 +332,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = Views::Parent.new(@parent2).to_hash
     view["children"] << Views::Child.new(child).to_hash
 
-    view["_aux"] = [{"id" => @parent1.id,
-                    "children" => [{"id" => @parent1.children[0].id},
-                                   {"id" => @parent1.children[2].id}]}]
+    release_view = { "_type" => "Parent", "id" => @parent1.id,
+                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id},
+                                    { "_type" => "Child", "id" => @parent1.children[2].id}]}
 
-    Views::Parent.deserialize_from_view(view)
+    Views::Parent.deserialize_from_view([view, release_view])
 
     @parent1.reload
     @parent2.reload
@@ -393,21 +366,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     t1 = Target.create(parent: p1)
     t2 = Target.create(parent: p2)
 
-    pc = GrandParent.create(parents: [p1, p2])
-    pc.save!
-
-    puts "Setup done"
-
-    pcv = Views::GrandParent.deserialize_from_view(
-      { "id" => pc.id,
-        "_type" => "GrandParent",
-        "parents" =>
+    pcvs = Views::Parent.deserialize_from_view(
           [{ "id" => p1.id,
              "_type" => "Parent",
              "target" => { "id" => t2.id, "_type" => "Target" } },
            { "id" => p2.id,
              "_type" => "Parent",
-             "target" => { "id" => t1.id, "_type" => "Target" } }] })
+             "target" => { "id" => t1.id, "_type" => "Target" } }])
+
 
     p1.reload
     p2.reload
@@ -424,13 +390,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     view = { "_type" => "Parent",
              "name" => "new_p",
-             "children" => [child_view, { "name" => "new" }],
-             "_aux" => [{ "_type" => "Parent",
-                          "id" => @parent1.id,
-                          "children" => [{ "id" => @parent1.children[0].id }, { "id" => @parent1.children[2].id }]
-                        }] }
-    pv = Views::Parent.deserialize_from_view(view)
-    parent = pv.model
+             "children" => [child_view, { "_type" => "Child", "name" => "new" }]}
+
+    release_view = { "_type" => "Parent",
+                     "id" => @parent1.id,
+                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id }, { "_type" => "Child", "id" => @parent1.children[2].id }]}
+
+    pv = Views::Parent.deserialize_from_view([view, release_view])
+    new_parent = pv.first.model
 
     # child should be removed from old parent and positions updated
     @parent1.reload
@@ -440,8 +407,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("p1c3", oc2.name, "database c2 unchanged")
 
     # child should be added to new parent with valid position
-    assert_equal(2, parent.children.size, "viewmodel has 2 children")
-    nc1, nc2 = parent.children.order(:position)
+    assert_equal(2, new_parent.children.size, "viewmodel has 2 children")
+    nc1, nc2 = new_parent.children.order(:position)
     assert_equal(child, nc1)
     assert_equal("changed", nc1.name)
     assert_equal("new", nc2.name)
@@ -455,11 +422,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = Views::Parent.new(@parent2).to_hash
     view["children"] << old_child_view
 
-    view["_aux"] = [{"id" => @parent1.id,
-                    "children" => [{"id" => @parent1.children[0].id},
-                                   {"id" => @parent1.children[2].id}]}]
+    release_view = {"_type" => "Parent", "id" => @parent1.id,
+                    "children" => [{"_type" => "Child", "id" => @parent1.children[0].id},
+                                   {"_type" => "Child", "id" => @parent1.children[2].id}]}
 
-    Views::Parent.deserialize_from_view(view)
+    Views::Parent.deserialize_from_view([view, release_view])
 
     @parent1.reload
     @parent2.reload
@@ -574,10 +541,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     # p1 should now have no label
 
     v2["label"] = v1["label"]
+    v1["label"] = nil
 
-    v2["_aux"] = [{"id" => @parent1.id, "label" => nil}]
-
-    Views::Parent.deserialize_from_view(v2)
+    Views::Parent.deserialize_from_view([v2, v1])
 
     @parent1.reload
     @parent2.reload
@@ -634,7 +600,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     l = o.deleted
 
     ov = Views::Owner.new(o).to_hash
-    ov["deleted"] = { "text" => "two" }
+    ov["deleted"] = { "_type" => "Label", "text" => "two" }
     Views::Owner.deserialize_from_view(ov)
 
     o.reload
@@ -649,7 +615,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     l = o.ignored
 
     ov = Views::Owner.new(o).to_hash
-    ov["ignored"] = { "text" => "two" }
+    ov["ignored"] = { "_type" => "Label", "text" => "two" }
     Views::Owner.deserialize_from_view(ov)
 
     o.reload
@@ -702,9 +668,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     v2 = Views::Parent.new(@parent2).to_hash
 
     v2["target"] = v1["target"]
-    v2["_aux"] = [{"id" => @parent1.id, "target" => nil}]
+    v1["target"] = nil
 
-    Views::Parent.deserialize_from_view(v2)
+    Views::Parent.deserialize_from_view([v2, v1])
     @parent1.reload
     @parent2.reload
 

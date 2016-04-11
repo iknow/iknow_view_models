@@ -218,7 +218,17 @@ class ActiveRecordViewModel < ViewModel
       load_scope.map { |model| self.new(model) }
     end
 
-    def deserialize_from_view(subtree_hash, **view_options)
+    def deserialize_from_view(subtree_hashes, **view_options)
+      return_array = subtree_hashes.is_a?(Array)
+      subtree_hashes = Array.wrap(subtree_hashes)
+
+      # Check we've been passed sane typed data
+      subtree_hashes.each do |subtree_hash|
+        unless subtree_hash.is_a?(Hash)
+          raise ViewModel::DeserializationError.new("Invalid data to deserialize in viewmodel '#{self.view_name}'")
+        end
+      end
+
       # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
       # for linked partially-constructed node updates
       worklist = {}
@@ -227,25 +237,35 @@ class ActiveRecordViewModel < ViewModel
       # that have been released by nodes we've already visited
       released_viewmodels = {}
 
-      id        = subtree_hash.delete(ID_ATTRIBUTE)
-      type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
+      # Load referenced root models
+      # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
+      model_ids = subtree_hashes.map { |h| h[ID_ATTRIBUTE] }.compact
+      existing_models = model_scope.find_all!(model_ids).index_by(&:id)
 
-      raise ViewModel::DeserializationError.new("Missing #{TYPE_ATTRIBUTE} field in update hash") if type_name.nil?
+      root_viewmodels = subtree_hashes.map do |subtree_hash|
+        type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
+        id        = subtree_hash.delete(ID_ATTRIBUTE)
 
-      # Check specified type: must match expected viewmodel class
-      if ActiveRecordViewModel.for_view_name(type_name) != self
-        raise "Specified type #{type_name} doesn't match deserializing viewmodel #{self.view_name}"
-      end
+        raise ViewModel::DeserializationError.new("Missing #{TYPE_ATTRIBUTE} field in update hash") if type_name.nil?
 
-      root_model =
-        if id.present?
-          model_scope.find(id) # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
-        else
-          model_class.new
+        # Check specified type: must match expected viewmodel class
+        if ActiveRecordViewModel.for_view_name(type_name) != self
+          raise "Specified type #{type_name} doesn't match deserializing viewmodel #{self.view_name}"
         end
 
-      root_viewmodel = self.new(root_model)
-      root_update = UpdateOperation.construct_update_for_subtree(root_viewmodel, subtree_hash, worklist, released_viewmodels)
+        root_model =
+          if id.present?
+            existing_models[id]
+          else
+            model_class.new
+          end
+
+        self.new(root_model)
+      end
+
+      root_updates = root_viewmodels.zip(subtree_hashes).map do |root_viewmodel, subtree_hash|
+        UpdateOperation.construct_update_for_subtree(root_viewmodel, subtree_hash, worklist, released_viewmodels)
+      end
 
       while worklist.present?
         key = worklist.keys.detect { |key| released_viewmodels.has_key?(key) }
@@ -256,7 +276,9 @@ class ActiveRecordViewModel < ViewModel
         deferred_update.resume_deferred_update(viewmodel, worklist, released_viewmodels)
       end
 
-      updated_viewmodel = root_update.run!(view_options)
+      updated_viewmodels = root_updates.map do |root_update|
+        root_update.run!(view_options)
+      end
 
       released_viewmodels.each_value do |vm|
         # this is insufficient, we're not storing how we *got*
@@ -264,7 +286,11 @@ class ActiveRecordViewModel < ViewModel
         vm.model.destroy!
       end
 
-      updated_viewmodel
+      if return_array
+        updated_viewmodels
+      else
+        updated_viewmodels.first
+      end
     end
 
     # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
