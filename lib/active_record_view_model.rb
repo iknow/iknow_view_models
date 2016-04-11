@@ -219,75 +219,77 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def deserialize_from_view(subtree_hashes, **view_options)
-      return_array = subtree_hashes.is_a?(Array)
-      subtree_hashes = Array.wrap(subtree_hashes)
+      model_class.transaction do
+        return_array = subtree_hashes.is_a?(Array)
+        subtree_hashes = Array.wrap(subtree_hashes)
 
-      # Check we've been passed sane typed data
-      subtree_hashes.each do |subtree_hash|
-        unless subtree_hash.is_a?(Hash)
-          raise ViewModel::DeserializationError.new("Invalid data to deserialize in viewmodel '#{self.view_name}'")
-        end
-      end
-
-      # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
-      # for linked partially-constructed node updates
-      worklist = {}
-
-      # hash of { UpdateOperation::ViewModelReference => ViewModel } for models
-      # that have been released by nodes we've already visited
-      released_viewmodels = {}
-
-      # Load referenced root models
-      # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
-      model_ids = subtree_hashes.map { |h| h[ID_ATTRIBUTE] }.compact
-      existing_models = model_scope.find_all!(model_ids).index_by(&:id)
-
-      root_viewmodels = subtree_hashes.map do |subtree_hash|
-        type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
-        id        = subtree_hash.delete(ID_ATTRIBUTE)
-
-        raise ViewModel::DeserializationError.new("Missing #{TYPE_ATTRIBUTE} field in update hash") if type_name.nil?
-
-        # Check specified type: must match expected viewmodel class
-        if ActiveRecordViewModel.for_view_name(type_name) != self
-          raise "Specified type #{type_name} doesn't match deserializing viewmodel #{self.view_name}"
+        # Check we've been passed sane typed data
+        subtree_hashes.each do |subtree_hash|
+          unless subtree_hash.is_a?(Hash)
+            raise ViewModel::DeserializationError.new("Invalid data to deserialize in viewmodel '#{self.view_name}'")
+          end
         end
 
-        root_model =
-          if id.present?
-            existing_models[id]
-          else
-            model_class.new
+        # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
+        # for linked partially-constructed node updates
+        worklist = {}
+
+        # hash of { UpdateOperation::ViewModelReference => ViewModel } for models
+        # that have been released by nodes we've already visited
+        released_viewmodels = {}
+
+        # Load referenced root models
+        # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
+        model_ids = subtree_hashes.map { |h| h[ID_ATTRIBUTE] }.compact
+        existing_models = model_scope.find_all!(model_ids).index_by(&:id)
+
+        root_viewmodels = subtree_hashes.map do |subtree_hash|
+          type_name = subtree_hash.delete(TYPE_ATTRIBUTE)
+          id        = subtree_hash.delete(ID_ATTRIBUTE)
+
+          raise ViewModel::DeserializationError.new("Missing #{TYPE_ATTRIBUTE} field in update hash") if type_name.nil?
+
+          # Check specified type: must match expected viewmodel class
+          if ActiveRecordViewModel.for_view_name(type_name) != self
+            raise "Specified type #{type_name} doesn't match deserializing viewmodel #{self.view_name}"
           end
 
-        self.new(root_model)
-      end
+          root_model =
+            if id.present?
+              existing_models[id]
+            else
+              model_class.new
+            end
 
-      root_updates = root_viewmodels.zip(subtree_hashes).map do |root_viewmodel, subtree_hash|
-        UpdateOperation.construct_update_for_subtree(root_viewmodel, subtree_hash, worklist, released_viewmodels)
-      end
+          self.new(root_model)
+        end
 
-      while worklist.present?
-        key = worklist.keys.detect { |key| released_viewmodels.has_key?(key) }
-        raise "can't resolve anything in worklist: #{worklist.inspect}" if key.nil?
+        root_updates = root_viewmodels.zip(subtree_hashes).map do |root_viewmodel, subtree_hash|
+          UpdateOperation.construct_update_for_subtree(root_viewmodel, subtree_hash, worklist, released_viewmodels)
+        end
 
-        deferred_update = worklist.delete(key)
-        viewmodel = released_viewmodels.delete(key).viewmodel
-        deferred_update.resume_deferred_update(viewmodel, worklist, released_viewmodels)
-      end
+        while worklist.present?
+          key = worklist.keys.detect { |key| released_viewmodels.has_key?(key) }
+          raise "can't resolve anything in worklist: #{worklist.inspect}" if key.nil?
 
-      updated_viewmodels = root_updates.map do |root_update|
-        root_update.run!(view_options)
-      end
+          deferred_update = worklist.delete(key)
+          viewmodel = released_viewmodels.delete(key).viewmodel
+          deferred_update.resume_deferred_update(viewmodel, worklist, released_viewmodels)
+        end
 
-      released_viewmodels.each_value do |release_entry|
-        release_entry.release!
-      end
+        updated_viewmodels = root_updates.map do |root_update|
+          root_update.run!(view_options)
+        end
 
-      if return_array
-        updated_viewmodels
-      else
-        updated_viewmodels.first
+        released_viewmodels.each_value do |release_entry|
+          release_entry.release!
+        end
+
+        if return_array
+          updated_viewmodels
+        else
+          updated_viewmodels.first
+        end
       end
     end
 
