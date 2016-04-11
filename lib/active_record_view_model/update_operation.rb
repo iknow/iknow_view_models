@@ -283,6 +283,10 @@ class ActiveRecordViewModel::UpdateOperation
       id        = child_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
       type_name = child_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
 
+      if type_name.nil?
+        raise ViewModel::DeserializationError.new("Missing #{ActiveRecordViewModel::TYPE_ATTRIBUTE} deserializing #{child_viewmodel_class.name}")
+      end
+
       # Check specified type: must match expected viewmodel class
       if association_data.viewmodel_class_for_name(type_name) != child_viewmodel_class
         raise "Inappropriate child type" #TODO
