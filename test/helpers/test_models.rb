@@ -4,8 +4,7 @@ require "active_record_view_model/controller"
 
 require "acts_as_manual_list"
 
-require "logger"
-ActiveRecord::Base.logger = Logger.new(STDOUT)
+    require "logger"
 
 db = :pg
 
@@ -73,8 +72,6 @@ ActiveRecord::Schema.define do
     t.references :label, foreign_key: true
   end
 
-
-
   create_table :poly_ones do |t|
     t.integer :number
   end
@@ -111,7 +108,7 @@ end
 
 class Target < ApplicationRecord
   belongs_to :parent, inverse_of: :target
-  belongs_to :label, dependent: :destroy, validate: true
+  belongs_to :label, dependent: :destroy
 end
 
 class PolyOne < ApplicationRecord
@@ -123,23 +120,23 @@ class PolyTwo < ApplicationRecord
 end
 
 class Parent < ApplicationRecord
-  has_many   :children, dependent: :destroy, inverse_of: :parent, validate: true
-  belongs_to :label,    dependent: :destroy, validate: true
-  has_one    :target,   dependent: :destroy, inverse_of: :parent, validate: true
+  has_many   :children, dependent: :destroy, inverse_of: :parent
+  belongs_to :label,    dependent: :destroy
+  has_one    :target,   dependent: :destroy, inverse_of: :parent
 
-  belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent, validate: true
+  belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 
   belongs_to :grand_parent, inverse_of: :parents
 end
 
 class Owner < ApplicationRecord
-  belongs_to :deleted, class_name: Label.name, dependent: :delete, validate: true
-  belongs_to :ignored, class_name: Label.name, validate: true
+  belongs_to :deleted, class_name: Label.name, dependent: :delete
+  belongs_to :ignored, class_name: Label.name
 end
 
 class LinkedList < ApplicationRecord
   validates :car, numericality: {less_than: 42}, allow_nil: true
-  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy, validate: true
+  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
 end
 
 class UnvalidatedLinkedList < ApplicationRecord

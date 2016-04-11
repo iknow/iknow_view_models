@@ -29,7 +29,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     @parent2.save!
 
-    puts "Setup done"
+    # Enable logging for the test
+    ActiveRecord::Base.logger = Logger.new(STDOUT)
+  end
+
+  def teardown
+    ActiveRecord::Base.logger = nil
   end
 
   def test_relations_must_be_validated

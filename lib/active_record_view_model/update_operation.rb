@@ -66,12 +66,18 @@ class ActiveRecordViewModel::UpdateOperation
   def run!(view_options)
     model = viewmodel.model
 
+    debug_name = "#{model.class.name}:#{model.id}"
+    debug "-> #{debug_name}: Entering"
+
     # TODO: editable! checks if this particular record is getting changed
     model.class.transaction do
       # update parent association
       if reparent_to.present?
-        association = model.association(reparent_to.association_reflection.name)
+        parent_name = reparent_to.association_reflection.name
+        debug "-> #{debug_name}: Updating parent pointer to #{parent_name}:#{reparent_to.model.id}"
+        association = model.association(parent_name)
         association.replace(reparent_to.model)
+        debug "<- #{debug_name}: Updated parent pointer"
       end
 
       # update position
@@ -87,12 +93,13 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       attributes.each do |attr_name, serialized_value|
-        raise "SHOULD NEVER BE REACHED" if attr_name == "id"
         viewmodel.public_send("deserialize_#{attr_name}", serialized_value, **view_options)
       end
 
       # Update points-to associations before save
       points_to.each do |association_data, child_operation|
+        debug "-> #{debug_name}: Updating points-to association #{association_data.name}"
+
         association = model.association(association_data.name)
         child_model = if child_operation
                         child_operation.run!(view_options).model
@@ -100,15 +107,20 @@ class ActiveRecordViewModel::UpdateOperation
                         nil
                       end
         association.replace(child_model)
+        debug "<- #{debug_name}: Updated points-to association #{association_data.name}"
       end
 
       viewmodel.editable! if model.changed? # but what about our pointed-from children: if we release child, better own parent
 
+      debug "-> #{debug_name}: Saving"
       model.save!
+      debug "<- #{debug_name}: Saved"
 
       # Update association cache of pointed-from associations after save: the
       # child update will have saved the pointer.
       pointed_to.each do |association_data, child_operation|
+        debug "-> #{debug_name}: Updating pointed-to association #{association_data.name}"
+
         association = model.association(association_data.name)
 
         new_target =
@@ -123,9 +135,12 @@ class ActiveRecordViewModel::UpdateOperation
           end
 
         association.target = new_target
+
+        debug "<- #{debug_name}: Updated pointed-to association #{association_data.name}"
       end
     end
 
+    debug "<- #{debug_name}: Leaving"
     viewmodel
   end
 
@@ -176,6 +191,14 @@ class ActiveRecordViewModel::UpdateOperation
       # it, it will immediately take it back.
       key = ViewModelReference.from_view_model(previous_child_viewmodel)
       released_viewmodels[key] = previous_child_viewmodel
+
+      # Clear the cached association so that AR's save behaviour doesn't
+      # conflict with our explicit parent updates. If we assign a new child (or
+      # keep the same one), we'll come back with it and call
+      # `Association#replace` in `run()`. If we don't, we promise that the child
+      # will no longer be attached in the database, so the new cached data of
+      # nil will be correct.
+      model.association(association_data.name).target = nil
     end
 
     if child_hash.nil?
@@ -241,6 +264,15 @@ class ActiveRecordViewModel::UpdateOperation
 
     # load children already attached to this model
     previous_children = model.public_send(association_data.name).index_by(&:id)
+
+    if previous_children.present?
+      # Clear the cached association so that AR's save behaviour doesn't
+      # conflict with our explicit parent updates. If we still have children
+      # after the update, we'll reset the target cache after recursing in
+      # run(). If not, the empty array we cache here will be correct, because
+      # previous children will have had their parent pointers updated.
+      model.association(association_data.name).target = []
+    end
 
     # Construct viewmodels for incoming hash data. Where a child hash references
     # an existing model not currently attached to this parent, it must be found
@@ -317,4 +349,11 @@ class ActiveRecordViewModel::UpdateOperation
       value.print("#{prefix}  ")
     end
   end
+
+  def debug(msg)
+    ActiveRecord::Base.logger.try do |logger|
+      logger.debug(msg)
+    end
+  end
+
 end
