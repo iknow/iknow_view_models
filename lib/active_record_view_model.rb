@@ -272,7 +272,7 @@ class ActiveRecordViewModel < ViewModel
         raise "can't resolve anything in worklist: #{worklist.inspect}" if key.nil?
 
         deferred_update = worklist.delete(key)
-        viewmodel = released_viewmodels.delete(key)
+        viewmodel = released_viewmodels.delete(key).viewmodel
         deferred_update.resume_deferred_update(viewmodel, worklist, released_viewmodels)
       end
 
@@ -280,10 +280,8 @@ class ActiveRecordViewModel < ViewModel
         root_update.run!(view_options)
       end
 
-      released_viewmodels.each_value do |vm|
-        # this is insufficient, we're not storing how we *got*
-        # to this released model so we don't know how to cleanup
-        vm.model.destroy!
+      released_viewmodels.each_value do |release_entry|
+        release_entry.release!
       end
 
       if return_array

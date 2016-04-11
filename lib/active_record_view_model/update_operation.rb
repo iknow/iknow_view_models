@@ -9,6 +9,19 @@ class ActiveRecordViewModel::UpdateOperation
     end
   end
 
+  ReleaseEntry = Struct.new(:viewmodel, :association_data) do
+    def release!
+      model = viewmodel.model
+      case association_data.reflection.options[:dependent]
+      when :delete
+        model.delete
+      when :destroy
+        model.destroy
+      end
+    end
+  end
+
+
   # inverse association and record to update a change in parent from a child
   ParentData = Struct.new(:association_reflection, :model)
 
@@ -109,7 +122,7 @@ class ActiveRecordViewModel::UpdateOperation
         debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
       end
 
-      viewmodel.editable! if model.changed? # but what about our pointed-from children: if we release child, better own parent
+      viewmodel.editable!(view_options) if model.changed? # but what about our pointed-from children: if we release child, better own parent
 
       debug "-> #{debug_name}: Saving"
       model.save!
@@ -189,7 +202,7 @@ class ActiveRecordViewModel::UpdateOperation
       # Release the previous child if present: if the replacement hash refers to
       # it, it will immediately take it back.
       key = ViewModelReference.from_view_model(previous_child_viewmodel)
-      released_viewmodels[key] = previous_child_viewmodel
+      released_viewmodels[key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
 
       # Clear the cached association so that AR's save behaviour doesn't
       # conflict with our explicit parent updates. If we assign a new child (or
@@ -217,8 +230,8 @@ class ActiveRecordViewModel::UpdateOperation
         case
         when id.nil?
           child_viewmodel_class.new
-        when taken_child = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
-          taken_child
+        when taken_child_release_entry = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+          taken_child_release_entry.viewmodel
         else
           # not-yet-seen child: create a deferred update
           ViewModelReference.new(child_viewmodel_class, id)
@@ -295,8 +308,8 @@ class ActiveRecordViewModel::UpdateOperation
         child_viewmodel_class.new
       when existing_child = previous_children.delete(id)
         child_viewmodel_class.new(existing_child)
-      when taken_child_viewmodel = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
-        taken_child_viewmodel
+      when taken_child_release_entry = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+        taken_child_release_entry.viewmodel
       else
         # Refers to child that hasn't yet been seen: create a deferred update.
         ViewModelReference.new(child_viewmodel_class, id)
@@ -307,7 +320,7 @@ class ActiveRecordViewModel::UpdateOperation
     previous_children.each_value do |model|
       viewmodel = child_viewmodel_class.new(model)
       key = ViewModelReference.from_view_model(viewmodel)
-      released_viewmodels[key] = viewmodel
+      released_viewmodels[key] = ReleaseEntry.new(viewmodel, association_data)
     end
 
     # Calculate new positions for children if in a list. Ignore previous
