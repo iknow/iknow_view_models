@@ -423,15 +423,17 @@ class ActiveRecordViewModel < ViewModel
     return nil if associated.nil?
 
     association_data = self.class._association_data(association_name)
-    associated_viewmodel = association_data.viewmodel_class
+
     if association_data.collection?
-      associated = associated.map { |x| associated_viewmodel.new(x) }
-      if associated_viewmodel._list_member?
-        associated.sort_by!(&:_list_attribute)
+      associated_viewmodel_class = association_data.viewmodel_class
+      associated_viewmodels = associated.map { |x| associated_viewmodel_class.new(x) }
+      if associated_viewmodel_class._list_member?
+        associated_viewmodels.sort_by!(&:_list_attribute)
       end
-      associated
+      associated_viewmodels
     else
-      associated_viewmodel.new(associated)
+      associated_viewmodel_class = association_data.viewmodel_class_for_model(associated.class)
+      associated_viewmodel_class.new(associated)
     end
   end
 

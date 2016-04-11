@@ -321,7 +321,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     child_view = Views::Child.new(child).to_hash
 
-    view = { "name" => "new_p",
+    view = { "_type" => "Parent",
+             "name" => "new_p",
              "children" => [child_view, { "name" => "new" }] }
 
     view["_aux"] = [{"id" => @parent1.id,
@@ -394,11 +395,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     pcv = Views::GrandParent.deserialize_from_view(
       { "id" => pc.id,
+        "_type" => "GrandParent",
         "parents" =>
           [{ "id" => p1.id,
-             "target" => { "id" => t2.id } },
+             "_type" => "Parent",
+             "target" => { "id" => t2.id, "_type" => "Target" } },
            { "id" => p2.id,
-             "target" => { "id" => t1.id } }] })
+             "_type" => "Parent",
+             "target" => { "id" => t1.id, "_type" => "Target" } }] })
 
     p1.reload
     p2.reload
@@ -477,7 +481,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_belongs_to_nil_association
     # create
-    view = { "name" => "p", "label" => nil }
+    view = { "_type" => "Parent", "name" => "p", "label" => nil }
     pv = Views::Parent.deserialize_from_view(view)
     p = pv.model
     assert_nil(p.label)
@@ -531,7 +535,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent1.reload
 
     view = Views::Parent.new(@parent1).to_hash
-    view["label"] = { "text" => "cheese" }
+    view["label"] = { "_type" => "Label", "text" => "cheese" }
 
     Views::Parent.deserialize_from_view(view)
     @parent1.reload
@@ -544,7 +548,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     old_label = @parent1.label
 
     view = Views::Parent.new(@parent1).to_hash
-    view["label"] = { "text" => "cheese" }
+    view["label"] = { "_type" => "Label", "text" => "cheese" }
 
     Views::Parent.deserialize_from_view(view)
     @parent1.reload
@@ -654,7 +658,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_has_one_nil_association
     # create
-    view = { "name" => "p", "target" => nil }
+    view = { "_type" => "Parent", "name" => "p", "target" => nil }
     pv = Views::Parent.deserialize_from_view(view)
     p = pv.model
     assert_nil(p.target)
@@ -674,7 +678,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     p = Parent.create(name: "p")
 
     view = Views::Parent.new(p).to_hash
-    view["target"] = { "text" => "t" }
+    view["target"] = { "_type" => "Target", "text" => "t" }
 
     Views::Parent.deserialize_from_view(view)
     p.reload

@@ -118,7 +118,7 @@ class ActiveRecordViewModel::UpdateOperation
           when ActiveRecordViewModel::UpdateOperation
             child_operation.run!(view_options).model
           when Array
-            viewmodels = child_operation.map { |op| op.run(view_options) }
+            viewmodels = child_operation.map { |op| op.run!(view_options) }
             viewmodels.map(&:model)
           end
 
@@ -142,7 +142,7 @@ class ActiveRecordViewModel::UpdateOperation
         association_name = k
         association_hash = v
 
-        association_data = self.viewmodel.class._association_data(k)
+        association_data = self.viewmodel.class._association_data(association_name)
 
         if association_data.collection?
           self.pointed_to[association_data] = construct_updates_for_collection_association(association_data, association_hash, worklist, released_viewmodels)
@@ -156,7 +156,7 @@ class ActiveRecordViewModel::UpdateOperation
         end
 
       else
-        raise "wat" # TODO
+        raise "Unknown hash member #{k}" # TODO
       end
     end
   end
@@ -169,7 +169,7 @@ class ActiveRecordViewModel::UpdateOperation
     previous_child_model = model.public_send(association_data.name)
 
     if previous_child_model.present?
-      previous_child_viewmodel_class = association_data.viewmodel_class_for(previous_child_model.class)
+      previous_child_viewmodel_class = association_data.viewmodel_class_for_model(previous_child_model.class)
       previous_child_viewmodel = previous_child_viewmodel_class.new(previous_child_model)
 
       # Release the previous child if present: if the replacement hash refers to
@@ -181,8 +181,14 @@ class ActiveRecordViewModel::UpdateOperation
     if child_hash.nil?
       nil
     elsif child_hash.is_a?(Hash)
-      id        = child_hash.delete(ID_ATTRIBUTE)
-      type_name = child_hash.delete(TYPE_ATTRIBUTE)
+      id        = child_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+      type_name = child_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+
+      if type_name.nil?
+        # TODO error at place in update hash
+        raise ViewModel::DeserializationError.new("Missing #{ActiveRecordViewModel::TYPE_ATTRIBUTE} field in update hash")
+      end
+
       child_viewmodel_class = association_data.viewmodel_class_for_name(type_name)
 
       child_viewmodel =
@@ -190,7 +196,7 @@ class ActiveRecordViewModel::UpdateOperation
         when id.nil?
           child_viewmodel_class.new
         when taken_child = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
-          child_viewmodel_class.new(taken_child)
+          taken_child
         else
           # not-yet-seen child: create a deferred update
           nil
@@ -206,12 +212,12 @@ class ActiveRecordViewModel::UpdateOperation
 
       child_update =
         if child_viewmodel.nil?
-          key = ViewModelReference.new(child_viewmodel_class, child_hash[ID_ATTRIBUTE])
-          deferred_update = UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data)
+          key = ViewModelReference.new(child_viewmodel_class, id)
+          deferred_update = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data)
           worklist[key] = deferred_update
           deferred_update
         else
-          UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data)
+          ActiveRecordViewModel::UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data)
         end
 
       child_update
@@ -242,8 +248,8 @@ class ActiveRecordViewModel::UpdateOperation
     # models we can recurse into them, otherwise we must attach a stub
     # UpdateOperation (and add it to the worklist to process later)
     child_viewmodels = child_hashes.map do |child_hash|
-      id        = child_hash.delete(ID_ATTRIBUTE)
-      type_name = child_hash.delete(TYPE_ATTRIBUTE)
+      id        = child_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+      type_name = child_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
 
       # Check specified type: must match expected viewmodel class
       if association_data.viewmodel_class_for_name(type_name) != child_viewmodel_class
@@ -284,41 +290,31 @@ class ActiveRecordViewModel::UpdateOperation
     # Recursively build update operations for children
     child_updates = child_viewmodels.zip(child_hashes, positions).map do |child_viewmodel, child_hash, position|
       if child_viewmodel.nil?
-        key = ViewModelReference.new(child_viewmodel_class, hash[ID_ATTRIBUTE])
-        deferred_update = UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data, reposition_to: position)
+        key = ViewModelReference.new(child_viewmodel_class, hash[ActiveRecordViewModel::ID_ATTRIBUTE])
+        deferred_update = ActiveRecordViewModel::UpdateOperation.construct_deferred_update_for_subtree(child_hash, reparent_to: parent_data, reposition_to: position)
         worklist[key] = deferred_update
         deferred_update
       else
-        UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data, reposition_to: position)
+        ActiveRecordViewModel::UpdateOperation.construct_update_for_subtree(child_viewmodel, child_hash, worklist, released_viewmodels, reparent_to: parent_data, reposition_to: position)
       end
     end
 
     child_updates
   end
 
-
-
-  
-
- 
-    def run(view_options)
-      viewmodel.execute_update_operation(self, view_options)
-      viewmodel
+  def print(prefix = nil)
+    puts "#{prefix}#{self.class.name} #{model.class.name}(id=#{model.id || 'new'})"
+    prefix = "#{prefix}  "
+    attributes.each do |attr, value|
+      puts "#{prefix}#{attr}=#{value}"
     end
-
-    def print(prefix = nil)
-      puts "#{prefix}#{self.class.name} #{model.class.name}(id=#{model.id || 'new'})"
-      prefix = "#{prefix}  "
-      attributes.each do |attr, value|
-        puts "#{prefix}#{attr}=#{value}"
-      end
-      points_to.each do |name, value|
-        puts "#{prefix}#{name} = "
-        value.print("#{prefix}  ")
-      end
-      pointed_to.each do |name, value|
-        puts "#{prefix}#{name} = "
-        value.print("#{prefix}  ")
-      end
+    points_to.each do |name, value|
+      puts "#{prefix}#{name} = "
+      value.print("#{prefix}  ")
+    end
+    pointed_to.each do |name, value|
+      puts "#{prefix}#{name} = "
+      value.print("#{prefix}  ")
     end
   end
+end
