@@ -78,19 +78,22 @@ class ActiveRecordViewModel::UpdateOperation
       # Look up viewmodel classes for each tree
       # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
       tree_hashes_by_viewmodel_class = tree_hashes.group_by do |tree_hash|
-        raise ViewModel::DeserializationError.new("Missing '#{TYPE_ATTRIBUTE}' field in update hash: '#{tree_hash.inspect}'") unless tree_hash.has_key?(TYPE_ATTRIBUTE)
-        type_name = tree_hash.delete(TYPE_ATTRIBUTE)
+        unless tree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+          raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{tree_hash.inspect}'")
+        end
+
+        type_name = tree_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
         ActiveRecordViewModel.for_view_name(type_name)
       end
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       update_roots = []
       tree_hashes_by_viewmodel_class.each do |viewmodel_class, tree_hashes|
-        model_ids = tree_hashes.map { |h| h[ID_ATTRIBUTE] }.compact
+        model_ids = tree_hashes.map { |h| h[ActiveRecordViewModel::ID_ATTRIBUTE] }.compact
         existing_models = viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
 
         tree_hashes.each do |tree_hash|
-          id = tree_hash.delete(ID_ATTRIBUTE)
+          id = tree_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
           viewmodel =
             if id.present?
               viewmodel_class.new(existing_models[id])
@@ -112,7 +115,7 @@ class ActiveRecordViewModel::UpdateOperation
       released_viewmodels = {}
 
       root_updates = update_roots.map do |root_viewmodel, tree_hash|
-        UpdateOperation.construct_update_for_subtree(root_viewmodel, tree_hash, worklist, released_viewmodels)
+        construct_update_for_subtree(root_viewmodel, tree_hash, worklist, released_viewmodels)
       end
 
       while worklist.present?
@@ -127,7 +130,8 @@ class ActiveRecordViewModel::UpdateOperation
       return root_updates, released_viewmodels
     end
 
-    private
+    # TODO internal, but not private since we have ref from class->instance
+    # private
 
     # divide up the hash into attributes and associations, and recursively
     # construct update trees for each association (either building new models or

@@ -59,40 +59,40 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     parentview = Views::Parent.new(@parent1)
 
     assert_raises(ViewModel::SerializationError) do
-      parentview.to_hash(can_view: false)
+      parentview.to_hash(view_context: {can_view: false})
     end
   end
 
   def test_editability
     assert_raises(ViewModel::DeserializationError) do
       # create
-      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, can_edit: false)
+      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, view_context: {can_edit: false})
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # edit
       v = Views::Parent.new(@parent1).to_hash.merge("name" => "p2")
-      Views::Parent.deserialize_from_view(v, can_edit: false)
+      Views::Parent.deserialize_from_view(v, view_context: {can_edit: false})
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy
-      Views::Parent.new(@parent1).destroy!(can_edit: false)
+      Views::Parent.new(@parent1).destroy!(view_context: {can_edit: false})
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
-      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, can_edit: false)
+      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, view_context: {can_edit: false})
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # replace children
-      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], can_edit: false)
+      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], view_context: {can_edit: false})
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy child
-      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), can_edit: false)
+      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), view_context: {can_edit: false})
     end
   end
 

@@ -149,12 +149,20 @@ class GrandParent < ApplicationRecord
 end
 
 module TrivialAccessControl
-  def visible?(can_view: true)
-    can_view
+  def visible?(view_context:)
+    if view_context && view_context.has_key?(:can_view)
+      view_context[:can_view]
+    else
+      true
+    end
   end
 
-  def editable?(can_edit: true)
-    can_edit
+  def editable?(view_context:)
+    if view_context && view_context.has_key?(:can_edit)
+      view_context[:can_edit]
+    else
+      true
+    end
   end
 end
 
