@@ -38,24 +38,24 @@ class ViewModel
 
     # If this viewmodel represents an AR model, what associations does it make
     # use of?
-    def eager_includes(**options)
+    def eager_includes(view_context: nil)
       []
     end
 
     # ViewModel can serialize ViewModels, Arrays and Hashes of ViewModels, and
     # relies on Jbuilder#merge! for other values (e.g. primitives).
-    def serialize(target, json, **options)
+    def serialize(target, json, view_context: nil)
       case target
       when ViewModel
-        target.serialize(json, **options)
+        target.serialize(json, view_context: view_context)
       when Array
         json.array! target do |elt|
-          serialize(elt, json, **options)
+          serialize(elt, json, view_context: view_context)
         end
       when Hash, Struct
         target.each_pair do |key, value|
           json.set! key do
-            serialize(value, json, **options)
+            serialize(value, json, view_context: view_context)
           end
         end
       else
@@ -63,12 +63,12 @@ class ViewModel
       end
     end
 
-    def serialize_to_hash(viewmodel, **options)
-      Jbuilder.new { |json| serialize(viewmodel, json, **options) }.attributes!
+    def serialize_to_hash(viewmodel, view_context: nil)
+      Jbuilder.new { |json| serialize(viewmodel, json, view_context: view_context) }.attributes!
     end
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
-    def deserialize_from_view(hash_data, **options)
+    def deserialize_from_view(hash_data, view_context: nil)
       raise DeserializationError.new("Deserialization not defined for '#{self.name}'")
     end
   end
@@ -81,22 +81,22 @@ class ViewModel
 
   # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
   # overridden in subclasses to (for example) implement caching.
-  def serialize(json, **options)
-    visible!(**options)
-    serialize_view(json, **options)
+  def serialize(json, view_context: nil)
+    visible!(view_context: view_context)
+    serialize_view(json, view_context: view_context)
   end
 
-  def to_hash(**options)
-    Jbuilder.new { |json| serialize(json, **options) }.attributes!
+  def to_hash(view_context: nil)
+    Jbuilder.new { |json| serialize(json, view_context: view_context) }.attributes!
   end
 
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.
   # Default implementation visits each attribute with Viewmodel.serialize.
-  def serialize_view(json, **options)
+  def serialize_view(json, view_context: nil)
     json.set!("_type", self.class.name)
     self.class._attributes.each do |attr|
       json.set! attr do
-        ViewModel.serialize(self.send(attr), json, **options)
+        ViewModel.serialize(self.send(attr), json, view_context: view_context)
       end
     end
   end
@@ -108,26 +108,26 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
-  def preload_model(**options)
-    ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes(**options)).run
+  def preload_model(view_context: nil)
+    ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes(view_context: view_context)).run
   end
 
-  def visible?(**options)
+  def visible?(view_context: nil)
     true
   end
 
-  def visible!(**options)
-    unless visible?(**options)
+  def visible!(view_context: nil)
+    unless visible?(view_context: view_context)
       raise SerializationError.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
     end
   end
 
-  def editable?(**options)
-    visible?(**options)
+  def editable?(view_context: nil)
+    visible?(view_context: view_context)
   end
 
-  def editable!(**options)
-    unless editable?(**options)
+  def editable!(view_context: nil)
+    unless editable?(view_context: view_context)
       raise DeserializationError.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
     end
   end

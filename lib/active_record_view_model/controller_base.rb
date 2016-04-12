@@ -20,7 +20,7 @@ module ActiveRecordViewModel::ControllerBase
 
   class ExceptionView < ViewModel
     attributes :exception, :status
-    def serialize_view(json, **options)
+    def serialize_view(json, view_context: nil)
       json.errors [exception] do |e|
         json.status status
         json.detail exception.message

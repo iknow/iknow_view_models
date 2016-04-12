@@ -9,9 +9,9 @@ module CeregoViewModels
   # defines klass#render_view_model on the class
   def self.renderable!(klass)
     klass.class_eval do
-      def render_viewmodel(viewmodel, status: nil, **options)
+      def render_viewmodel(viewmodel, status: nil, view_context: nil)
         response = Jbuilder.encode do |json|
-          ViewModel.serialize(viewmodel, json, **options)
+          ViewModel.serialize(viewmodel, json, view_context: view_context)
         end
 
         ## jbuilder prevents this from working

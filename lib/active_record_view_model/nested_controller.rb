@@ -14,10 +14,10 @@ module ActiveRecordViewModel::NestedController
   # List items associated with the owner
   def index
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, **view_options)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: view_context)
       associated_views = owner_view.load_associated(association_name)
 
-      render_viewmodel({ data: associated_views }, **view_options)
+      render_viewmodel({ data: associated_views }, view_context: view_context)
     end
   end
 
@@ -25,13 +25,13 @@ module ActiveRecordViewModel::NestedController
   # For a collection association, this appends to the collection.
   def create
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, **view_options)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: view_context)
 
       data = params[:data]
       raise BadRequest.new("Empty or invalid data submitted") unless data.present?
 
-      assoc_view = owner_view.deserialize_associated(association_name, data, **view_options)
-      render_viewmodel({ data: assoc_view }, **view_options)
+      assoc_view = owner_view.deserialize_associated(association_name, data, view_context: view_context)
+      render_viewmodel({ data: assoc_view }, view_context: view_context)
     end
   end
 

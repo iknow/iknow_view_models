@@ -21,9 +21,33 @@ class ActiveRecordViewModel::UpdateOperation
     end
   end
 
-
   # inverse association and record to update a change in parent from a child
   ParentData = Struct.new(:association_reflection, :model)
+
+  SharedReferences = Struct.new(:shared_subtrees, :shared_updates) do
+    def initialize(shared_subtrees)
+      super(shared_subtrees, {})
+    end
+
+    def resolve(ref)
+      shared_updates[ref] ||= create_update(ref)
+    end
+
+    private
+
+    def create_update(ref)
+      subtree = shared_subtrees[ref]
+      if subtree.nil?
+        raise "TODO"
+      end
+      # woop a viewmodel. Heeeey this is all the code from our left hand side yo
+      updates, released_viewmodels = UpdateOperation.construct_updates_for_trees(subtree)
+      # So probably we want to build a plan of updates first and then run
+      # (ensuring that any shared update that's hit twice still runs only
+      # once). So going to have to abstract most of the contents of the
+      # deserialize_from_view.
+    end
+  end
 
   attr_accessor :viewmodel,
                 :attributes, # attr => serialized value
@@ -42,21 +66,86 @@ class ActiveRecordViewModel::UpdateOperation
     self.reposition_to = reposition_to
   end
 
-  # divide up the hash into attributes and associations, and recursively
-  # construct update trees for each association (either building new models or
-  # associating them with loaded models). When a tree cannot be immediately
-  # constructed because its model referent isn't loaded, put a stub in the
-  # worklist.
-  def self.construct_update_for_subtree(viewmodel, subtree_hash, worklist, released_viewmodels, reparent_to: nil, reposition_to: nil)
-    update = self.new(viewmodel, reparent_to: reparent_to, reposition_to: reposition_to)
-    update.process_subtree_hash(subtree_hash, worklist, released_viewmodels)
-    update
-  end
+  class << self
+    def construct_updates_for_trees(tree_hashes)
+      # Check we've been passed sane typed data
+      tree_hashes.each do |tree_hash|
+        unless tree_hash.is_a?(Hash)
+          raise ViewModel::DeserializationError.new("Invalid viewmodel tree to deserialize: '#{tree_hash.inspect}'")
+        end
+      end
 
-  def self.construct_deferred_update_for_subtree(subtree_hash, reparent_to: nil, reposition_to: nil)
-    update = self.new(nil, reparent_to: reparent_to, reposition_to: reposition_to)
-    update.deferred_subtree_hash = subtree_hash
-    update
+      # Look up viewmodel classes for each tree
+      # with eager_includes: note this won't yet include through a polymorphic boundary, so we go lazy and slow every time that happens.
+      tree_hashes_by_viewmodel_class = tree_hashes.group_by do |tree_hash|
+        raise ViewModel::DeserializationError.new("Missing '#{TYPE_ATTRIBUTE}' field in update hash: '#{tree_hash.inspect}'") unless tree_hash.has_key?(TYPE_ATTRIBUTE)
+        type_name = tree_hash.delete(TYPE_ATTRIBUTE)
+        ActiveRecordViewModel.for_view_name(type_name)
+      end
+
+      # For each viewmodel type, look up referenced models and construct viewmodels to update
+      update_roots = []
+      tree_hashes_by_viewmodel_class.each do |viewmodel_class, tree_hashes|
+        model_ids = tree_hashes.map { |h| h[ID_ATTRIBUTE] }.compact
+        existing_models = viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
+
+        tree_hashes.each do |tree_hash|
+          id = tree_hash.delete(ID_ATTRIBUTE)
+          viewmodel =
+            if id.present?
+              viewmodel_class.new(existing_models[id])
+            else
+              viewmodel_class.new
+            end
+          update_roots << [viewmodel, tree_hash]
+        end
+      end
+
+      # Build update operations
+
+      # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
+      # for linked partially-constructed node updates
+      worklist = {}
+
+      # hash of { UpdateOperation::ViewModelReference => ReleaseEntry } for models
+      # that have been released by nodes we've already visited
+      released_viewmodels = {}
+
+      root_updates = update_roots.map do |root_viewmodel, tree_hash|
+        UpdateOperation.construct_update_for_subtree(root_viewmodel, tree_hash, worklist, released_viewmodels)
+      end
+
+      while worklist.present?
+        key = worklist.keys.detect { |key| released_viewmodels.has_key?(key) }
+        raise "Can't match a released viewmodel for any deferred updates in worklist: #{worklist.inspect}" if key.nil?
+
+        deferred_update = worklist.delete(key)
+        viewmodel = released_viewmodels.delete(key).viewmodel
+        deferred_update.resume_deferred_update(viewmodel, worklist, released_viewmodels)
+      end
+
+      return root_updates, released_viewmodels
+    end
+
+    private
+
+    # divide up the hash into attributes and associations, and recursively
+    # construct update trees for each association (either building new models or
+    # associating them with loaded models). When a tree cannot be immediately
+    # constructed because its model referent isn't loaded, put a stub in the
+    # worklist.
+    def construct_update_for_subtree(viewmodel, subtree_hash, worklist, released_viewmodels, reparent_to: nil, reposition_to: nil)
+      update = self.new(viewmodel, reparent_to: reparent_to, reposition_to: reposition_to)
+      update.process_subtree_hash(subtree_hash, worklist, released_viewmodels)
+      update
+    end
+
+    def construct_deferred_update_for_subtree(subtree_hash, reparent_to: nil, reposition_to: nil)
+      update = self.new(nil, reparent_to: reparent_to, reposition_to: reposition_to)
+      update.deferred_subtree_hash = subtree_hash
+      update
+    end
+
   end
 
   def deferred?
@@ -76,7 +165,7 @@ class ActiveRecordViewModel::UpdateOperation
     self
   end
 
-  def run!(view_options)
+  def run!(view_context: nil)
     model = viewmodel.model
 
     debug_name = "#{model.class.name}:#{model.id || '<new>'}"
@@ -105,7 +194,7 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       attributes.each do |attr_name, serialized_value|
-        viewmodel.public_send("deserialize_#{attr_name}", serialized_value, **view_options)
+        viewmodel.public_send("deserialize_#{attr_name}", serialized_value, view_context: view_context)
       end
 
       # Update points-to associations before save
@@ -114,7 +203,7 @@ class ActiveRecordViewModel::UpdateOperation
 
         association = model.association(association_data.name)
         child_model = if child_operation
-                        child_operation.run!(view_options).model
+                        child_operation.run!(view_context: view_context).model
                       else
                         nil
                       end
@@ -122,7 +211,7 @@ class ActiveRecordViewModel::UpdateOperation
         debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
       end
 
-      viewmodel.editable!(view_options) if model.changed? # but what about our pointed-from children: if we release child, better own parent
+      viewmodel.editable!(view_context: view_context) if model.changed? # but what about our pointed-from children: if we release child, better own parent
 
       debug "-> #{debug_name}: Saving"
       model.save!
@@ -140,9 +229,9 @@ class ActiveRecordViewModel::UpdateOperation
           when nil
             nil
           when ActiveRecordViewModel::UpdateOperation
-            child_operation.run!(view_options).model
+            child_operation.run!(view_context: view_context).model
           when Array
-            viewmodels = child_operation.map { |op| op.run!(view_options) }
+            viewmodels = child_operation.map { |op| op.run!(view_context: view_context) }
             viewmodels.map(&:model)
           end
 

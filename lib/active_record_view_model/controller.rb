@@ -15,26 +15,26 @@ module ActiveRecordViewModel::Controller
   include ActiveRecordViewModel::ControllerBase
 
   included do
-    attr_reader :view_options
+    attr_reader :view_context
     delegate :viewmodel, to: :class
   end
 
   def initialize(*)
     super
-    @view_options = {}
+    @view_context = nil
   end
 
   def show(scope: nil)
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, scope: scope, **view_options)
-      render_viewmodel({ data: view }, **view_options)
+      view = viewmodel.find(viewmodel_id, scope: scope, view_context: view_context)
+      render_viewmodel({ data: view }, view_context: view_context)
     end
   end
 
   def index(scope: nil)
     viewmodel.transaction do
-      views = viewmodel.load(scope: scope, **view_options)
-      render_viewmodel({ data: views }, **view_options)
+      views = viewmodel.load(scope: scope, view_context: view_context)
+      render_viewmodel({ data: views }, view_context: view_context)
     end
   end
 
@@ -48,16 +48,16 @@ module ActiveRecordViewModel::Controller
 
   def destroy
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, eager_load: false, **view_options)
-      view.destroy!(**view_options)
+      view = viewmodel.find(viewmodel_id, eager_load: false, view_context: view_context)
+      view.destroy!(view_context: view_context)
     end
     render_viewmodel({ data: nil })
   end
 
   protected
 
-  def set_view_option(key, value)
-    view_options[key] = value
+  def set_view_context(value)
+    @view_context = value
   end
 
   private
@@ -84,8 +84,8 @@ module ActiveRecordViewModel::Controller
     end
 
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(data, **view_options)
-      render_viewmodel({ data: view }, **view_options)
+      view = viewmodel.deserialize_from_view(data, view_context: view_context)
+      render_viewmodel({ data: view }, view_context: view_context)
     end
   end
 
