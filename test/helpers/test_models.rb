@@ -150,49 +150,58 @@ end
 
 module TrivialAccessControl
   def visible?(view_context:)
-    if view_context && view_context.has_key?(:can_view)
-      view_context[:can_view]
-    else
-      true
-    end
+    view_context.can_view
   end
 
   def editable?(view_context:)
-    if view_context && view_context.has_key?(:can_edit)
-      view_context[:can_edit]
-    else
-      true
-    end
+    view_context.can_edit
   end
 end
 
 module Views
-  class Label < ActiveRecordViewModel
+  class ApplicationView < ActiveRecordViewModel
+    class Context < ViewModel::Context
+      attr_accessor :can_edit, :can_view
+
+      def initialize(can_edit: true, can_view: true)
+        self.can_edit = can_edit
+        self.can_view = can_view
+      end
+    end
+
+    # TODO abstract class like active record
+
+    def self.context_class
+      Context
+    end
+  end
+
+  class Label < ApplicationView
     self.model_class_name = :label
     attributes :text
   end
 
-  class Child < ActiveRecordViewModel
+  class Child < ApplicationView
     attributes :name, :age
     acts_as_list :position
 
     include TrivialAccessControl
   end
 
-  class Target < ActiveRecordViewModel
+  class Target < ApplicationView
     attributes :text
     association :label
   end
 
-  class PolyOne < ActiveRecordViewModel
+  class PolyOne < ApplicationView
     attributes :number
   end
 
-  class PolyTwo < ActiveRecordViewModel
+  class PolyTwo < ApplicationView
     attributes :text
   end
 
-  class Parent < ActiveRecordViewModel
+  class Parent < ApplicationView
     attributes :name
     associations :children, :label, :target
     association :poly, viewmodels: [PolyOne, PolyTwo]
@@ -200,16 +209,16 @@ module Views
     include TrivialAccessControl
   end
 
-  class Owner < ActiveRecordViewModel
+  class Owner < ApplicationView
     associations :deleted, :ignored
   end
 
-  class LinkedList < ActiveRecordViewModel
+  class LinkedList < ApplicationView
     attributes :car
     associations :cdr
   end
 
-  class GrandParent < ActiveRecordViewModel
+  class GrandParent < ApplicationView
     association :parents
   end
 

@@ -59,42 +59,45 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     parentview = Views::Parent.new(@parent1)
 
     assert_raises(ViewModel::SerializationError) do
-      parentview.to_hash(view_context: {can_view: false})
+      no_view_context = Views::Parent.context_class.new(can_view: false)
+      parentview.to_hash(view_context: no_view_context)
     end
   end
 
   def test_editability
+    no_edit_context = Views::Parent.context_class.new(can_edit: false)
+
     assert_raises(ViewModel::DeserializationError) do
       # create
-      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, view_context: {can_edit: false})
+      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, view_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # edit
       v = Views::Parent.new(@parent1).to_hash.merge("name" => "p2")
-      Views::Parent.deserialize_from_view(v, view_context: {can_edit: false})
+      Views::Parent.deserialize_from_view(v, view_context: no_edit_context)
     end
 
     skip("Unimplemented")
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy
-      Views::Parent.new(@parent1).destroy!(view_context: {can_edit: false})
+      Views::Parent.new(@parent1).destroy!(view_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
-      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, view_context: {can_edit: false})
+      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, view_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # replace children
-      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], view_context: {can_edit: false})
+      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], view_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy child
-      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), view_context: {can_edit: false})
+      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), view_context: no_edit_context)
     end
   end
 

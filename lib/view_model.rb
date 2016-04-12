@@ -6,6 +6,17 @@ class ViewModel
   class DeserializationError < StandardError; end
   class SerializationError < StandardError; end
 
+  # A bucket for configuration, used for serializing and deserializing.
+  class Context
+    attr_accessor :prune, :include
+
+    def for_association(association_name)
+      copy = self.dup
+      copy.prune = prune.try(:[], association_name)
+      copy
+    end
+  end
+
   class << self
     attr_accessor :_attributes
 
@@ -38,13 +49,13 @@ class ViewModel
 
     # If this viewmodel represents an AR model, what associations does it make
     # use of?
-    def eager_includes(view_context: nil)
+    def eager_includes(view_context: default_context)
       []
     end
 
     # ViewModel can serialize ViewModels, Arrays and Hashes of ViewModels, and
     # relies on Jbuilder#merge! for other values (e.g. primitives).
-    def serialize(target, json, view_context: nil)
+    def serialize(target, json, view_context: Context.new)
       case target
       when ViewModel
         target.serialize(json, view_context: view_context)
@@ -63,15 +74,25 @@ class ViewModel
       end
     end
 
-    def serialize_to_hash(viewmodel, view_context: nil)
+    def serialize_to_hash(viewmodel, view_context: default_context)
       Jbuilder.new { |json| serialize(viewmodel, json, view_context: view_context) }.attributes!
     end
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
-    def deserialize_from_view(hash_data, view_context: nil)
+    def deserialize_from_view(hash_data, view_context: default_context)
       raise DeserializationError.new("Deserialization not defined for '#{self.name}'")
     end
+
+    def default_context
+      context_class.new
+    end
+
+    def context_class
+      ViewModel::Context
+    end
   end
+
+  delegate :default_context, to: :class
 
   def initialize(*args)
     self.class._attributes.each_with_index do |attr, idx|
@@ -81,18 +102,18 @@ class ViewModel
 
   # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
   # overridden in subclasses to (for example) implement caching.
-  def serialize(json, view_context: nil)
+  def serialize(json, view_context: default_context)
     visible!(view_context: view_context)
     serialize_view(json, view_context: view_context)
   end
 
-  def to_hash(view_context: nil)
+  def to_hash(view_context: default_context)
     Jbuilder.new { |json| serialize(json, view_context: view_context) }.attributes!
   end
 
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.
   # Default implementation visits each attribute with Viewmodel.serialize.
-  def serialize_view(json, view_context: nil)
+  def serialize_view(json, view_context: default_context)
     json.set!("_type", self.class.name)
     self.class._attributes.each do |attr|
       json.set! attr do
@@ -108,25 +129,25 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
-  def preload_model(view_context: nil)
+  def preload_model(view_context: default_context)
     ActiveRecord::Associations::Preloader.new(Array.wrap(self.model), self.class.eager_includes(view_context: view_context)).run
   end
 
-  def visible?(view_context: nil)
+  def visible?(view_context: default_context)
     true
   end
 
-  def visible!(view_context: nil)
+  def visible!(view_context: default_context)
     unless visible?(view_context: view_context)
       raise SerializationError.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
     end
   end
 
-  def editable?(view_context: nil)
+  def editable?(view_context: default_context)
     visible?(view_context: view_context)
   end
 
-  def editable!(view_context: nil)
+  def editable!(view_context: default_context)
     unless editable?(view_context: view_context)
       raise DeserializationError.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
     end

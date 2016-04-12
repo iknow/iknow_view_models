@@ -169,7 +169,7 @@ class ActiveRecordViewModel::UpdateOperation
     self
   end
 
-  def run!(view_context: nil)
+  def run!(view_context:)
     model = viewmodel.model
 
     debug_name = "#{model.class.name}:#{model.id || '<new>'}"
