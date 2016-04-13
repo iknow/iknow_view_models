@@ -4,7 +4,7 @@ require "active_record_view_model/controller"
 
 require "acts_as_manual_list"
 
-    require "logger"
+require "logger"
 
 db = :pg
 
@@ -15,7 +15,8 @@ when :pg
   ActiveRecord::Base.establish_connection adapter: "postgresql", database: "cerego_view_models"
   %w[labels parents children targets poly_ones poly_twos owners
      grand_parents
-     linked_lists unvalidated_linked_lists].each do |t|
+     linked_lists unvalidated_linked_lists
+     categories tags parents_tags].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
 end
@@ -27,6 +28,15 @@ end
 
 ActiveRecord::Schema.define do
   self.verbose = false
+
+  create_table :categories do |t|
+    t.string :name
+  end
+
+  create_table :tags do |t|
+    t.string :name
+  end
+
   create_table :labels do |t|
     t.string :text
   end
@@ -40,6 +50,14 @@ ActiveRecord::Schema.define do
     t.string :poly_type
     t.integer :poly_id
     t.references :grand_parent, foreign_key: true
+
+    t.references :category, foreign_key: true # shared reference
+  end
+
+  create_table :parents_tags do |t|
+    t.references :parent, foreign_key: true
+    t.references :tags,   foreign_key: true
+    # TODO data on join table?
   end
 
   create_table :owners do |t|
@@ -89,6 +107,8 @@ ActiveRecord::Schema.define do
     t.integer :car
     t.integer :cdr_id
   end
+
+
 end
 
 class ApplicationRecord < ActiveRecord::Base
@@ -127,6 +147,12 @@ class Parent < ApplicationRecord
   belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
 
   belongs_to :grand_parent, inverse_of: :parents
+
+  belongs_to :category
+end
+
+class Category < ApplicationRecord
+  has_many :parents
 end
 
 class Owner < ApplicationRecord
@@ -201,10 +227,15 @@ module Views
     attributes :text
   end
 
+  class Category < ApplicationView
+    attributes :name
+  end
+
   class Parent < ApplicationView
     attributes :name
     associations :children, :label, :target
     association :poly, viewmodels: [PolyOne, PolyTwo]
+    association :category, shared: true
 
     include TrivialAccessControl
   end
@@ -221,6 +252,7 @@ module Views
   class GrandParent < ApplicationView
     association :parents
   end
+
 
 end
 

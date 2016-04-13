@@ -113,6 +113,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                                  "id" => @parent1.target.id,
                                  "text" => @parent1.target.text,
                                  "label" => nil },
+                   "category" => nil,
                    "poly" => { "_type" => @parent1.poly_type,
                                "id" => @parent1.poly.id,
                                "number" => @parent1.poly.number },
@@ -125,7 +126,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_eager_includes
     p = Views::Parent.eager_includes
-    assert_equal({ "children" => {}, "label" => {}, "target" => { "label" => {} }, "poly" => nil }, p)
+    assert_equal({ "children" => {}, "category" => {}, "label" => {}, "target" => { "label" => {} }, "poly" => nil }, p)
   end
 
   def test_create_from_view
