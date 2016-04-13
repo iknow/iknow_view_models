@@ -19,7 +19,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                                      Child.new(name: "p1c3").tap { |c| c.position = 3 }],
                           label: Label.new(text: "p1l"),
                           target: Target.new(text: "p1t"),
-                          poly: PolyOne.new(number: 1))
+                          poly: PolyOne.new(number: 1),
+                          category: Category.new(name: "p1cat"))
     @parent1.save!
 
     @parent2 = Parent.new(name: "p2",
@@ -28,6 +29,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                           label: Label.new(text: "p2l"))
 
     @parent2.save!
+
+    @category1 = Category.create(name: "Cat1")
 
     # Enable logging for the test
     ActiveRecord::Base.logger = Logger.new(STDOUT)
@@ -823,6 +826,31 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal([1, 2], @parent1.children.map(&:position))
 
     assert(Child.where(id: p1c2).blank?)
+  end
+
+  def json_reference_to(viewmodel, view_context: viewmodel.default_context)
+    viewmodel.to_hash(view_context: view_context).slice("_type", "id")
+  end
+
+  def test_shared_add_reference
+    p2view = Views::Parent.new(@parent2).to_hash
+    p2view["category"] = json_reference_to(Views::Category.new(@category1))
+    Views::Parent.deserialize_from_view(p2view)
+
+    @parent2.reload
+
+    assert_equal(@category1, @parent2.category)
+  end
+
+  def test_shared_delete_reference
+    p1view = Views::Parent.new(@parent1).to_hash
+    p1view["category"] = nil
+    Views::Parent.deserialize_from_view(p1view)
+
+    @parent1.reload
+
+    assert_equal(nil, @parent1.category)
+    assert(Category.where(id: @category1.id).present?)
   end
 
 end

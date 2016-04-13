@@ -272,7 +272,13 @@ class ActiveRecordViewModel::UpdateOperation
             when :remote; self.pointed_to
             when :local;  self.points_to
             end
-          target[association_data] = construct_update_for_single_association(association_data, association_hash, worklist, released_viewmodels)
+
+          target[association_data] =
+            if association_data.shared
+              construct_update_for_single_referenced_association(association_data, association_hash)
+            else
+              construct_update_for_single_association(association_data, association_hash, worklist, released_viewmodels)
+            end
         end
 
       else
@@ -282,6 +288,29 @@ class ActiveRecordViewModel::UpdateOperation
   end
 
   private
+
+  def construct_update_for_single_referenced_association(association_data, child_ref_hash)
+    # TODO intern loads for shared items so we only load them once
+
+    if child_ref_hash.nil?
+      nil
+    elsif child_ref_hash.is_a?(Hash)
+      id        = child_ref_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+      type_name = child_ref_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+
+      # A reference specifies a target model and no updates
+      unless child_ref_hash.empty?
+        raise ViewModel::DeserializationError.new("Child hash is not a reference, found additional keys #{child_ref_hash.keys.inspect}")
+      end
+
+      referred_model = association_data.viewmodel_class_for_name(type_name).find(id)
+
+      # TODO use a "ReferenceOperation" type or assert that an empty UpdateOperation#run! will never modify?
+      ActiveRecordViewModel::ReferenceOperation.new(referred_model)
+    else
+      raise ViewModel::DeserializationError.new("Invalid hash data for shared association: '#{child_hash.inspect}'")
+    end
+  end
 
   def construct_update_for_single_association(association_data, child_hash, worklist, released_viewmodels)
     model = self.viewmodel.model
