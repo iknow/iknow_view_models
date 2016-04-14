@@ -1,3 +1,5 @@
+require "renum"
+
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ActiveRecordViewModel::UpdateOperation
   # Key for deferred resolution of an AR model
@@ -24,7 +26,7 @@ class ActiveRecordViewModel::UpdateOperation
   # inverse association and record to update a change in parent from a child
   ParentData = Struct.new(:association_reflection, :model)
 
-  renum :RunState, [:Pending, :Running, :Run]
+  enum :RunState, [:Pending, :Running, :Run]
 
   attr_accessor :viewmodel,
                 :subtree_hash,
@@ -54,10 +56,6 @@ class ActiveRecordViewModel::UpdateOperation
     subtree_hash.nil?
   end
 
-  def run?
-    @run
-  end
-
   class << self
     def build_updates(root_subtree_hashes, referenced_subtree_hashes)
       # Check input and build an array of [ref-or-nil, hash] for all subtrees
@@ -73,7 +71,7 @@ class ActiveRecordViewModel::UpdateOperation
       end)
 
       # construct [[ref-or-nil, update]]
-      all_root_updates = construct_root_updates(root_hashes)
+      all_root_updates = construct_root_updates(roots)
 
       # Separate out root and referenced updates
       root_updates       = []
@@ -120,8 +118,8 @@ class ActiveRecordViewModel::UpdateOperation
       unless subtree_hash.is_a?(Hash)
         raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
       end
-      unless subtree_hash.has_key?(TYPE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Invalid update hash data - '#{TYPE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
+      unless subtree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+        raise ViewModel::DeserializationError.new("Invalid update hash data - '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
       end
     end
 
@@ -130,10 +128,10 @@ class ActiveRecordViewModel::UpdateOperation
         raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
       end
       unless subtree_hash.size == 1
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - must not contain keys besides '#{REFERENCE_ATTRIBUTE}': #{subtree_hash.keys.inspect}")
+        raise ViewModel::DeserializationError.new("Invalid reference hash data - must not contain keys besides '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}': #{subtree_hash.keys.inspect}")
       end
-      unless subtree_hash.has_key(REFERENCE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - '#{REFERENCE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
+      unless subtree_hash.has_key?(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
+        raise ViewModel::DeserializationError.new("Invalid reference hash data - '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
       end
     end
 
@@ -157,7 +155,7 @@ class ActiveRecordViewModel::UpdateOperation
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       roots_by_viewmodel_class.flat_map do |viewmodel_class, roots|
-        model_ids = subtrees.map { |ref, hash| hash[ActiveRecordViewModel::ID_ATTRIBUTE] }.compact
+        model_ids = roots.map { |_, hash| hash[ActiveRecordViewModel::ID_ATTRIBUTE] }.compact
 
         existing_models = viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
 
@@ -169,7 +167,7 @@ class ActiveRecordViewModel::UpdateOperation
             else
               viewmodel_class.new
             end
-          [ref, UpdateOperation.new(viewmodel, root_hash.subtree_hash)]
+          [ref, ActiveRecordViewModel::UpdateOperation.new(viewmodel, subtree_hash)]
         end
       end
     end
@@ -310,7 +308,7 @@ class ActiveRecordViewModel::UpdateOperation
       end
     end
 
-    subtree_hash = nil
+    self.subtree_hash = nil
 
     self
   end
@@ -323,7 +321,7 @@ class ActiveRecordViewModel::UpdateOperation
     if child_ref_hash.nil?
       nil
     else
-      UpdateOperation.valid_reference_hash!(child_ref_hash)
+      ActiveRecordViewModel::UpdateOperation.valid_reference_hash!(child_ref_hash)
 
       ref = child_ref_hash[ActiveRecordViewModel::REFERENCE_ATTRIBUTE]
 
@@ -340,7 +338,7 @@ class ActiveRecordViewModel::UpdateOperation
     end
   end
 
-  def build_update_for_single_association(association_data, child_hash, worklist, released_viewmodels)
+  def build_update_for_single_association(association_data, child_hash, worklist, released_viewmodels, referenced_updates)
     model = self.viewmodel.model
 
     previous_child_model = model.public_send(association_data.name)
@@ -366,7 +364,7 @@ class ActiveRecordViewModel::UpdateOperation
     if child_hash.nil?
       nil
     else
-      UpdateOperation.valid_subtree_hash!(child_hash)
+      ActiveRecordViewModel::UpdateOperation.valid_subtree_hash!(child_hash)
 
       id        = child_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
       type_name = child_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
@@ -398,14 +396,14 @@ class ActiveRecordViewModel::UpdateOperation
           reference = child_viewmodel
           worklist[reference] = ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data)
         else
-          ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(worklist, released_viewmodels)
+          ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(worklist, released_viewmodels, referenced_updates)
         end
 
       child_update
     end
   end
 
-  def build_updates_for_collection_association(association_data, child_hashes, worklist, released_viewmodels)
+  def build_updates_for_collection_association(association_data, child_hashes, worklist, released_viewmodels, referenced_updates)
     model = self.viewmodel.model
 
     child_viewmodel_class = association_data.viewmodel_class
@@ -436,7 +434,7 @@ class ActiveRecordViewModel::UpdateOperation
     # models we can recurse into them, otherwise we must attach a stub
     # UpdateOperation (and add it to the worklist to process later)
     child_viewmodels = child_hashes.map do |child_hash|
-      UpdateOperation.valid_subtree_hash!(child_hash)
+      ActiveRecordViewModel::UpdateOperation.valid_subtree_hash!(child_hash)
 
       id        = child_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
       type_name = child_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
@@ -493,7 +491,7 @@ class ActiveRecordViewModel::UpdateOperation
         reference = child_viewmodel
         worklist[reference] = ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data, reposition_to: position)
       else
-        ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(worklist, released_viewmodels)
+        ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(worklist, released_viewmodels, referenced_updates)
       end
     end
 

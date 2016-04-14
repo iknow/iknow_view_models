@@ -14,6 +14,7 @@ class ActiveRecordViewModel < ViewModel
 
   ID_ATTRIBUTE = "id"
   TYPE_ATTRIBUTE = "_type"
+  REFERENCE_ATTRIBUTE = "_ref"
 
   AssociationData = Struct.new(:reflection, :viewmodel_classes, :shared) do
     delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
@@ -219,12 +220,12 @@ class ActiveRecordViewModel < ViewModel
       load_scope.map { |model| self.new(model) }
     end
 
-    def deserialize_from_view(subtree_hashes, referenced_subtree_hashes, view_context: default_context)
+    def deserialize_from_view(subtree_hashes, references: {}, view_context: default_context)
       model_class.transaction do
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
 
-        root_updates, released_viewmodels = UpdateOperation.build_updates(subtree_hashes, referenced_subtree_hashes)
+        root_updates, released_viewmodels = UpdateOperation.build_updates(subtree_hashes, references)
 
         updated_viewmodels = root_updates.map do |root_update|
           root_update.run!(view_context: view_context)
