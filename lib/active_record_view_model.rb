@@ -66,6 +66,10 @@ class ActiveRecordViewModel < ViewModel
       vm_class
     end
 
+    def accepts?(viewmodel_class)
+      viewmodel_classes.include?(viewmodel_class)
+    end
+
     def viewmodel_class
       unless viewmodel_classes.size == 1
         raise ArgumentError.new("More than one possible class for association '#{reflection.name}'")

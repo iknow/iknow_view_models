@@ -331,8 +331,9 @@ class ActiveRecordViewModel::UpdateOperation
         raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'")
       end
 
-      # TODO: Need to ensure that the type of the viewmodel in the update matches
-      # the association_data.viewmodel_class_for_name(type_name)
+      unless association_data.accepts?(referred_update.viewmodel.class)
+        raise ViewModel::DeserializationError.new("Association '#{association.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
+      end
 
       referred_update.build!
     end
