@@ -24,13 +24,15 @@ class ActiveRecordViewModel::UpdateOperation
   # inverse association and record to update a change in parent from a child
   ParentData = Struct.new(:association_reflection, :model)
 
+  renum :RunState, [:Pending, :Running, :Run]
+
   attr_accessor :viewmodel,
                 :subtree_hash,
                 :attributes, # attr => serialized value
                 :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
                 :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
                 :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
-                :reposition_to, # if this node participates in a list under its parent, what should its position be?
+                :reposition_to # if this node participates in a list under its parent, what should its position be?
 
   def initialize(viewmodel, subtree_hash, reparent_to: nil, reposition_to: nil)
     self.viewmodel     = viewmodel
@@ -40,6 +42,8 @@ class ActiveRecordViewModel::UpdateOperation
     self.pointed_to    = {}
     self.reparent_to   = reparent_to
     self.reposition_to = reposition_to
+
+    @run_state = RunState::Pending
   end
 
   def deferred?
@@ -50,28 +54,39 @@ class ActiveRecordViewModel::UpdateOperation
     subtree_hash.nil?
   end
 
+  def run?
+    @run
+  end
+
   class << self
-    # Sentinel object
-    class RootReference; end
-
     def build_updates(root_subtree_hashes, referenced_subtree_hashes)
-      # Check we've been passed sane input data
-      root_subtree_hashes.each { |subtree_hash| valid_subtree_hash!(subtree_hash) }
-
-      referenced_subtree_hashes.each do |reference, subtree_hash|
+      # Check input and build an array of [ref-or-nil, hash] for all subtrees
+      roots = root_subtree_hashes.map do |subtree_hash|
         valid_subtree_hash!(subtree_hash)
-        raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
+        [nil, subtree_hash]
       end
 
-      # Temporarily combine all subtree hashes to preload existing viewmodels and build UpdateOperations
-      indexed_subtree_hashes = referenced_subtree_hashes.merge(root_subtree_hashes.index_by { RootReference.new })
-      indexed_updates = construct_root_updates(indexed_subtree_hashes)
+      roots.concat(referenced_subtree_hashes.map do |reference, subtree_hash|
+        valid_subtree_hash!(subtree_hash)
+        raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
+        [reference, subtree_hash]
+      end)
+
+      # construct [[ref-or-nil, update]]
+      all_root_updates = construct_root_updates(root_hashes)
 
       # Separate out root and referenced updates
-      root_updates = indexed_updates.keys.select {|k| k.is_a?(RootReference) }.map { |k| indexed_update_roots.delete(k) }
-      referenced_updates = indexed_update_roots
+      root_updates       = []
+      referenced_updates = {}
+      all_root_updates.each do |ref, subtree_hash|
+        if ref.nil?
+          root_updates << subtree_hash
+        else
+          referenced_updates[ref] = subtree_hash
+        end
+      end
 
-      # Build all root updates
+      # Build root updates
 
       # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
       # for linked partially-constructed node updates
@@ -127,11 +142,11 @@ class ActiveRecordViewModel::UpdateOperation
     # Loads corresponding viewmodels and constructs UpdateOperations for the
     # provided root subtrees. Subtrees are provided and returned in a map keyed
     # by opaque references.
-    def construct_root_updates(indexed_subtree_hashes)
+    def construct_root_updates(roots)
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
-      subtrees_by_viewmodel_class = indexed_subtree_hashes.group_by do |ref, subtree_hash|
+      roots_by_viewmodel_class = roots.group_by do |ref, subtree_hash|
         unless subtree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
           raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{subtree_hash.inspect}'")
         end
@@ -141,12 +156,12 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
-      subtrees_by_viewmodel_class.each_with_object({}) do |(viewmodel_class, subtrees), indexed_update_roots|
+      roots_by_viewmodel_class.flat_map do |viewmodel_class, roots|
         model_ids = subtrees.map { |ref, hash| hash[ActiveRecordViewModel::ID_ATTRIBUTE] }.compact
 
         existing_models = viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
 
-        subtrees.each do |ref, subtree_hash|
+        roots.map do |ref, subtree_hash|
           id = subtree_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
           viewmodel =
             if id.present?
@@ -154,7 +169,7 @@ class ActiveRecordViewModel::UpdateOperation
             else
               viewmodel_class.new
             end
-          indexed_update_roots[ref] << UpdateOperation.new(viewmodel, subtree_hash)
+          [ref, UpdateOperation.new(viewmodel, root_hash.subtree_hash)]
         end
       end
     end
@@ -164,6 +179,15 @@ class ActiveRecordViewModel::UpdateOperation
   # Evaluate a built update tree, applying and saving changes to the models.
   def run!(view_context:)
     raise "Not yet built!" unless built? # TODO
+
+    case @run_state
+    when RunState::Running
+      raise "Cycle! Bad!" # TODO
+    when RunState::Run
+      return viewmodel
+    end
+
+    @run_state = RunState::Running
 
     model = viewmodel.model
 
@@ -241,6 +265,8 @@ class ActiveRecordViewModel::UpdateOperation
     end
 
     debug "<- #{debug_name}: Leaving"
+
+    @run_state = RunState::Run
     viewmodel
   end
 
