@@ -85,7 +85,7 @@ module ActiveRecordViewModel::Controller
 
     viewmodel.transaction do
       view = viewmodel.deserialize_from_view(data, view_context: view_context)
-      render_viewmodel({ data: view }, view_context: view_context)
+      render_viewmodel(view, view_context: view_context)
     end
   end
 

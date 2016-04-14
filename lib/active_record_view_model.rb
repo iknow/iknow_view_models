@@ -132,12 +132,12 @@ class ActiveRecordViewModel < ViewModel
           model.public_send(attr)
         end
 
-        define_method "serialize_#{attr}" do |json, view_context: default_context|
+        define_method "serialize_#{attr}" do |json, view_context: default_serialize_context|
           value = self.public_send(attr)
           self.class.serialize(value, json, view_context: view_context)
         end
 
-        define_method "deserialize_#{attr}" do |value, view_context: default_context|
+        define_method "deserialize_#{attr}" do |value, view_context: default_deserialize_context|
           model.public_send("#{attr}=", value)
         end
       end
@@ -149,7 +149,7 @@ class ActiveRecordViewModel < ViewModel
     def acts_as_enum(*attrs)
       attrs.each do |attr|
         @generated_accessor_module.module_eval do
-          redefine_method("serialize_#{attr}") do |json, view_context: default_context|
+          redefine_method("serialize_#{attr}") do |json, view_context: default_serialize_context|
             value = self.public_send(attr)
             self.class.serialize(value.enum_constant, json, view_context: view_context)
           end
@@ -197,9 +197,17 @@ class ActiveRecordViewModel < ViewModel
           read_association(association_name)
         end
 
-        define_method :"serialize_#{association_name}" do |json, view_context: default_context|
+        define_method :"serialize_#{association_name}" do |json, view_context: default_serialize_context|
           associated = self.public_send(association_name)
-          self.class.serialize(associated, json, view_context: view_context)
+
+          if associated.nil?
+            json.null!
+          elsif shared
+            reference = view_context.add_reference(associated)
+            json.set!(ActiveRecordViewModel::REFERENCE_ATTRIBUTE, reference)
+          else
+            self.class.serialize(associated, json, view_context: view_context)
+          end
         end
       end
     end
@@ -210,7 +218,7 @@ class ActiveRecordViewModel < ViewModel
     end
 
     ## Load an instance of the viewmodel by id
-    def find(id, scope: nil, eager_include: true, view_context: default_context)
+    def find(id, scope: nil, eager_include: true, view_context: default_serialize_context)
       find_scope = model_scope(eager_include: eager_include, view_context: view_context)
       find_scope = find_scope.merge(scope) if scope
       self.new(find_scope.find(id))
@@ -218,13 +226,13 @@ class ActiveRecordViewModel < ViewModel
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
-    def load(scope: nil, eager_include: true, view_context: default_context)
+    def load(scope: nil, eager_include: true, view_context: default_serialize_context)
       load_scope = model_scope(eager_include: eager_include, view_context: view_context)
       load_scope = load_scope.merge(scope) if scope
       load_scope.map { |model| self.new(model) }
     end
 
-    def deserialize_from_view(subtree_hashes, references: {}, view_context: default_context)
+    def deserialize_from_view(subtree_hashes, references: {}, view_context: default_deserialize_context)
       model_class.transaction do
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
@@ -250,7 +258,7 @@ class ActiveRecordViewModel < ViewModel
     # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
     # specify "when type A, go on to load these, but type B go on to load
     # those?"
-    def eager_includes(view_context: default_context)
+    def eager_includes(view_context: default_serialize_context)
       _associations.each_with_object({}) do |(assoc_name, association_data), h|
         if association_data.polymorphic?
           # The regular AR preloader doesn't support child includes that are
@@ -283,7 +291,7 @@ class ActiveRecordViewModel < ViewModel
       @model_class
     end
 
-    def model_scope(eager_include: true, view_context: default_context)
+    def model_scope(eager_include: true, view_context: default_serialize_context)
       scope = self.model_class.all
       if eager_include
         scope = scope.includes(self.eager_includes(view_context: view_context))
@@ -331,7 +339,7 @@ class ActiveRecordViewModel < ViewModel
     super(model)
   end
 
-  def serialize_view(json, view_context: default_context)
+  def serialize_view(json, view_context: default_serialise_context)
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
 
@@ -342,7 +350,7 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def destroy!(view_context: default_context)
+  def destroy!(view_context: default_deserialize_context)
     model_class.transaction do
       editable!(view_context: view_context)
       model.destroy!
@@ -357,7 +365,7 @@ class ActiveRecordViewModel < ViewModel
   # Entry point for appending to a collection association of an existing record
   # FIXME: no reason for this to be separate from append_association any more,
   # since we're no longer providing overridable append_* hooks for each association.
-  def deserialize_associated(association_name, hash_data, view_context: default_context)
+  def deserialize_associated(association_name, hash_data, view_context: default_deserialize_context)
     unimplemented
 
     view = nil
@@ -376,7 +384,7 @@ class ActiveRecordViewModel < ViewModel
 
   # Entry point for destroying the association between an existing record and a child:
   # will be necessary for shared data.
-  def delete_associated(association_name, associated, view_context: default_context)
+  def delete_associated(association_name, associated, view_context: default_deserialize_context)
     unimplemented
 
     model_class.transaction do
@@ -389,7 +397,7 @@ class ActiveRecordViewModel < ViewModel
     self.public_send(association_name)
   end
 
-  def find_associated(association_name, id, eager_include: true, view_context: default_context)
+  def find_associated(association_name, id, eager_include: true, view_context: default_serialize_context)
     association_data = self.class._association_data(association_name)
     associated_viewmodel = association_data.viewmodel_class
     association_scope = self.model.association(association_name).association_scope
@@ -420,7 +428,7 @@ class ActiveRecordViewModel < ViewModel
   # Create or update a single member of an associated subtree. For a collection
   # association, this deserializes and appends to the collection, otherwise it
   # has the same effect as `deserialize_association`.
-  def append_association(association_name, hash_data, view_context: default_context)
+  def append_association(association_name, hash_data, view_context: default_deserialize_context)
     unimplemented
 
     association_data = self.class._association_data(association_name)
@@ -442,7 +450,7 @@ class ActiveRecordViewModel < ViewModel
   # the provided associated viewmodel. The associated model will be
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
-  def delete_association(association_name, associated, view_context: default_context)
+  def delete_association(association_name, associated, view_context: default_deserialize_context)
     unimplemented
 
     association_data = self.class._association_data(association_name)

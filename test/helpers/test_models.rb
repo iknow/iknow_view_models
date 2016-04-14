@@ -186,19 +186,32 @@ end
 
 module Views
   class ApplicationView < ActiveRecordViewModel
-    class Context < ViewModel::Context
-      attr_accessor :can_edit, :can_view
+    class DeserializeContext < ViewModel::DeserializeContext
+      attr_accessor :can_edit
 
-      def initialize(can_edit: true, can_view: true)
+      def initialize(can_edit: true)
+        super()
         self.can_edit = can_edit
+      end
+    end
+
+    class SerializeContext < ViewModel::SerializeContext
+      attr_accessor :can_view
+
+      def initialize(can_view: true)
+        super()
         self.can_view = can_view
       end
     end
 
     # TODO abstract class like active record
 
-    def self.context_class
-      Context
+    def self.deserialize_context_class
+      DeserializeContext
+    end
+
+    def self.serialize_context_class
+      SerializeContext
     end
   end
 

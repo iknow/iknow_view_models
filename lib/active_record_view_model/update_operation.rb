@@ -5,7 +5,7 @@ class ActiveRecordViewModel::UpdateOperation
   # Key for deferred resolution of an AR model
   ViewModelReference = Struct.new(:viewmodel_class, :model_id) do
     class << self
-      def from_view_model(vm)
+      def from_viewmodel(vm)
         self.new(vm.class, vm.id)
       end
     end
@@ -80,6 +80,8 @@ class ActiveRecordViewModel::UpdateOperation
         if ref.nil?
           root_updates << subtree_hash
         else
+          # TODO make sure that referenced subtree hashes are unique and provide a decent error message
+          # not strictly necessary, but will save confusion
           referenced_updates[ref] = subtree_hash
         end
       end
@@ -335,7 +337,7 @@ class ActiveRecordViewModel::UpdateOperation
         raise ViewModel::DeserializationError.new("Association '#{association.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
       end
 
-      referred_update.build!
+      referred_update.build!(worklist, released_viewmodels, referenced_updates)
     end
   end
 
@@ -350,7 +352,7 @@ class ActiveRecordViewModel::UpdateOperation
 
       # Release the previous child if present: if the replacement hash refers to
       # it, it will immediately take it back.
-      key = ViewModelReference.from_view_model(previous_child_viewmodel)
+      key = ViewModelReference.from_viewmodel(previous_child_viewmodel)
       released_viewmodels[key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
 
       # Clear the cached association so that AR's save behaviour doesn't
@@ -465,7 +467,7 @@ class ActiveRecordViewModel::UpdateOperation
     # release previously attached children that are no longer referred to
     previous_children.each_value do |model|
       viewmodel = child_viewmodel_class.new(model)
-      key = ViewModelReference.from_view_model(viewmodel)
+      key = ViewModelReference.from_viewmodel(viewmodel)
       released_viewmodels[key] = ReleaseEntry.new(viewmodel, association_data)
     end
 

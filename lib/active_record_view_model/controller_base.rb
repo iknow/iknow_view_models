@@ -18,20 +18,6 @@ module ActiveRecordViewModel::ControllerBase
     end
   end
 
-  class ExceptionView < ViewModel
-    attributes :exception, :status
-    def serialize_view(json, view_context: default_context)
-      json.errors [exception] do |e|
-        json.status status
-        json.detail exception.message
-        if Rails.env != 'production'
-          json.set! :class, exception.class.name
-          json.backtrace exception.backtrace
-        end
-      end
-    end
-  end
-
   included do
     CeregoViewModels.renderable!(self)
     delegate :viewmodel, to: :class
@@ -41,10 +27,6 @@ module ActiveRecordViewModel::ControllerBase
     rescue_from ActiveRecord::RecordNotFound,                with: ->(ex){ render_error(ex, 404)}
     rescue_from ActiveRecordViewModel::DeserializationError, with: ->(ex){ render_error(ex, 400)}
     rescue_from IknowParams::Parser::ParseError,             with: ->(ex){ render_error(ex, 400)}
-  end
-
-  def render_error(exception, status = 500)
-    render_viewmodel(ExceptionView.new(exception, status), status: status)
   end
 
 end
