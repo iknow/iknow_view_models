@@ -24,7 +24,7 @@ class ActiveRecordViewModel::UpdateOperation
   end
 
   # inverse association and record to update a change in parent from a child
-  ParentData = Struct.new(:association_reflection, :model)
+  ParentData = Struct.new(:association_reflection, :viewmodel)
 
   enum :RunState, [:Pending, :Running, :Run]
 
@@ -46,6 +46,7 @@ class ActiveRecordViewModel::UpdateOperation
     self.reposition_to = reposition_to
 
     @run_state = RunState::Pending
+    @association_changed = false
   end
 
   def deferred?
@@ -54,6 +55,13 @@ class ActiveRecordViewModel::UpdateOperation
 
   def built?
     subtree_hash.nil?
+  end
+
+  def association_changed!
+    @association_changed = true
+  end
+  def association_changed?
+    @association_changed
   end
 
   class << self
@@ -200,13 +208,17 @@ class ActiveRecordViewModel::UpdateOperation
     debug_name = "#{model.class.name}:#{model.id || '<new>'}"
     debug "-> #{debug_name}: Entering"
 
+    edit_checked = false;
+    edit_check = ->{ viewmodel.editable!(view_context: view_context) && edit_checked = true unless edit_checked }
+    edit_check.call if self.association_changed?
+
     # TODO: editable! checks if this particular record is getting changed
     model.class.transaction do
       # update parent association
       if reparent_to.present?
-        debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.model.class.name}:#{reparent_to.model.id}'"
+        debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
         association = model.association(reparent_to.association_reflection.name)
-        association.replace(reparent_to.model)
+        association.replace(reparent_to.viewmodel.model)
         debug "<- #{debug_name}: Updated parent pointer"
       end
 
@@ -240,7 +252,7 @@ class ActiveRecordViewModel::UpdateOperation
         debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
       end
 
-      viewmodel.editable!(view_context: view_context) if model.changed? # but what about our pointed-from children: if we release child, better own parent
+      edit_check.call if model.changed?
 
       debug "-> #{debug_name}: Saving"
       model.save!
@@ -355,23 +367,19 @@ class ActiveRecordViewModel::UpdateOperation
     if previous_child_model.present?
       previous_child_viewmodel_class = association_data.viewmodel_class_for_model(previous_child_model.class)
       previous_child_viewmodel = previous_child_viewmodel_class.new(previous_child_model)
-
-      # Release the previous child if present: if the replacement hash refers to
-      # it, it will immediately take it back.
-      key = ViewModelReference.from_viewmodel(previous_child_viewmodel)
-      released_viewmodels[key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
+      previous_child_key = ViewModelReference.from_viewmodel(previous_child_viewmodel)
 
       # Clear the cached association so that AR's save behaviour doesn't
-      # conflict with our explicit parent updates. If we assign a new child (or
-      # keep the same one), we'll come back with it and call
-      # `Association#replace` in `run()`. If we don't, we promise that the child
-      # will no longer be attached in the database, so the new cached data of
-      # nil will be correct.
+      # conflict with our explicit parent updates.  If we still have a child
+      # after the update, we'll either call `Association#replace` or manually
+      # fix the target cache after recursing in run!(). If we don't, we promise
+      # that the child will no longer be attached in the database, so the new
+      # cached data of nil will be correct.
       model.association(association_data.name).target = nil
     end
 
     if child_hash.nil?
-      nil
+      child_update = nil
     else
       ActiveRecordViewModel::UpdateOperation.valid_subtree_hash!(child_hash)
 
@@ -381,20 +389,30 @@ class ActiveRecordViewModel::UpdateOperation
       child_viewmodel_class = association_data.viewmodel_class_for_name(type_name)
 
       child_viewmodel =
-        case
-        when id.nil?
+        if id.nil?
+          self.association_changed!
           child_viewmodel_class.new
-        when taken_child_release_entry = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
-          taken_child_release_entry.viewmodel
         else
-          # not-yet-seen child: create a deferred update
-          ViewModelReference.new(child_viewmodel_class, id)
+          key = ViewModelReference.new(child_viewmodel_class, id)
+          case
+          when taken_child_release_entry = released_viewmodels.delete(key)
+            self.association_changed!
+            taken_child_release_entry.viewmodel
+          when key == previous_child_key
+            previous_child_key = nil
+            previous_child_viewmodel
+          else
+            # not-yet-seen child: create a deferred update
+            self.association_changed!
+            ViewModelReference.new(child_viewmodel_class, id)
+          end
         end
 
-      # if the association's pointer is in the child, need to provide it with a ParentData to update
+      # If the association's pointer is in the child, need to provide it with a
+      # ParentData to update
       parent_data =
         if association_data.pointer_location == :remote
-          ParentData.new(association_data.reflection.inverse_of, model)
+          ParentData.new(association_data.reflection.inverse_of, viewmodel)
         else
           nil
         end
@@ -407,19 +425,24 @@ class ActiveRecordViewModel::UpdateOperation
         else
           ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(worklist, released_viewmodels, referenced_updates)
         end
-
-      child_update
     end
+
+    # Release the previous child if still present
+    if previous_child_key.present?
+      self.association_changed!
+      released_viewmodels[previous_child_key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
+    end
+
+    child_update
   end
 
   def build_updates_for_collection_association(association_data, child_hashes, worklist, released_viewmodels, referenced_updates)
     model = self.viewmodel.model
 
     child_viewmodel_class = association_data.viewmodel_class
-    child_model_class = child_viewmodel_class.model_class
 
     # reference back to this model, so we can set the link while updating the children
-    parent_data = ParentData.new(association_data.reflection.inverse_of, model)
+    parent_data = ParentData.new(association_data.reflection.inverse_of, viewmodel)
 
     unless child_hashes.is_a?(Array)
       raise ViewModel::DeserializationError.new("Invalid hash data array for multiple association: '#{child_hashes.inspect}'")
@@ -459,22 +482,26 @@ class ActiveRecordViewModel::UpdateOperation
 
       case
       when id.nil?
+        self.association_changed!
         child_viewmodel_class.new
       when existing_child = previous_children.delete(id)
         child_viewmodel_class.new(existing_child)
       when taken_child_release_entry = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+        self.association_changed!
         taken_child_release_entry.viewmodel
       else
         # Refers to child that hasn't yet been seen: create a deferred update.
+        self.association_changed!
         ViewModelReference.new(child_viewmodel_class, id)
       end
     end
 
     # release previously attached children that are no longer referred to
-    previous_children.each_value do |model|
-      viewmodel = child_viewmodel_class.new(model)
-      key = ViewModelReference.from_viewmodel(viewmodel)
-      released_viewmodels[key] = ReleaseEntry.new(viewmodel, association_data)
+    previous_children.each_value do |child_model|
+      self.association_changed!
+      child_viewmodel = child_viewmodel_class.new(child_model)
+      key = ViewModelReference.from_viewmodel(child_viewmodel)
+      released_viewmodels[key] = ReleaseEntry.new(child_viewmodel, association_data)
     end
 
     # Calculate new positions for children if in a list. Ignore previous
