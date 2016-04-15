@@ -176,7 +176,6 @@ class ViewModel
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.
   # Default implementation visits each attribute with Viewmodel.serialize.
   def serialize_view(json, view_context: default_serialize_context)
-    json.set!("_type", self.class.name)
     self.class._attributes.each do |attr|
       json.set! attr do
         ViewModel.serialize(self.send(attr), json, view_context: view_context)
