@@ -22,6 +22,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                           poly: PolyOne.new(number: 1),
                           category: Category.new(name: "p1cat"))
     @parent1.save!
+    @parent1_view = Views::Parent.new(@parent1)
 
     @parent2 = Parent.new(name: "p2",
                           children: [Child.new(name: "p2c1").tap { |c| c.position = 1 },
@@ -29,8 +30,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                           label: Label.new(text: "p2l"))
 
     @parent2.save!
+    @parent2_view = Views::Parent.new(@parent2)
 
     @category1 = Category.create(name: "Cat1")
+    @category1_view = Views::Category.new(@category1)
 
     # Enable logging for the test
     ActiveRecord::Base.logger = Logger.new(STDOUT)
@@ -519,6 +522,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     references = view_context.serialize_references_to_hash
     return data, references
   end
+  def serialize(serializable, view_context: Views::ApplicationView::SerializeContext.new)
+    data, _ = serialize_with_references(serializable)
+    data
+  end
+
 
   # Merge two reference maps, ensuring that there are no overlapping references
   def merge_references(refs1, refs2)
@@ -854,6 +862,69 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent2.reload
 
     assert_equal(@category1, @parent2.category)
+  end
+
+  def test_shared_add_multiple_references
+    (p1view,p2view), refs = serialize_with_references([Views::Parent.new(@parent1),
+                                                       Views::Parent.new(@parent2)])
+    refs.delete(p1view['category']['_ref'])
+    refs['myref'] = serialize(@category1_view)
+
+    p1view['category'] = { '_ref' => 'myref' }
+    p2view['category'] = { '_ref' => 'myref' }
+
+    Views::Parent.deserialize_from_view([p1view, p2view], references: refs)
+
+    @parent1.reload
+    @parent2.reload
+
+    assert_equal(@category1, @parent1.category)
+    assert_equal(@category1, @parent2.category)
+  end
+
+  def test_shared_requires_all_references
+    parent2_view, refs = serialize_with_references(@parent2_view)
+    refs = { 'foo' => { '_type' => 'Parent', 'id' => @parent1.id } }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view(parent2_view, references: refs)
+    end
+    assert_match(/was not referred to/, ex.message)
+  end
+
+  def test_shared_requires_valid_references
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view(@parent1_view.to_hash)
+    end
+    assert_match(/Could not find referenced/, ex.message)
+  end
+
+  def test_shared_requires_assignable_type
+    p1view = serialize(@parent1_view)
+    p1view['category'] = { '_ref' => 'p2' }
+    references = { 'p2' => { '_type' => 'Parent', 'id' => @parent2.id } }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view(p1view, references: references)
+    end
+    assert_match(/can't refer to/, ex.message)
+  end
+
+  def test_shared_requires_unique_references
+    p1view, p2view = serialize([@parent1_view, @parent2_view])
+    references = { 'c1' => { '_type' => 'Category', 'id' => @category1.id },
+                   'c2' => { '_type' => 'Category', 'id' => @category1.id } }
+    p1view['category'] = { '_ref' => 'c1' }
+    p2view['category'] = { '_ref' => 'c2' }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view([p1view, p2view], references: references)
+    end
+    assert_match(/TODO/, ex.message)
+  end
+
+  def test_shared_updates_shared_data
+    p1view, refs = serialize_with_references(@parent1_view)
+    refs[p1view['category']['_ref']]['name'] = 'newcatname'
+    Views::Parent.deserialize_from_view(p1view, references: refs)
+    assert_equal('newcatname', @parent1.category.reload.name)
   end
 
   def test_shared_delete_reference

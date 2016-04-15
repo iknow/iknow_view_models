@@ -118,7 +118,7 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       referenced_updates.each do |ref, update|
-        raise "Reference #{ref} was not referred to from roots" unless update.built? # TODO
+        raise ViewModel::DeserializationError.new("Reference '#{ref}' was not referred to from roots") unless update.built? # TODO
       end
 
       return root_updates, released_viewmodels
@@ -352,7 +352,7 @@ class ActiveRecordViewModel::UpdateOperation
       end
 
       unless association_data.accepts?(referred_update.viewmodel.class)
-        raise ViewModel::DeserializationError.new("Association '#{association.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
+        raise ViewModel::DeserializationError.new("Association '#{association_data.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
       end
 
       referred_update.build!(worklist, released_viewmodels, referenced_updates)
