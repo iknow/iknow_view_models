@@ -10,7 +10,6 @@ module Views; end
 
 class ActiveRecordViewModel < ViewModel
   require "active_record_view_model/update_operation"
-  require "active_record_view_model/reference_operation"
 
   ID_ATTRIBUTE = "id"
   TYPE_ATTRIBUTE = "_type"
