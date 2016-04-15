@@ -236,7 +236,7 @@ class ActiveRecordViewModel < ViewModel
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
 
-        root_updates, released_viewmodels = UpdateOperation.build_updates(subtree_hashes, references)
+        root_updates, released_viewmodels = UpdateOperation.build_updates(subtree_hashes, references, root_type: self)
 
         updated_viewmodels = root_updates.map do |root_update|
           root_update.run!(view_context: view_context)

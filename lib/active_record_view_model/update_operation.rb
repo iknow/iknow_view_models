@@ -57,7 +57,7 @@ class ActiveRecordViewModel::UpdateOperation
   end
 
   class << self
-    def build_updates(root_subtree_hashes, referenced_subtree_hashes)
+    def build_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
       # Check input and build an array of [ref-or-nil, hash] for all subtrees
       roots = root_subtree_hashes.map do |subtree_hash|
         valid_subtree_hash!(subtree_hash)
@@ -71,7 +71,7 @@ class ActiveRecordViewModel::UpdateOperation
       end)
 
       # construct [[ref-or-nil, update]]
-      all_root_updates = construct_root_updates(roots)
+      all_root_updates = construct_root_updates(roots, root_type: root_type)
 
       # Separate out root and referenced updates
       root_updates       = []
@@ -140,9 +140,8 @@ class ActiveRecordViewModel::UpdateOperation
     private
 
     # Loads corresponding viewmodels and constructs UpdateOperations for the
-    # provided root subtrees. Subtrees are provided and returned in a map keyed
-    # by opaque references.
-    def construct_root_updates(roots)
+    # provided [[ref, root_subtree],...]
+    def construct_root_updates(roots, root_type: nil)
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
@@ -152,7 +151,14 @@ class ActiveRecordViewModel::UpdateOperation
         end
 
         type_name = subtree_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-        ActiveRecordViewModel.for_view_name(type_name)
+        viewmodel_class = ActiveRecordViewModel.for_view_name(type_name)
+
+        # Check type if we're constraining to a particular (non-ref) root type
+        if ref.nil? && root_type.present? && root_type != viewmodel_class
+          raise ViewModel::DeserializationError.new("Cannot deserialize incorrect root viewmodel type '#{viewmodel_class.view_name}'")
+        end
+
+        viewmodel_class
       end
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
