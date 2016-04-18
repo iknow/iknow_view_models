@@ -917,7 +917,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view([p1view, p2view], references: references)
     end
-    assert_match(/TODO/, ex.message)
+    assert_match(/Duplicate/, ex.message)
   end
 
   def test_shared_updates_shared_data

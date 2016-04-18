@@ -65,21 +65,55 @@ class ActiveRecordViewModel::UpdateOperation
   end
 
   class << self
-    def build_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
-      # Check input and build an array of [ref-or-nil, hash] for all subtrees
-      roots = root_subtree_hashes.map do |subtree_hash|
-        valid_subtree_hash!(subtree_hash)
-        [nil, subtree_hash]
+    # Determines user intent from a hash, extracting identity metadata and
+    # returning a tuple of viewmodel_class, id, and a pure-data hash. The input
+    # hash will be consumed.
+    def extract_metadata_from_hash(hash)
+      valid_subtree_hash!(hash)
+
+      unless hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+        raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{hash.inspect}'")
       end
 
-      roots.concat(referenced_subtree_hashes.map do |reference, subtree_hash|
-        valid_subtree_hash!(subtree_hash)
+      id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+      type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+
+      viewmodel_class = ActiveRecordViewModel.for_view_name(type_name)
+
+      return viewmodel_class, id, hash
+    end
+
+    def build_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
+      # Check input and build an array of [ref-or-nil, viewmodel_class, hash] for all subtrees
+      roots = root_subtree_hashes.map do |subtree_hash|
+        viewmodel_class, id, safe_hash = extract_metadata_from_hash(subtree_hash)
+
+        # Updates in the primary array may optionally be constrained to a particular type
+        if root_type.present? && viewmodel_class != root_type
+          raise ViewModel::DeserializationError.new("Cannot deserialize incorrect root viewmodel type '#{viewmodel_class.view_name}'")
+        end
+
+        [nil, viewmodel_class, id, safe_hash]
+      end
+
+      references = referenced_subtree_hashes.map do |reference, subtree_hash|
+        viewmodel_class, id, safe_hash = extract_metadata_from_hash(subtree_hash)
+
         raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
-        [reference, subtree_hash]
-      end)
+        [reference, viewmodel_class, id, safe_hash]
+      end
+
+      roots.concat(references)
+
+      uniq_refs = roots.lazy.map { |_, viewmodel_class, id, _| [viewmodel_class, id] }.to_set
+
+      if uniq_refs.size != roots.size
+        # TODO report which entries are duplicates?
+        raise ViewModel::DeserializationError.new("Duplicate entries in specification")
+      end
 
       # construct [[ref-or-nil, update]]
-      all_root_updates = construct_root_updates(roots, root_type: root_type)
+      all_root_updates = construct_root_updates(roots)
 
       # Separate out root and referenced updates
       root_updates       = []
@@ -148,35 +182,24 @@ class ActiveRecordViewModel::UpdateOperation
     private
 
     # Loads corresponding viewmodels and constructs UpdateOperations for the
-    # provided [[ref, root_subtree],...]
-    def construct_root_updates(roots, root_type: nil)
+    # provided [[ref, viewmodel_class, id-or-nil, safe_root_subtree],...]
+    def construct_root_updates(roots)
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
-      roots_by_viewmodel_class = roots.group_by do |ref, subtree_hash|
-        unless subtree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-          raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{subtree_hash.inspect}'")
-        end
-
-        type_name = subtree_hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-        viewmodel_class = ActiveRecordViewModel.for_view_name(type_name)
-
-        # Check type if we're constraining to a particular (non-ref) root type
-        if ref.nil? && root_type.present? && root_type != viewmodel_class
-          raise ViewModel::DeserializationError.new("Cannot deserialize incorrect root viewmodel type '#{viewmodel_class.view_name}'")
-        end
-
-        viewmodel_class
-      end
+      roots_by_viewmodel_class = roots.group_by { |_, viewmodel_class, _, _| viewmodel_class }
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
-      roots_by_viewmodel_class.flat_map do |viewmodel_class, roots|
-        model_ids = roots.map { |_, hash| hash[ActiveRecordViewModel::ID_ATTRIBUTE] }.compact
+      roots_by_viewmodel_class.flat_map do |viewmodel_class, viewmodel_roots|
+        model_ids = viewmodel_roots.map { |_, _, id, _| id }.compact
 
-        existing_models = viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
+        existing_models = if model_ids.present?
+                            viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
+                          else
+                            {}
+                          end
 
-        roots.map do |ref, subtree_hash|
-          id = subtree_hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+        viewmodel_roots.map do |ref, viewmodel_class, id, subtree_hash|
           viewmodel =
             if id.present?
               viewmodel_class.new(existing_models[id])
