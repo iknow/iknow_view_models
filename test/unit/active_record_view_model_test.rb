@@ -17,9 +17,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                           children: [Child.new(name: "p1c1").tap { |c| c.position = 1 },
                                      Child.new(name: "p1c2").tap { |c| c.position = 2 },
                                      Child.new(name: "p1c3").tap { |c| c.position = 3 }],
-                          label: Label.new(text: "p1l"),
-                          target: Target.new(text: "p1t"),
-                          poly: PolyOne.new(number: 1),
+                          label:    Label.new(text: "p1l"),
+                          target:   Target.new(text: "p1t"),
+                          poly:     PolyOne.new(number: 1),
                           category: Category.new(name: "p1cat"))
     @parent1.save!
     @parent1_view = Views::Parent.new(@parent1)
@@ -42,6 +42,67 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def teardown
     ActiveRecord::Base.logger = nil
   end
+
+  ## Test utilities
+
+  def serialize_with_references(serializable, view_context: Views::ApplicationView::SerializeContext.new)
+    data = ViewModel.serialize_to_hash(serializable, view_context: view_context)
+    references = view_context.serialize_references_to_hash
+    return data, references
+  end
+
+  def serialize(serializable, view_context: Views::ApplicationView::SerializeContext.new)
+    data, _ = serialize_with_references(serializable)
+    data
+  end
+
+  # Construct an update hash that references an existing model. Does not include
+  # any of the model's attributes or association.
+  def update_hash_ref(viewmodel_class, model)
+    ref = {'_type' => viewmodel_class.view_name, 'id' => model.id}
+    yield(ref) if block_given?
+    ref
+  end
+
+  # Test helper: update a model by manipulating the full view hash
+  def alter_by_view!(viewmodel_class, model)
+    models = Array.wrap(model)
+
+    data, refs = serialize_with_references(models.map { |m| viewmodel_class.new(m) })
+
+    if model.is_a?(Array)
+      yield(data, refs)
+    else
+      yield(data.first, refs)
+    end
+
+    viewmodel_class.deserialize_from_view(
+      data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
+    models.each { |m| m.reload }
+  end
+
+  # Test helper: update a model by constructing a new view hash
+  def set_by_view!(viewmodel_class, model)
+    models = Array.wrap(model)
+
+    data = models.map { |m| update_hash_ref(viewmodel_class, m) }
+    refs = {}
+
+    if model.is_a?(Array)
+      yield(data, refs)
+    else
+      yield(data.first, refs)
+    end
+
+    puts("Update hash: #{data.inspect}")
+
+    viewmodel_class.deserialize_from_view(
+      data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
+    models.each { |m| m.reload }
+  end
+
+
+  ## Tests
 
   def test_find
     parentview = Views::Parent.find(@parent1.id)
@@ -84,12 +145,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       Views::Parent.deserialize_from_view(v, view_context: no_edit_context)
     end
 
-    skip("Unimplemented")
-
     assert_raises(ViewModel::DeserializationError) do
       # destroy
       Views::Parent.new(@parent1).destroy!(view_context: no_edit_context)
     end
+
+    skip("unimplemented")
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
@@ -107,13 +168,30 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
   end
 
+  def test_serialize_view_minimal
+    empty_parent_view = Views::Parent.new(p = Parent.create).to_hash
+
+    assert_equal({ '_type'    => 'Parent',
+                   'id'       => p.id,
+                   'name'     => nil,
+                   'children' => [],
+                   'label'    => nil,
+                   'target'   => nil,
+                   'poly'     => nil,
+                   'category' => nil,
+                 }, empty_parent_view,
+                 'all keys are present in default view')
+  end
+
   def test_serialize_view
     view, refs = serialize_with_references(Views::Parent.new(@parent1))
     cat1_ref = refs.detect { |_, v| v['_type'] == 'Category'  }.first
-    assert_equal({cat1_ref => {"_type" => "Category",
-                               "id" => @parent1.category.id,
-                               "name" => @parent1.category.name}},
+
+    assert_equal({cat1_ref => { '_type' => "Category",
+                                'id'    => @parent1.category.id,
+                                'name'  => @parent1.category.name }},
                  refs)
+
     assert_equal({ "_type" => "Parent",
                    "id" => @parent1.id,
                    "name" => @parent1.name,
@@ -136,19 +214,25 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_eager_includes
-    p = Views::Parent.eager_includes
-    assert_equal({ "children" => {}, "category" => {}, "label" => {}, "target" => { "label" => {} }, "poly" => nil }, p)
+    parent_includes = Views::Parent.eager_includes
+
+    assert_equal({ 'children' => {},
+                   'category' => {},
+                   'label'    => {},
+                   'target'   => { 'label' => {} },
+                   'poly'     => nil },
+                 parent_includes)
   end
 
   def test_create_from_view
     view = {
-      "_type" => "Parent",
-      "name" => "p",
-      "label" => { "_type" => "Label", "text" => "l" },
-      "target" => { "_type" => "Target", "text" => "t" },
+      "_type"    => "Parent",
+      "name"     => "p",
+      "label"    => { "_type" => "Label", "text" => "l" },
+      "target"   => { "_type" => "Target", "text" => "t" },
       "children" => [{ "_type" => "Child", "name" => "c1" },
                      { "_type" => "Child", "name" => "c2" }],
-      "poly" => { "_type" => "PolyTwo", "text" => "pol" }
+      "poly"     => { "_type" => "PolyTwo", "text" => "pol" }
     }
 
     pv = Views::Parent.deserialize_from_view(view)
@@ -177,181 +261,168 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("pol", p.poly.text)
   end
 
+  def test_create_invalid_type
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view({ "target" => [] })
+    end
+    assert_match(/\b_type\b.*\battribute missing/, ex.message)
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view({ "_type" => "Child" })
+    end
+    assert_match(/incorrect root viewmodel type/, ex.message)
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view({ "_type" => "NotAViewmodelType" })
+    end
+    assert_match(/ViewModel\b.*\bnot found/, ex.message)
+  end
+
   def test_bad_single_association
     view = {
-       "_type" => "Parent",
-      "children" => nil
+      "_type" => "Parent",
+      "target" => []
     }
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view(view)
     end
+    assert_match(/not a hash/, ex.message)
   end
 
   def test_bad_multiple_association
     view = {
-      "target" => []
-    }
-    assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(view)
-    end
-  end
-
-  def test_create_without_polymorphic_type
-    view = {
        "_type" => "Parent",
-      "name" => "p",
-      "poly" => { "text" => "pol" }
+      "children" => nil
     }
-
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view(view)
     end
+
+    assert_match(/Invalid hash data array for multiple association/, ex.message)
   end
 
   def test_change_polymorphic_type
     # @parent1 has a PolyOne in #setup
     old_poly = @parent1.poly
 
-    view = {
-      "_type" => "Parent",
-      "id" => @parent1.id,
-      "poly" => { "_type" => "PolyTwo" }
-    }
-
-    Views::Parent.deserialize_from_view(view)
-
-    @parent1.reload
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['poly'] = { '_type' => 'PolyTwo' }
+    end
 
     assert_instance_of(PolyTwo, @parent1.poly)
     assert_equal(false, PolyOne.exists?(old_poly.id))
   end
 
   def test_edit_attribute_from_view
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
-
-    view["name"] = "renamed"
-    Views::Parent.deserialize_from_view(view, references: references)
-
-    @parent1.reload
-    assert_equal("renamed", @parent1.name)
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['name'] = 'renamed'
+    end
+    assert_equal('renamed', @parent1.name)
   end
 
   ### Test Associations
   ### has_many
 
-  def test_has_many_empty_association
-    #create
+  def test_create_has_many_empty
     view = { "_type" => "Parent", "name" => "p", "children" => [] }
     pv = Views::Parent.deserialize_from_view(view)
-    p = pv.model
-    assert(p.children.blank?)
+    assert(pv.model.children.blank?)
+  end
 
-    # update
-    h = pv.to_hash
-    child = Child.new(name: "x")
-    p.children << child
-    p.save!
-
-    Views::Parent.deserialize_from_view(h)
-    p.reload
-    assert(p.children.blank?)
-    assert(Child.where(id: child.id).blank?)
+  def test_create_has_many
+    view = { '_type'    => 'Parent',
+             'name'     => 'p',
+             'children' => [{ '_type' => 'Child', 'name' => 'c1' },
+                            { '_type' => 'Child', 'name' => 'c2' }] }
+    pv = Views::Parent.deserialize_from_view(view)
+    assert_equal(%w(c1 c2), pv.model.children.map(&:name))
   end
 
   def test_replace_has_many
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
     old_children = @parent1.children
 
-    view["children"] = [{ "_type" => "Child", "name" => "new_child" }]
-    Views::Parent.deserialize_from_view(view, references: references)
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['children'] = [{ '_type' => 'Child', 'name' => 'new_child' }]
+    end
 
-    @parent1.reload
-    assert_equal(1, @parent1.children.size)
-    old_children.each { |child| assert_not_equal(child, @parent1.children.first) }
-    assert_equal("new_child", @parent1.children.first.name)
+    assert_equal(['new_child'], @parent1.children.map(&:name))
+    assert_equal([], Child.where(id: old_children.map(&:id)))
+  end
+
+  def test_remove_has_many
+    old_children = @parent1.children
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['children'] = []
+    end
+    assert_equal([], @parent1.children, 'no children associated with parent1')
+    assert(Child.where(id: old_children.map(&:id)).blank?, 'all children deleted')
   end
 
   def test_edit_has_many
-    old_children = @parent1.children.order(:position).to_a
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
+    c1, c2, c3 = @parent1.children.order(:position).to_a
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['children'].shift
+      view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
+    end
 
-    view["children"].shift
-    view["children"] << { "_type" => "Child", "name" => "c3" }
-    Views::Parent.deserialize_from_view(view, references: references)
-
-    @parent1.reload
-    assert_equal(3, @parent1.children.size)
-    tc1, tc2, tc3 = @parent1.children.order(:position)
-
-    assert_equal(old_children[1], tc1)
-    assert_equal(old_children[2], tc2)
-    assert_equal("c3", tc3.name)
-
-    assert(Child.where(id: old_children[0].id).blank?)
+    assert_equal([c2, c3, Child.find_by_name('new_c')],
+                 @parent1.children.order(:position))
+    assert(Child.where(id: c1.id).blank?)
   end
 
   def test_edit_implicit_list_position
-    old_children = @parent1.children.order(:position).to_a
+    c1, c2, c3 = @parent1.children.order(:position).to_a
 
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['children'].reverse!
+      view['children'].insert(1, { '_type' => 'Child', 'name' => 'new_c' })
+    end
 
-    view["children"].reverse!
-    view["children"].insert(1, { "_type" => "Child", "name" => "c3" })
-
-    Views::Parent.deserialize_from_view(view, references: references)
-
-    @parent1.reload
-    assert_equal(4, @parent1.children.size)
-    tc1, tc2, tc3, tc4 = @parent1.children.order(:position)
-
-    assert_equal(old_children[2], tc1)
-    assert_equal("c3", tc2.name)
-    assert_equal(old_children[1], tc3)
-    assert_equal(old_children[0], tc4)
+    assert_equal([c3, Child.find_by_name('new_c'), c2, c1],
+                 @parent1.children.order(:position))
   end
 
   def test_move_child_to_new
-    child = @parent1.children[1]
+    old_children = @parent1.children.order(:position)
+    moved_child = old_children[1]
 
-    child_view = Views::Child.new(child).to_hash
+    moved_child_ref = update_hash_ref(Views::Child, moved_child)
 
-    view = { "_type" => "Parent",
-             "name" => "new_p",
-             "children" => [child_view, { "_type" => "Child", "name" => "new" }] }
+    view = { '_type'    => 'Parent',
+             'name'     => 'new_p',
+             'children' => [moved_child_ref,
+                            { '_type' => 'Child', 'name' => 'new' }] }
 
-    release_view = { "_type" => "Parent", "id" => @parent1.id,
-                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id},
-                                    { "_type" => "Child", "id" => @parent1.children[2].id}]}
+    retained_children = old_children - [moved_child]
+    release_view = { '_type' => 'Parent', 'id' => @parent1.id,
+                     'children' => retained_children.map { |c| update_hash_ref(Views::Child, c) } }
 
     pv = Views::Parent.deserialize_from_view([view, release_view])
 
     new_parent = pv.first.model
     new_parent.reload
 
-    # child should be removed from old parent and positions updated
+    # child should be removed from old parent
     @parent1.reload
-    assert_equal(2, @parent1.children.size, "child removed from existing parent")
-    oc1, oc2 = @parent1.children.order(:position)
-    assert_equal("p1c1", oc1.name, "child1 name preserved")
-    assert_equal("p1c3", oc2.name, "child3 name preserved")
+    assert_equal(retained_children,
+                 @parent1.children.order(:position))
 
-    # child should be added to new parent with valid position
-    assert_equal(2, new_parent.children.size)
-    nc1, nc2 = new_parent.children.order(:position)
-    assert_equal(child, nc1)
-    assert_equal("p1c2", nc1.name)
-    assert_equal("new", nc2.name)
+    # child should be added to new parent
+    new_children = new_parent.children.order(:position)
+    assert_equal(%w(p1c2 new), new_children.map(&:name))
+    assert_equal(moved_child, new_children.first)
   end
 
   def test_move_child_to_existing
-    child = @parent1.children[1]
+    old_children = @parent1.children.order(:position)
+    moved_child = old_children[1]
 
     view = Views::Parent.new(@parent2).to_hash
-    view["children"] << Views::Child.new(child).to_hash
+    view['children'] << Views::Child.new(moved_child).to_hash
 
-    release_view = { "_type" => "Parent", "id" => @parent1.id,
-                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id},
-                                    { "_type" => "Child", "id" => @parent1.children[2].id}]}
+    retained_children = old_children - [moved_child]
+    release_view = { '_type' => 'Parent', 'id' => @parent1.id,
+                     'children' => retained_children.map { |c| update_hash_ref(Views::Child, c) }}
 
     Views::Parent.deserialize_from_view([view, release_view])
 
@@ -359,44 +430,27 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent2.reload
 
     # child should be removed from old parent and positions updated
-    assert_equal(2, @parent1.children.size)
-    oc1, oc2 = @parent1.children.order(:position)
-    assert_equal("p1c1", oc1.name)
-    assert_equal("p1c3", oc2.name)
+    assert_equal(retained_children, @parent1.children.order(:position))
 
     # child should be added to new parent with valid position
-    assert_equal(3, @parent2.children.size)
-    nc1, nc2, nc3 = @parent2.children.order(:position)
-
-    assert_equal("p2c1", nc1.name)
-
-    assert_equal("p2c2", nc2.name)
-
-    assert_equal(child, nc3)
-    assert_equal("p1c2", nc3.name)
+    new_children = @parent2.children.order(:position)
+    assert_equal(%w(p2c1 p2c2 p1c2), new_children.map(&:name))
+    assert_equal(moved_child, new_children.last)
   end
 
   def test_swap_has_one
-    p1 = Parent.create
-    p2 = Parent.create
+    @parent1.update(target: t1 = Target.new)
+    @parent2.update(target: t2 = Target.new)
 
-    t1 = Target.create(parent: p1)
-    t2 = Target.create(parent: p2)
+    Views::Parent.deserialize_from_view(
+      [update_hash_ref(Views::Parent, @parent1) { |p| p['target'] = update_hash_ref(Views::Target, t2) },
+       update_hash_ref(Views::Parent, @parent2) { |p| p['target'] = update_hash_ref(Views::Target, t1) }])
 
-    pcvs = Views::Parent.deserialize_from_view(
-          [{ "id" => p1.id,
-             "_type" => "Parent",
-             "target" => { "id" => t2.id, "_type" => "Target" } },
-           { "id" => p2.id,
-             "_type" => "Parent",
-             "target" => { "id" => t1.id, "_type" => "Target" } }])
+    @parent1.reload
+    @parent2.reload
 
-
-    p1.reload
-    p2.reload
-
-    assert_equal(p1.target, t2)
-    assert_equal(p2.target, t1)
+    assert_equal(@parent1.target, t2)
+    assert_equal(@parent2.target, t1)
   end
 
   def test_move_and_edit_child_to_new
@@ -409,9 +463,11 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
              "name" => "new_p",
              "children" => [child_view, { "_type" => "Child", "name" => "new" }]}
 
+    # TODO this is as awkward here as it is in the application
     release_view = { "_type" => "Parent",
                      "id" => @parent1.id,
-                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id }, { "_type" => "Child", "id" => @parent1.children[2].id }]}
+                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id },
+                                    { "_type" => "Child", "id" => @parent1.children[2].id }]}
 
     pv = Views::Parent.deserialize_from_view([view, release_view])
     new_parent = pv.first.model
@@ -468,123 +524,58 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   ### belongs_to
 
-  def test_belongs_to_nil_association
-    # create
-    view = { "_type" => "Parent", "name" => "p", "label" => nil }
+  def test_create_belongs_to_nil
+    view = { '_type' => 'Parent', 'name' => 'p', 'label' => nil }
     pv = Views::Parent.deserialize_from_view(view)
-    p = pv.model
-    assert_nil(p.label)
-
-    # update
-    h = pv.to_hash
-    p.label = label = Label.new(text: "hello")
-    p.save!
-
-    Views::Parent.deserialize_from_view(h)
-    p.reload
-    assert_nil(p.label)
-    assert(Label.where(id: label.id).blank?)
-  end
-
-  # def test_rails_bewat
-  #   p1 = Parent.create
-  #   p2 = Parent.create
-  #
-  #   label = Label.create
-  #   p1.label = label
-  #   p1.save!
-  #   #label.save!
-  #
-  #   #p1.label_id = nil
-  #   p2.label = label
-  #   p1.save!
-  #
-  #   label.save!
-  #
-  # end
-  #
-  # def test_rails_naive_swap
-  #   p1 = Parent.create
-  #   p2 = Parent.create
-  #
-  #   target1 = Target.create(parent: p1)
-  #   target2 = Target.create(parent: p2)
-  #
-  #   p1.target = target2
-  #   p2.target = target1
-  #   p1.save!
-  #   p2.save!
-  #
-  # end
-
-  def serialize_with_references(serializable, view_context: Views::ApplicationView::SerializeContext.new)
-    data = ViewModel.serialize_to_hash(serializable, view_context: view_context)
-    references = view_context.serialize_references_to_hash
-    return data, references
-  end
-  def serialize(serializable, view_context: Views::ApplicationView::SerializeContext.new)
-    data, _ = serialize_with_references(serializable)
-    data
-  end
-
-
-  # Merge two reference maps, ensuring that there are no overlapping references
-  def merge_references(refs1, refs2)
-    refs1.merge(refs2) do |_, _, _|
-      raise "Reference overlap"
-    end
+    assert_nil(pv.model.label)
   end
 
   def test_belongs_to_create
-    @parent1.label = nil
-    @parent1.save!
-    @parent1.reload
+    @parent1.update(label: nil)
 
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
-    view["label"] = { "_type" => "Label", "text" => "cheese" }
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+    end
 
-    Views::Parent.deserialize_from_view(view, references: references)
-    @parent1.reload
-
-    assert(@parent1.label.present?)
-    assert_equal("cheese", @parent1.label.text)
+    assert_equal('cheese', @parent1.label.text)
   end
 
   def test_belongs_to_replace
     old_label = @parent1.label
 
-    view, references = serialize_with_references(Views::Parent.new(@parent1))
-    view["label"] = { "_type" => "Label", "text" => "cheese" }
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+    end
 
-    Views::Parent.deserialize_from_view(view, references: references)
-    @parent1.reload
-
-    assert(@parent1.label.present?)
-    assert_equal("cheese", @parent1.label.text)
+    assert_equal('cheese', @parent1.label.text)
     assert(Label.where(id: old_label).blank?)
   end
 
   def test_belongs_to_move_and_replace
+    old_p1_label = @parent1.label
     old_p2_label = @parent2.label
 
-    (v1, v2), refs = serialize_with_references([Views::Parent.new(@parent1), Views::Parent.new(@parent2)])
+    set_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+      p1['label'] = nil
+      p2['label'] = update_hash_ref(Views::Label, old_p1_label)
+    end
 
-    # move l1 to p2
-    # l2 should be garbage collected
-    # p1 should now have no label
+    assert(@parent1.label.blank?, 'l1 label reference removed')
+    assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
+    assert(Label.where(id: old_p2_label).blank?, 'p2 old label deleted')
+  end
 
-    v2["label"] = v1["label"]
-    v1["label"] = nil
+  def test_belongs_to_swap
+    old_p1_label = @parent1.label
+    old_p2_label = @parent2.label
 
-    Views::Parent.deserialize_from_view([v2, v1], references: refs)
+    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+      p1['label'] = update_hash_ref(Views::Label, old_p2_label)
+      p2['label'] = update_hash_ref(Views::Label, old_p1_label)
+    end
 
-    @parent1.reload
-    @parent2.reload
-
-    assert(@parent1.label.blank?)
-    assert(@parent2.label.present?)
-    assert_equal("p1l", @parent2.label.text)
-    assert(Label.where(id: old_p2_label).blank?)
+    assert_equal(old_p2_label, @parent1.label, 'p1 has label from p2')
+    assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
   end
 
   def test_belongs_to_build_new_association
@@ -635,89 +626,70 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   # test belongs_to garbage collection - dependent: delete_all
   def test_gc_dependent_delete_all
-    o = Owner.create(deleted: Label.new(text: "one"))
-    l = o.deleted
+    owner = Owner.create(deleted: Label.new(text: 'one'))
+    old_label = owner.deleted
 
-    ov = Views::Owner.new(o).to_hash
-    ov["deleted"] = { "_type" => "Label", "text" => "two" }
-    Views::Owner.deserialize_from_view(ov)
+    alter_by_view!(Views::Owner, owner) do |ov, refs|
+      ov['deleted'] = { '_type' => 'Label', 'text' => 'two' }
+    end
 
-    o.reload
-
-    assert_equal("two", o.deleted.text)
-    assert(l != o.deleted)
-    assert(Label.where(id: l.id).blank?)
+    assert_equal('two', owner.deleted.text)
+    refute_equal(old_label, owner.deleted)
+    assert(Label.where(id: old_label.id).blank?)
   end
 
   def test_no_gc_dependent_ignore
-    o = Owner.create(ignored: Label.new(text: "one"))
-    l = o.ignored
+    owner = Owner.create(ignored: Label.new(text: "one"))
+    old_label = owner.ignored
 
-    ov = Views::Owner.new(o).to_hash
-    ov["ignored"] = { "_type" => "Label", "text" => "two" }
-    Views::Owner.deserialize_from_view(ov)
-
-    o.reload
-
-    assert_equal("two", o.ignored.text)
-    assert(l != o.ignored)
-    assert_equal(1, Label.where(id: l.id).count)
+    alter_by_view!(Views::Owner, owner) do |ov, refs|
+      ov['ignored'] = { '_type' => 'Label', 'text' => 'two' }
+    end
+    assert_equal('two', owner.ignored.text)
+    refute_equal(old_label, owner.ignored)
+    assert_equal(1, Label.where(id: old_label.id).count)
   end
 
   ### has_one
 
-  def test_has_one_nil_association
-    # create
-    view = { "_type" => "Parent", "name" => "p", "target" => nil }
+  def test_has_one_create_nil
+    view = { '_type' => 'Parent', 'name' => 'p', 'target' => nil }
     pv = Views::Parent.deserialize_from_view(view)
-    p = pv.model
-    assert_nil(p.target)
-
-    # update
-    h = pv.to_hash
-    p.target = target = Target.new
-    p.save!
-
-    Views::Parent.deserialize_from_view(h)
-    p.reload
-    assert_nil(p.target)
-    assert(Target.where(id: target.id).blank?)
+    assert_nil(pv.model.target)
   end
 
   def test_has_one_create
-    p = Parent.create(name: "p")
+    @parent1.update(target: nil)
 
-    view = Views::Parent.new(p).to_hash
-    view["target"] = { "_type" => "Target", "text" => "t" }
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['target'] = { '_type' => 'Target', 'text' => 't' }
+    end
 
-    Views::Parent.deserialize_from_view(view)
-    p.reload
+    assert_equal('t', @parent1.target.text)
+  end
 
-    assert(p.target.present?)
-    assert_equal("t", p.target.text)
+  def test_has_one_destroy
+    old_target = @parent1.target
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      view['target'] = nil
+    end
+    assert(Target.where(id: old_target.id).blank?)
   end
 
   def test_has_one_move_and_replace
-    @parent2.create_target(text: "p2t")
+    @parent2.create_target(text: 'p2t')
 
-    t1 = @parent1.target
-    t2 = @parent2.target
+    old_parent1_target = @parent1.target
+    old_parent2_target = @parent2.target
 
-    (v1, v2), references = serialize_with_references([Views::Parent.new(@parent1),
-                                                      Views::Parent.new(@parent2)])
-
-    v2["target"] = v1["target"]
-    v1["target"] = nil
-
-    Views::Parent.deserialize_from_view([v2, v1], references: references)
-    @parent1.reload
-    @parent2.reload
+    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+      p2['target'] = p1['target']
+      p1['target'] = nil
+    end
 
     assert(@parent1.target.blank?)
-    assert(@parent2.target.present?)
-    assert_equal(t1.text, @parent2.target.text)
-
-    assert(Target.where(id: t2).blank?)
+    assert_equal(old_parent1_target, @parent2.target)
+    assert(Target.where(id: old_parent2_target).blank?)
   end
 
   def test_has_one_build_new_association
@@ -853,87 +825,80 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_add_reference
-    p2view = Views::Parent.new(@parent2).to_hash
-    p2view["category"] = {"_ref" => "myref"}
-
-    references = {"myref" => Views::Category.new(@category1).to_hash}
-    Views::Parent.deserialize_from_view(p2view, references: references)
-
-    @parent2.reload
+    alter_by_view!(Views::Parent, @parent2) do |p2view, refs|
+      p2view['category'] = {'_ref' => 'myref'}
+      refs['myref'] = update_hash_ref(Views::Category, @category1)
+    end
 
     assert_equal(@category1, @parent2.category)
   end
 
   def test_shared_add_multiple_references
-    (p1view,p2view), refs = serialize_with_references([Views::Parent.new(@parent1),
-                                                       Views::Parent.new(@parent2)])
-    refs.delete(p1view['category']['_ref'])
-    refs['myref'] = serialize(@category1_view)
+    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
+      refs.delete(p1view['category']['_ref'])
+      refs['myref'] = update_hash_ref(Views::Category, @category1)
 
-    p1view['category'] = { '_ref' => 'myref' }
-    p2view['category'] = { '_ref' => 'myref' }
-
-    Views::Parent.deserialize_from_view([p1view, p2view], references: refs)
-
-    @parent1.reload
-    @parent2.reload
+      p1view['category'] = { '_ref' => 'myref' }
+      p2view['category'] = { '_ref' => 'myref' }
+    end
 
     assert_equal(@category1, @parent1.category)
     assert_equal(@category1, @parent2.category)
   end
 
   def test_shared_requires_all_references
-    parent2_view, refs = serialize_with_references(@parent2_view)
-    refs = { 'foo' => { '_type' => 'Parent', 'id' => @parent1.id } }
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(parent2_view, references: refs)
+      alter_by_view!(Views::Parent, @parent2) do |p2view, refs|
+        refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
+      end
     end
     assert_match(/was not referred to/, ex.message)
   end
 
   def test_shared_requires_valid_references
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(@parent1_view.to_hash)
+      Views::Parent.deserialize_from_view(@parent1_view.to_hash) # no references:
     end
     assert_match(/Could not find referenced/, ex.message)
   end
 
   def test_shared_requires_assignable_type
-    p1view = serialize(@parent1_view)
-    p1view['category'] = { '_ref' => 'p2' }
-    references = { 'p2' => { '_type' => 'Parent', 'id' => @parent2.id } }
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(p1view, references: references)
+      alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+        p1view['category'] = { '_ref' => 'p2' }
+        refs['p2'] = update_hash_ref(Views::Parent, @parent2)
+      end
     end
     assert_match(/can't refer to/, ex.message)
   end
 
   def test_shared_requires_unique_references
-    p1view, p2view = serialize([@parent1_view, @parent2_view])
-    references = { 'c1' => { '_type' => 'Category', 'id' => @category1.id },
-                   'c2' => { '_type' => 'Category', 'id' => @category1.id } }
-    p1view['category'] = { '_ref' => 'c1' }
-    p2view['category'] = { '_ref' => 'c2' }
+    c1_ref = update_hash_ref(Views::Category, @category1)
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view([p1view, p2view], references: references)
+      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
+        refs['c_a'] = c1_ref.dup
+        refs['c_b'] = c1_ref.dup
+        p1view['category'] = { '_ref' => 'c1' }
+        p2view['category'] = { '_ref' => 'c2' }
+      end
     end
     assert_match(/Duplicate/, ex.message)
   end
 
   def test_shared_updates_shared_data
-    p1view, refs = serialize_with_references(@parent1_view)
-    refs[p1view['category']['_ref']]['name'] = 'newcatname'
-    Views::Parent.deserialize_from_view(p1view, references: refs)
-    assert_equal('newcatname', @parent1.category.reload.name)
+    alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+      category_ref = p1view['category']['_ref']
+      refs[category_ref]['name'] = 'newcatname'
+    end
+    assert_equal('newcatname', @parent1.category.name)
   end
 
   def test_shared_delete_reference
-    p1view = Views::Parent.new(@parent1).to_hash
-    p1view["category"] = nil
-    Views::Parent.deserialize_from_view(p1view)
-
-    @parent1.reload
-
+    alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+      category_ref = p1view['category']['_ref']
+      refs.delete(category_ref)
+      p1view['category'] = nil
+    end
     assert_equal(nil, @parent1.category)
     assert(Category.where(id: @category1.id).present?)
   end

@@ -131,19 +131,6 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
                  "Database error propagated")
   end
 
-  # TODO this test is only marginally useful
-  def test_create_invalid_deep
-    data = { 'cdr' => { 'cdr' => { 'cdr' => { 'car' => 42 } } } }
-    controller = LinkedListController.new(data: data)
-    controller.invoke(:create)
-
-    assert_equal(
-        { "errors" => [{ "status" => 500,
-                         "detail" => "Validation failed: Car must be less than 42" }] },
-        controller.hash_response)
-    assert_equal(500, controller.status)
-  end
-
   def test_destroy_missing
     parentcontroller = ParentController.new(id: 9999)
     parentcontroller.invoke(:destroy)

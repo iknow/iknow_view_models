@@ -14,9 +14,7 @@ when :sqlite
 when :pg
   ActiveRecord::Base.establish_connection adapter: "postgresql", database: "cerego_view_models"
   %w[labels parents children targets poly_ones poly_twos owners
-     grand_parents
-     linked_lists unvalidated_linked_lists
-     categories tags parents_tags].each do |t|
+     grand_parents categories tags parents_tags].each do |t|
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
   end
 end
@@ -97,18 +95,6 @@ ActiveRecord::Schema.define do
   create_table :poly_twos do |t|
     t.string :text
   end
-
-  create_table :linked_lists do |t|
-    t.integer :car
-    t.integer :cdr_id
-  end
-
-  create_table :unvalidated_linked_lists do |t|
-    t.integer :car
-    t.integer :cdr_id
-  end
-
-
 end
 
 class ApplicationRecord < ActiveRecord::Base
@@ -158,16 +144,6 @@ end
 class Owner < ApplicationRecord
   belongs_to :deleted, class_name: Label.name, dependent: :delete
   belongs_to :ignored, class_name: Label.name
-end
-
-class LinkedList < ApplicationRecord
-  validates :car, numericality: {less_than: 42}, allow_nil: true
-  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
-end
-
-class UnvalidatedLinkedList < ApplicationRecord
-  validates :car, numericality: {less_than: 42}, allow_nil: true
-  belongs_to :cdr, class_name: 'LinkedList', dependent: :destroy
 end
 
 class GrandParent < ApplicationRecord
@@ -257,21 +233,14 @@ module Views
     associations :deleted, :ignored
   end
 
-  class LinkedList < ApplicationView
-    attributes :car
-    associations :cdr
-  end
-
   class GrandParent < ApplicationView
     association :parents
   end
-
-
 end
 
 ## Dummy Rails Controllers
 class DummyController
-  attr_reader :params, :json_response, :status
+  attr_reader :params, :status
 
   def initialize(**params)
     # in Rails 5, this will not be a hash, which weakens the value of the test.
@@ -341,8 +310,4 @@ end
 class ChildController < DummyController
   include ActiveRecordViewModel::Controller
   nested_in :parent, as: :children
-end
-
-class LinkedListController < DummyController
-  include ActiveRecordViewModel::Controller
 end

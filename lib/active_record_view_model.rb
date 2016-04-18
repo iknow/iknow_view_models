@@ -40,7 +40,7 @@ class ActiveRecordViewModel < ViewModel
       class_name = "#{Views.name}::#{name}"
       viewmodel_class = class_name.safe_constantize
       if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
-        raise ArgumentError.new("ViewModel class '#{class_name}' not found")
+        raise ViewModel::DeserializationError.new("ViewModel class '#{class_name}' not found")
       end
       viewmodel_class
     end
