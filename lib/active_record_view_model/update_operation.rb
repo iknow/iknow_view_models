@@ -2,27 +2,6 @@ require "renum"
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ActiveRecordViewModel::UpdateOperation
-  # Key for deferred resolution of an AR model
-  ViewModelReference = Struct.new(:viewmodel_class, :model_id) do
-    class << self
-      def from_viewmodel(vm)
-        self.new(vm.class, vm.id)
-      end
-    end
-  end
-
-  ReleaseEntry = Struct.new(:viewmodel, :association_data) do
-    def release!
-      model = viewmodel.model
-      case association_data.reflection.options[:dependent]
-      when :delete
-        model.delete
-      when :destroy
-        model.destroy
-      end
-    end
-  end
-
   # inverse association and record to update a change in parent from a child
   ParentData = Struct.new(:association_reflection, :viewmodel)
 
@@ -60,222 +39,48 @@ class ActiveRecordViewModel::UpdateOperation
   def association_changed!
     @association_changed = true
   end
+
   def association_changed?
     @association_changed
   end
 
-  class << self
-    # Determines user intent from a hash, extracting identity metadata and
-    # returning a tuple of viewmodel_class, id, and a pure-data hash. The input
-    # hash will be consumed.
-    def extract_metadata_from_hash(hash)
-      valid_subtree_hash!(hash)
+  # Determines user intent from a hash, extracting identity metadata and
+  # returning a tuple of viewmodel_class, id, and a pure-data hash. The input
+  # hash will be consumed.
+  def self.extract_metadata_from_hash(hash)
+    valid_subtree_hash!(hash)
 
-      unless hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{hash.inspect}'")
-      end
-
-      id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
-      type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-
-      viewmodel_class = ActiveRecordViewModel.for_view_name(type_name)
-
-      return viewmodel_class, id, hash
+    unless hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+      raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{hash.inspect}'")
     end
 
-    def build_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
-      # Check input and build an array of [ref-or-nil, viewmodel_class, hash] for all subtrees
-      roots = root_subtree_hashes.map do |subtree_hash|
-        viewmodel_class, id, safe_hash = extract_metadata_from_hash(subtree_hash)
+    id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+    type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
 
-        # Updates in the primary array may optionally be constrained to a particular type
-        if root_type.present? && viewmodel_class != root_type
-          raise ViewModel::DeserializationError.new("Cannot deserialize incorrect root viewmodel type '#{viewmodel_class.view_name}'")
-        end
+    viewmodel_class = ActiveRecordViewModel.for_view_name(type_name)
 
-        [nil, viewmodel_class, id, safe_hash]
-      end
+    return viewmodel_class, id, hash
+  end
 
-      references = referenced_subtree_hashes.map do |reference, subtree_hash|
-        viewmodel_class, id, safe_hash = extract_metadata_from_hash(subtree_hash)
-
-        raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
-        [reference, viewmodel_class, id, safe_hash]
-      end
-
-      roots.concat(references)
-
-      # Ensure that no root is referred to more than once
-      ref_counts = roots.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|
-        counts[[viewmodel_class, id]] += 1
-      end.delete_if { |_, count| count == 1 }
-
-      if ref_counts.present?
-        raise ViewModel::DeserializationError.new("Duplicate entries in specification: '#{ref_counts.keys.to_h}'")
-      end
-
-      # construct [[ref-or-nil, update]]
-      all_root_updates = construct_root_updates(roots)
-
-      # Separate out root and referenced updates
-      root_updates       = []
-      referenced_updates = {}
-      all_root_updates.each do |ref, subtree_hash|
-        if ref.nil?
-          root_updates << subtree_hash
-        else
-          # TODO make sure that referenced subtree hashes are unique and provide a decent error message
-          # not strictly necessary, but will save confusion
-          referenced_updates[ref] = subtree_hash
-        end
-      end
-
-      # Build root updates
-
-      # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
-      # for linked partially-constructed node updates
-      worklist = {}
-
-      # hash of { UpdateOperation::ViewModelReference => ReleaseEntry } for models
-      # that have been released by nodes we've already visited
-      released_viewmodels = {}
-
-      root_updates.each do |root_update|
-        root_update.build!(worklist, released_viewmodels, referenced_updates)
-      end
-
-      while worklist.present?
-        key = worklist.keys.detect { |k| released_viewmodels.has_key?(k) }
-
-        if key.nil?
-          # All worklist viewmodels are unresolvable from roots. We need to
-          # manually load unresolvable VMs, and additionally add their previous
-          # parents (if present) as otherwise-unmodified roots with
-          # `association_changed!` set, in order that we can correctly
-          # `editable?` check them.
-
-          # So we can't quite do this yet: having put the deferred update on the
-          # worklist, we've discarded how we got to it. This means we don't
-          # currently have a way to know what inverse association to load the
-          # parent from.
-
-          # OH! not true! because the `UpdateOperation` that's on the worklist
-          # will (if the foreign key is from child to parent) have a parent_data
-          # set, which will include the reflection inverse and viewmodel. We can
-          # use that information to load the previous parent.
-
-          # if the foreign key is from the parent to the child however, it's a
-          # little bit less safe. Even if we have the inverse relationship
-          # recorded, if multiple other viewmodels are allowed to point into the
-          # child (but only one at a time!) there's no way to safely move in all
-          # conditions. One option would be to _try_ the inverse relationship:
-          # if the inverse relationship resolves into a parent to move from, we
-          # know it's safe to move (assuming the single-pointer invariant
-          # previously held). If it doesn't though, we have no way of knowing if
-          # it's actually unparented or if it's merely referred to from a third
-          # party, so we are required to forbid the update.
-
-          # Note that this would require slightly more code plumbing to achieve,
-          # because we'd need to update the pointer in the old parent (versus only
-          # in the child itself).
-
-          # Additionally we need to forbid specifying the same out-of-tree
-          # viewmodel twice. Otherwise we would correctly transfer from the old
-          # parent, but then subsequently destroy the first transfer when
-          # performing the second.
-
-          key, deferred_update = worklist.detect { |k, upd| upd.reparent_to.present? }
-          if key.nil?
-            vms = worklist.keys.map {|k| "#{k.viewmodel_class.view_name}:#{k.model_id}" }.join(", ")
-            raise ViewModel::DeserializationError.new("Cannot resolve previous parents for the following referenced viewmodels: #{vms}")
-          end
-
-          worklist.delete(key)
-
-          child_model = key.viewmodel_class.model_scope.find(key.model_id)  # TODO: model scope context
-          child_viewmodel = key.viewmodel_class.new(child_model)
-          deferred_update.viewmodel = child_viewmodel
-
-          # find old parent, mark it as updated and add it as a root.
-          parent_assoc_name = deferred_update.reparent_to.association_reflection.name
-          parent_viewmodel_class = deferred_update.reparent_to.viewmodel.class
-
-          # TODO: avoid loading parent via the association directly: this will set up association caches that AR could use to reverse the updates.
-          old_parent = child_model.association(parent_assoc_name).load_target
-
-          old_parent_update = ActiveRecordViewModel::UpdateOperation.new(parent_viewmodel_class.new(old_parent), {})
-          old_parent_update.build!(worklist, released_viewmodels, referenced_updates)
-          old_parent_update.association_changed!
-          root_updates << old_parent_update
-        else
-          deferred_update = worklist.delete(key)
-          deferred_update.viewmodel = released_viewmodels.delete(key).viewmodel
-        end
-
-        deferred_update.build!(worklist, released_viewmodels, referenced_updates)
-      end
-
-      referenced_updates.each do |ref, upd|
-        raise ViewModel::DeserializationError.new("Reference '#{ref}' was not referred to from roots") unless upd.built? # TODO
-      end
-
-      return root_updates, released_viewmodels
+  def self.valid_subtree_hash!(subtree_hash)
+    unless subtree_hash.is_a?(Hash)
+      raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
     end
-
-    def valid_subtree_hash!(subtree_hash)
-      unless subtree_hash.is_a?(Hash)
-        raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
-      end
-      unless subtree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Invalid update hash data - '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
-      end
+    unless subtree_hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+      raise ViewModel::DeserializationError.new("Invalid update hash data - '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
     end
+  end
 
-    def valid_reference_hash!(subtree_hash)
-      unless subtree_hash.is_a?(Hash)
-        raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
-      end
-      unless subtree_hash.size == 1
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - must not contain keys besides '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}': #{subtree_hash.keys.inspect}")
-      end
-      unless subtree_hash.has_key?(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
-      end
+  def self.valid_reference_hash!(subtree_hash)
+    unless subtree_hash.is_a?(Hash)
+      raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{subtree_hash.inspect}'")
     end
-
-    private
-
-    # Loads corresponding viewmodels and constructs UpdateOperations for the
-    # provided [[ref, viewmodel_class, id-or-nil, safe_root_subtree],...]
-    def construct_root_updates(roots)
-      # Look up viewmodel classes for each tree with eager_includes. Note this
-      # won't yet include through a polymorphic boundary: for now we become
-      # lazy-loading and slow every time that happens.
-      roots_by_viewmodel_class = roots.group_by { |_, viewmodel_class, _, _| viewmodel_class }
-
-      # For each viewmodel type, look up referenced models and construct viewmodels to update
-      roots_by_viewmodel_class.flat_map do |viewmodel_class, viewmodel_roots|
-        model_ids = viewmodel_roots.map { |_, _, id, _| id }.compact
-
-        existing_models = if model_ids.present?
-                            #TODO: using model scope without providing the context means we'll potentially over-eager-load
-                            viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
-                          else
-                            {}
-                          end
-
-        viewmodel_roots.map do |ref, viewmodel_class, id, subtree_hash|
-          viewmodel =
-            if id.present?
-              viewmodel_class.new(existing_models[id])
-            else
-              viewmodel_class.new
-            end
-          [ref, ActiveRecordViewModel::UpdateOperation.new(viewmodel, subtree_hash)]
-        end
-      end
+    unless subtree_hash.size == 1
+      raise ViewModel::DeserializationError.new("Invalid reference hash data - must not contain keys besides '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}': #{subtree_hash.keys.inspect}")
     end
-
+    unless subtree_hash.has_key?(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
+      raise ViewModel::DeserializationError.new("Invalid reference hash data - '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}' attribute missing: #{subtree_hash.inspect}")
+    end
   end
 
   # Evaluate a built update tree, applying and saving changes to the models.
@@ -380,7 +185,7 @@ class ActiveRecordViewModel::UpdateOperation
   # Splits an update hash up into attributes, points-to associations and
   # pointed-to associations (in the context of our viewmodel), and recurses
   # into associations to create updates.
-  def build!(worklist, released_viewmodels, referenced_updates)
+  def build!(update_context)
     raise "Cannot build deferred update" if deferred? # TODO
     return self if built?
 
@@ -396,7 +201,7 @@ class ActiveRecordViewModel::UpdateOperation
         association_data = self.viewmodel.class._association_data(association_name)
 
         if association_data.collection?
-          self.pointed_to[association_data] = build_updates_for_collection_association(association_data, association_hash, worklist, released_viewmodels, referenced_updates)
+          self.pointed_to[association_data] = build_updates_for_collection_association(association_data, association_hash, update_context)
         else
           target =
             case association_data.pointer_location
@@ -406,9 +211,9 @@ class ActiveRecordViewModel::UpdateOperation
 
           target[association_data] =
             if association_data.shared
-              build_update_for_single_referenced_association(association_data, association_hash, worklist, released_viewmodels, referenced_updates)
+              build_update_for_single_referenced_association(association_data, association_hash, update_context)
             else
-              build_update_for_single_association(association_data, association_hash, worklist, released_viewmodels, referenced_updates)
+              build_update_for_single_association(association_data, association_hash, update_context)
             end
         end
 
@@ -424,7 +229,7 @@ class ActiveRecordViewModel::UpdateOperation
 
   private
 
-  def build_update_for_single_referenced_association(association_data, child_ref_hash, worklist, released_viewmodels, referenced_updates)
+  def build_update_for_single_referenced_association(association_data, child_ref_hash, update_context)
     # TODO intern loads for shared items so we only load them once
 
     if child_ref_hash.nil?
@@ -433,22 +238,18 @@ class ActiveRecordViewModel::UpdateOperation
       ActiveRecordViewModel::UpdateOperation.valid_reference_hash!(child_ref_hash)
 
       ref = child_ref_hash[ActiveRecordViewModel::REFERENCE_ATTRIBUTE]
-
-      referred_update = referenced_updates[ref]
-
-      unless referred_update.present?
-        raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'")
-      end
+      referred_update = update_context.resolve_reference(ref)
 
       unless association_data.accepts?(referred_update.viewmodel.class)
         raise ViewModel::DeserializationError.new("Association '#{association_data.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
       end
 
-      referred_update.build!(worklist, released_viewmodels, referenced_updates)
+      referred_update.build!(update_context)
     end
   end
 
-  def build_update_for_single_association(association_data, child_hash, worklist, released_viewmodels, referenced_updates)
+
+  def build_update_for_single_association(association_data, child_hash, update_context)
     model = self.viewmodel.model
 
     previous_child_model = model.public_send(association_data.name)
@@ -456,7 +257,7 @@ class ActiveRecordViewModel::UpdateOperation
     if previous_child_model.present?
       previous_child_viewmodel_class = association_data.viewmodel_class_for_model(previous_child_model.class)
       previous_child_viewmodel = previous_child_viewmodel_class.new(previous_child_model)
-      previous_child_key = ViewModelReference.from_viewmodel(previous_child_viewmodel)
+      previous_child_key = ActiveRecordViewModel::ViewModelReference.from_viewmodel(previous_child_viewmodel)
 
       # Clear the cached association so that AR's save behaviour doesn't
       # conflict with our explicit parent updates.  If we still have a child
@@ -482,18 +283,17 @@ class ActiveRecordViewModel::UpdateOperation
           self.association_changed!
           child_viewmodel_class.new
         else
-          key = ViewModelReference.new(child_viewmodel_class, id)
+          key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
           case
-          when taken_child_release_entry = released_viewmodels.delete(key)
+          when taken_child_release_entry = update_context.try_claim_released_viewmodel(key)
             self.association_changed!
             taken_child_release_entry.viewmodel
           when key == previous_child_key
-            previous_child_key = nil
-            previous_child_viewmodel
+            previous_child_viewmodel.tap { previous_child_viewmodel = nil }
           else
             # not-yet-seen child: create a deferred update
             self.association_changed!
-            ViewModelReference.new(child_viewmodel_class, id)
+            key
           end
         end
 
@@ -508,43 +308,48 @@ class ActiveRecordViewModel::UpdateOperation
 
       child_update =
         case child_viewmodel
-        when ViewModelReference # deferred
+        when ActiveRecordViewModel::ViewModelReference # deferred
           reference = child_viewmodel
-          worklist[reference] = ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data)
+          update_context.defer_update(
+            reference, ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data))
         else
-          ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(worklist, released_viewmodels, referenced_updates)
+          ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(update_context)
         end
     end
 
     # Release the previous child if not reclaimed
-    if previous_child_key.present?
+    if previous_child_viewmodel.present?
       self.association_changed!
-      # When we free a child that's pointed to from its old parent, we need to
-      # clear the cached association to that old parent. If we don't do this,
-      # then if the child gets claimed by a new parent and `save!`ed, AR will
-      # re-establish the link from the old parent in the cache.
+      if association_data.pointer_location == :local
+        # When we free a child that's pointed to from its old parent, we need to
+        # clear the cached association to that old parent. If we don't do this,
+        # then if the child gets claimed by a new parent and `save!`ed, AR will
+        # re-establish the link from the old parent in the cache.
 
-      # Ideally we want
-      # model.association(...).inverse_reflection_for(previous_child_model), but
-      # that's private.
-      inverse_reflection =
-        if association_data.reflection.polymorphic?
-          association_data.reflection.polymorphic_inverse_of(previous_child_model.class)
-        else
-          association_data.reflection.inverse_of
+        # Ideally we want
+        # model.association(...).inverse_reflection_for(previous_child_model), but
+        # that's private.
+
+        inverse_reflection =
+          if association_data.reflection.polymorphic?
+            association_data.reflection.polymorphic_inverse_of(previous_child_model.class)
+          else
+            association_data.reflection.inverse_of
+          end
+
+        if inverse_reflection.present?
+          clear_association_cache(previous_child_viewmodel.model, inverse_reflection)
         end
-
-      if association_data.pointer_location == :local && inverse_reflection.present?
-        clear_association_cache(previous_child_model, inverse_reflection)
       end
-      released_viewmodels[previous_child_key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
+
+      update_context.release_viewmodel(previous_child_viewmodel, association_data)
     end
 
     child_update
   end
 
 
-  def build_updates_for_collection_association(association_data, child_hashes, worklist, released_viewmodels, referenced_updates)
+  def build_updates_for_collection_association(association_data, child_hashes, update_context)
     model = self.viewmodel.model
 
     child_viewmodel_class = association_data.viewmodel_class
@@ -589,28 +394,28 @@ class ActiveRecordViewModel::UpdateOperation
         raise "Inappropriate child type" #TODO
       end
 
+      key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
       case
       when id.nil?
         self.association_changed!
         child_viewmodel_class.new
       when existing_child = previous_children.delete(id)
         child_viewmodel_class.new(existing_child)
-      when taken_child_release_entry = released_viewmodels.delete(ViewModelReference.new(child_viewmodel_class, id))
+      when taken_child_release_entry = update_context.try_claim_released_viewmodel(key)
         self.association_changed!
         taken_child_release_entry.viewmodel
       else
         # Refers to child that hasn't yet been seen: create a deferred update.
         self.association_changed!
-        ViewModelReference.new(child_viewmodel_class, id)
+        key
       end
     end
 
     # release previously attached children that are no longer referred to
     previous_children.each_value do |child_model|
       self.association_changed!
-      child_viewmodel = child_viewmodel_class.new(child_model)
-      key = ViewModelReference.from_viewmodel(child_viewmodel)
-      released_viewmodels[key] = ReleaseEntry.new(child_viewmodel, association_data)
+      update_context.release_viewmodel(
+        child_viewmodel_class.new(child_model), association_data)
     end
 
     # Calculate new positions for children if in a list. Ignore previous
@@ -621,7 +426,7 @@ class ActiveRecordViewModel::UpdateOperation
       set_position = ->(index, pos){ positions[index] = pos }
       get_previous_position = ->(index) do
         vm = child_viewmodels[index]
-        vm._list_attribute unless vm.is_a?(ViewModelReference)
+        vm._list_attribute unless vm.is_a?(ActiveRecordViewModel::ViewModelReference)
       end
 
       ActsAsManualList.update_positions((0...child_viewmodels.size).to_a, # indexes
@@ -632,11 +437,12 @@ class ActiveRecordViewModel::UpdateOperation
     # Recursively build update operations for children
     child_updates = child_viewmodels.zip(child_hashes, positions).map do |child_viewmodel, child_hash, position|
       case child_viewmodel
-      when ViewModelReference # deferred
+      when ActiveRecordViewModel::ViewModelReference # deferred
         reference = child_viewmodel
-        worklist[reference] = ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data, reposition_to: position)
+        update_context.defer_update(
+          reference, ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data, reposition_to: position))
       else
-        ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(worklist, released_viewmodels, referenced_updates)
+        ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(update_context)
       end
     end
 
@@ -649,22 +455,6 @@ class ActiveRecordViewModel::UpdateOperation
       association.target = []
     else
       association.target = nil
-    end
-  end
-
-  def print(prefix = nil)
-    puts "#{prefix}#{self.class.name} #{model.class.name}(id=#{model.id || 'new'})"
-    prefix = "#{prefix}  "
-    attributes.each do |attr, value|
-      puts "#{prefix}#{attr}=#{value}"
-    end
-    points_to.each do |name, value|
-      puts "#{prefix}#{name} = "
-      value.print("#{prefix}  ")
-    end
-    pointed_to.each do |name, value|
-      puts "#{prefix}#{name} = "
-      value.print("#{prefix}  ")
     end
   end
 

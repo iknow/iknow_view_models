@@ -9,8 +9,10 @@ require "lazily"
 module Views; end
 
 class ActiveRecordViewModel < ViewModel
-  require "active_record_view_model/update_operation"
-  require "active_record_view_model/association_data"
+  require 'active_record_view_model/association_data'
+  require 'active_record_view_model/view_model_reference'
+  require 'active_record_view_model/update_context'
+  require 'active_record_view_model/update_operation'
 
   ID_ATTRIBUTE = "id"
   TYPE_ATTRIBUTE = "_type"
@@ -174,9 +176,10 @@ class ActiveRecordViewModel < ViewModel
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
 
-        root_updates, released_viewmodels = UpdateOperation.build_updates(subtree_hashes, references, root_type: self)
+        root_updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: self)
 
         updated_viewmodels = root_updates.map do |root_update|
+          root_update.send(:print)
           root_update.run!(view_context: view_context)
         end
 
