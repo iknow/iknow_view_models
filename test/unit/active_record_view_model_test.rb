@@ -466,6 +466,42 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(moved_child, new_children.first)
   end
 
+  def test_move_child_to_new_with_implicit_release
+    old_children = @parent1.children.order(:position)
+    moved_child = old_children[1]
+    retained_children = old_children - [moved_child]
+
+    moved_child_ref = update_hash_ref(Views::Child, moved_child)
+
+    view = { '_type'    => 'Parent',
+             'name'     => 'new_p',
+             'children' => [moved_child_ref,
+                            { '_type' => 'Child', 'name' => 'new' }] }
+
+    view_context = Views::ApplicationView::DeserializeContext.new
+
+    new_parent_view = Views::Parent.deserialize_from_view(view, view_context: view_context)
+
+    new_parent = new_parent_view.model
+    new_parent.reload
+
+    assert_equal({ [Views::Parent, nil]           => 1,
+                   [Views::Child,  nil]           => 1,
+                   [Views::Child,  moved_child.id]=> 1,
+                   [Views::Parent, @parent1.id]   => 1 },
+                 count_all(view_context.edit_checks))
+
+    # child should be removed from old parent
+    @parent1.reload
+    assert_equal(retained_children,
+                 @parent1.children.order(:position))
+
+    # child should be added to new parent
+    new_children = new_parent.children.order(:position)
+    assert_equal(%w(p1c2 new), new_children.map(&:name))
+    assert_equal(moved_child, new_children.first)
+  end
+
   def test_move_child_to_existing
     old_children = @parent1.children.order(:position)
     moved_child = old_children[1]

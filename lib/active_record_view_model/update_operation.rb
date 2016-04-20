@@ -192,17 +192,19 @@ class ActiveRecordViewModel::UpdateOperation
 
           worklist.delete(key)
 
-          viewmodel = key.viewmodel_class.model_scope.find(key.model_id) # TODO: model scope context
-          deferred_update.viewmodel = viewmodel
+          child_model = key.viewmodel_class.model_scope.find(key.model_id)  # TODO: model scope context
+          child_viewmodel = key.viewmodel_class.new(child_model)
+          deferred_update.viewmodel = child_viewmodel
 
           # find old parent, mark it as updated and add it as a root.
           parent_assoc_name = deferred_update.reparent_to.association_reflection.name
           parent_viewmodel_class = deferred_update.reparent_to.viewmodel.class
 
           # TODO: avoid loading parent via the association directly: this will set up association caches that AR could use to reverse the updates.
-          old_parent = viewmodel.association(parent_assoc_name).load_target
+          old_parent = child_model.association(parent_assoc_name).load_target
 
-          old_parent_update = UpdateOperation.new(parent_viewmodel_class.new(old_parent), {})
+          old_parent_update = ActiveRecordViewModel::UpdateOperation.new(parent_viewmodel_class.new(old_parent), {})
+          old_parent_update.build!(worklist, released_viewmodels, referenced_updates)
           old_parent_update.association_changed!
           root_updates << old_parent_update
         else
