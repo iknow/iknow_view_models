@@ -150,6 +150,21 @@ class GrandParent < ApplicationRecord
   has_many :parents, inverse_of: :grand_parent
 end
 
+# Trampoline access checks back to the context so we can have a scoped record of
+# all access checks in a (de)serailize operation.
+module TestAccessLogging
+  def visible!(view_context:)
+    view_context.log_visible_check(self)
+    super
+  end
+
+  def editable!(view_context:)
+    view_context.log_edit_check(self)
+    super
+  end
+end
+
+
 module TrivialAccessControl
   def visible?(view_context:)
     view_context.can_view
@@ -162,7 +177,31 @@ end
 
 module Views
   class ApplicationView < ActiveRecordViewModel
+    module ContextAccessLogging
+      def edit_checks
+        # Create is expressed as edit checking a new model. Since checks are
+        # recorded as (viewmodel_class, model_class, id), and we want to verify
+        # multiple creation events, we record everything here and sort it as
+        # appropriate.
+        @edit_checks ||= []
+      end
+
+      def log_edit_check(viewmodel)
+        edit_checks << [viewmodel.class, viewmodel.model.id]
+      end
+
+      # def visible_checks
+      #   @visible_checks ||= []
+      # end
+
+      def log_visible_check(viewmodel)
+        # TODO format not specified yet
+        # visible_checks << [viewmodel.class, viewmodel.model.id]
+      end
+    end
+
     class DeserializeContext < ViewModel::DeserializeContext
+      include ContextAccessLogging
       attr_accessor :can_edit
 
       def initialize(can_edit: true)
@@ -172,6 +211,7 @@ module Views
     end
 
     class SerializeContext < ViewModel::SerializeContext
+      include ContextAccessLogging
       attr_accessor :can_view
 
       def initialize(can_view: true)
@@ -181,6 +221,8 @@ module Views
     end
 
     # TODO abstract class like active record
+
+    include TestAccessLogging
 
     def self.deserialize_context_class
       DeserializeContext

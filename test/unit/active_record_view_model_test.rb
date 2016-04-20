@@ -76,12 +76,20 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       yield(data.first, refs)
     end
 
-    viewmodel_class.deserialize_from_view(
-      data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
-    models.each { |m| m.reload }
+    begin
+      deserialize_context = Views::ApplicationView::DeserializeContext.new
+
+      viewmodel_class.deserialize_from_view(
+        data, references: refs, view_context: deserialize_context)
+
+      deserialize_context
+    ensure
+      models.each { |m| m.reload }
+    end
   end
 
   # Test helper: update a model by constructing a new view hash
+  # TODO the body of this is growing longer and is mostly the same as by `alter_by_view!`.
   def set_by_view!(viewmodel_class, model)
     models = Array.wrap(model)
 
@@ -94,13 +102,24 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       yield(data.first, refs)
     end
 
-    puts("Update hash: #{data.inspect}")
+    begin
+      deserialize_context = Views::ApplicationView::DeserializeContext.new
 
-    viewmodel_class.deserialize_from_view(
-      data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
-    models.each { |m| m.reload }
+      viewmodel_class.deserialize_from_view(
+        data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
+
+      deserialize_context
+    ensure
+      models.each { |m| m.reload }
+    end
   end
 
+  def count_all(enum)
+    # equivalent to `group_by{|x|x}.map{|k,v| [k, v.length]}.to_h`
+    enum.each_with_object(Hash.new(0)) do |x, counts|
+      counts[x] += 1
+    end
+  end
 
   ## Tests
 
@@ -122,7 +141,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(@parent2, h[@parent2.id].model)
   end
 
-  def test_visibility
+  def test_visibility_raises
     parentview = Views::Parent.new(@parent1)
 
     assert_raises(ViewModel::SerializationError) do
@@ -131,7 +150,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
   end
 
-  def test_editability
+  def test_editability_checks_create
+    context = Views::ApplicationView::DeserializeContext.new
+    Views::Parent.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
+                                        view_context: context)
+    assert_equal([[Views::Parent, nil]], context.edit_checks)
+  end
+
+  def test_editability_raises
     no_edit_context = Views::ApplicationView::DeserializeContext.new(can_edit: false)
 
     assert_raises(ViewModel::DeserializationError) do
@@ -324,7 +350,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   ### has_many
 
   def test_create_has_many_empty
-    view = { "_type" => "Parent", "name" => "p", "children" => [] }
+    view = { '_type' => 'Parent', 'name' => 'p', 'children' => [] }
     pv = Views::Parent.deserialize_from_view(view)
     assert(pv.model.children.blank?)
   end
@@ -334,7 +360,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
              'name'     => 'p',
              'children' => [{ '_type' => 'Child', 'name' => 'c1' },
                             { '_type' => 'Child', 'name' => 'c2' }] }
-    pv = Views::Parent.deserialize_from_view(view)
+
+    context = Views::ApplicationView::DeserializeContext.new
+    pv = Views::Parent.deserialize_from_view(view, view_context: context)
+
+    assert_equal({ [Views::Parent, nil] => 1,
+                   [Views::Child,  nil] => 2 },
+                 count_all(context.edit_checks))
+
     assert_equal(%w(c1 c2), pv.model.children.map(&:name))
   end
 
@@ -351,19 +384,28 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_remove_has_many
     old_children = @parent1.children
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
       view['children'] = []
     end
+
+    assert_equal(Set.new([[Views::Parent, @parent1.id]] +
+                           [old_children.map { |x| [Views::Child, x.id] }]),
+                 context.edit_checks.to_set)
+
     assert_equal([], @parent1.children, 'no children associated with parent1')
     assert(Child.where(id: old_children.map(&:id)).blank?, 'all children deleted')
   end
 
   def test_edit_has_many
     c1, c2, c3 = @parent1.children.order(:position).to_a
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
       view['children'].shift
       view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
     end
+
+    assert_equal({ [Views::Parent, @parent1.id] => 1,
+                   [Views::Child,  nil]         => 1 },
+                 count_all(context.edit_checks))
 
     assert_equal([c2, c3, Child.find_by_name('new_c')],
                  @parent1.children.order(:position))
@@ -394,7 +436,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                             { '_type' => 'Child', 'name' => 'new' }] }
 
     retained_children = old_children - [moved_child]
-    release_view = { '_type' => 'Parent', 'id' => @parent1.id,
+    release_view = { '_type'    => 'Parent',
+                     'id'       => @parent1.id,
                      'children' => retained_children.map { |c| update_hash_ref(Views::Child, c) } }
 
     pv = Views::Parent.deserialize_from_view([view, release_view])
@@ -442,9 +485,18 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent1.update(target: t1 = Target.new)
     @parent2.update(target: t2 = Target.new)
 
+    view_context = Views::ApplicationView::DeserializeContext.new
+
     Views::Parent.deserialize_from_view(
       [update_hash_ref(Views::Parent, @parent1) { |p| p['target'] = update_hash_ref(Views::Target, t2) },
-       update_hash_ref(Views::Parent, @parent2) { |p| p['target'] = update_hash_ref(Views::Target, t1) }])
+       update_hash_ref(Views::Parent, @parent2) { |p| p['target'] = update_hash_ref(Views::Target, t1) }],
+      view_context: view_context)
+
+    assert_equal(Set.new([[Views::Parent, @parent1.id],
+                          [Views::Parent, @parent2.id],
+                          [Views::Target, t1.id],
+                          [Views::Target, t2.id]]),
+                 view_context.edit_checks.to_set)
 
     @parent1.reload
     @parent2.reload
