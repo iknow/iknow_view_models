@@ -346,6 +346,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal('renamed', @parent1.name)
   end
 
+  def test_edit_attribute_validation_failure
+    old_name = @parent1.name
+    assert_raises(ActiveRecord::RecordInvalid) do
+      alter_by_view!(Views::Parent, @parent1) do |view, refs|
+        view['name'] = 'invalid'
+      end
+    end
+    assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
+  end
+
   ### Test Associations
   ### has_many
 

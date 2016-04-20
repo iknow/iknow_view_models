@@ -135,6 +135,9 @@ class Parent < ApplicationRecord
   belongs_to :grand_parent, inverse_of: :parents
 
   belongs_to :category
+
+  validates :name, exclusion: {in: %w(invalid),
+                               message: 'invalid due to matching test sentinel' }
 end
 
 class Category < ApplicationRecord
