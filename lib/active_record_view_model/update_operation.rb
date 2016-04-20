@@ -521,8 +521,19 @@ class ActiveRecordViewModel::UpdateOperation
       # clear the cached association to that old parent. If we don't do this,
       # then if the child gets claimed by a new parent and `save!`ed, AR will
       # re-establish the link from the old parent in the cache.
-      if association_data.pointer_location == :local && association_data.reflection.inverse_of.present?
-        clear_association_cache(previous_child_model, association_data.reflection.inverse_of)
+
+      # Ideally we want
+      # model.association(...).inverse_reflection_for(previous_child_model), but
+      # that's private.
+      inverse_reflection =
+        if association_data.reflection.polymorphic?
+          association_data.reflection.polymorphic_inverse_of(previous_child_model.class)
+        else
+          association_data.reflection.inverse_of
+        end
+
+      if association_data.pointer_location == :local && inverse_reflection.present?
+        clear_association_cache(previous_child_model, inverse_reflection)
       end
       released_viewmodels[previous_child_key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
     end
