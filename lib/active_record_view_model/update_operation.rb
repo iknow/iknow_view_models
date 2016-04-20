@@ -108,7 +108,7 @@ class ActiveRecordViewModel::UpdateOperation
       # Ensure that no root is referred to more than once
       ref_counts = roots.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|
         counts[[viewmodel_class, id]] += 1
-      end.delete_if { |_, count| count > 1 }
+      end.delete_if { |_, count| count == 1 }
 
       if ref_counts.present?
         raise ViewModel::DeserializationError.new("Duplicate entries in specification: '#{ref_counts.keys.to_h}'")
@@ -521,7 +521,7 @@ class ActiveRecordViewModel::UpdateOperation
       # clear the cached association to that old parent. If we don't do this,
       # then if the child gets claimed by a new parent and `save!`ed, AR will
       # re-establish the link from the old parent in the cache.
-      if association_data.pointer_location = :local && association_data.reflection.inverse_of.present?
+      if association_data.pointer_location == :local && association_data.reflection.inverse_of.present?
         clear_association_cache(previous_child_model, association_data.reflection.inverse_of)
       end
       released_viewmodels[previous_child_key] = ReleaseEntry.new(previous_child_viewmodel, association_data)
