@@ -294,10 +294,6 @@ class ActiveRecordViewModel::UpdateOperation
     debug_name = "#{model.class.name}:#{model.id || '<new>'}"
     debug "-> #{debug_name}: Entering"
 
-    edit_checked = false;
-    edit_check = ->{ viewmodel.editable!(view_context: view_context) && edit_checked = true unless edit_checked }
-    edit_check.call if self.association_changed?
-
     model.class.transaction do
       # update parent association
       if reparent_to.present?
@@ -337,7 +333,13 @@ class ActiveRecordViewModel::UpdateOperation
         debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
       end
 
-      edit_check.call if model.changed?
+      # Placing the edit check here allows it to consider the previous and
+      # current state of the model before it is saved. For example, but
+      # comparing #foo, #foo_was, #new_record?. Note that edit checks for
+      # deletes are handled elsewhere.
+      if model.changed? || association_changed?
+        viewmodel.editable!(view_context: view_context)
+      end
 
       debug "-> #{debug_name}: Saving"
       model.save!
