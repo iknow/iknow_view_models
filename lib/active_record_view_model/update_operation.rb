@@ -44,6 +44,13 @@ class ActiveRecordViewModel::UpdateOperation
     @association_changed
   end
 
+  def viewmodel_reference
+    unless viewmodel.model.new_record?
+      @viewmodel_reference ||=
+        ActiveRecordViewModel::ViewModelReference.new(viewmodel.class, viewmodel.model.id)
+    end
+  end
+
   # Determines user intent from a hash, extracting identity metadata and
   # returning a tuple of viewmodel_class, id, and a pure-data hash. The input
   # hash will be consumed.

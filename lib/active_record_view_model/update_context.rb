@@ -18,11 +18,16 @@ class ActiveRecordViewModel::UpdateContext
     @root_updates = []
     @referenced_updates = {}
 
-    # hash of { UpdateOperation::ViewModelReference => deferred UpdateOperation }
+    # hash of { ViewModelReference => :implicit || :explicit }; used to assert
+    # only a single update is present for each viewmodel, and prevents conflicts
+    # by explicit and implicit updates for the same model.
+    @updates_by_viewmodel = {}
+
+    # hash of { ViewModelReference => deferred UpdateOperation }
     # for linked partially-constructed node updates
     @worklist = {}
 
-    # hash of { UpdateOperation::ViewModelReference => ReleaseEntry } for models
+    # hash of { ViewModelReference => ReleaseEntry } for models
     # that have been released by nodes we've already visited
     @released_viewmodels = {}
   end
@@ -97,13 +102,19 @@ class ActiveRecordViewModel::UpdateContext
     all_root_updates = construct_root_updates(roots)
 
     # Separate out root and referenced updates
-    all_root_updates.each do |ref, subtree_hash|
+    all_root_updates.each do |ref, update|
+      if (vm_ref = update.viewmodel_reference)
+        # only non-creates have valid viewmodel references
+        # TODO every call site to UpdateOperation.new must contribute to the tracking
+        add_explicit_update(vm_ref, update)
+      end
+
       if ref.nil?
-        @root_updates << subtree_hash
+        @root_updates << update
       else
         # TODO make sure that referenced subtree hashes are unique and provide a decent error message
         # not strictly necessary, but will save confusion
-        @referenced_updates[ref] = subtree_hash
+        @referenced_updates[ref] = update
       end
     end
 
@@ -162,23 +173,24 @@ class ActiveRecordViewModel::UpdateContext
           raise ViewModel::DeserializationError.new("Cannot resolve previous parents for the following referenced viewmodels: #{vms}")
         end
 
+        # We are guaranteed to make progress or fail entirely.
+
         @worklist.delete(key)
 
         child_model = key.viewmodel_class.model_scope.find(key.model_id)  # TODO: model scope context
         child_viewmodel = key.viewmodel_class.new(child_model)
         deferred_update.viewmodel = child_viewmodel
 
-        # find old parent, mark it as updated and add it as a root.
+        # We have progressed the item, but we must enforce the constraint that we can edit the parent.
+
         parent_assoc_name = deferred_update.reparent_to.association_reflection.name
         parent_viewmodel_class = deferred_update.reparent_to.viewmodel.class
 
-        # TODO: avoid loading parent via the association directly: this will set up association caches that AR could use to reverse the updates.
-        old_parent = child_model.association(parent_assoc_name).load_target
-
-        old_parent_update = ActiveRecordViewModel::UpdateOperation.new(parent_viewmodel_class.new(old_parent), {})
-        old_parent_update.build!(self)
-        old_parent_update.association_changed!
-        @root_updates << old_parent_update
+        # This will create an update for the parent. Note that if we enter here
+        # we may already have seen an explicit update to the parent, but this
+        # case is always in error. If we didn't, we guarantee it won't exist
+        # TODO how? by expanding all subtrees/releases first?.
+        ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_assoc_name)
       else
         deferred_update = @worklist.delete(key)
         deferred_update.viewmodel = @released_viewmodels.delete(key).viewmodel
@@ -194,8 +206,53 @@ class ActiveRecordViewModel::UpdateContext
     return @root_updates, @released_viewmodels
   end
 
+  # When a child holds the pointer and has a parent that is not part of the
+  # update tree, we create a dummy update that asserts we have the ability to
+  # edit the parent. However, we only want to do this once for each parent.
+  def ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_association_name)
+    assoc = child_viewmodel.model.association(parent_association_name)
+
+    parent_model_id = child_viewmodel.model.send(
+      child_viewmodel.model.association(parent_association_name).reflection.foreign_key)
+
+    ref = ActiveRecordViewModel::ViewModelReference.new(
+      parent_viewmodel_class, parent_model_id)
+
+    case @updates_by_viewmodel[ref]
+    when :implicit
+      # Already implicitly created
+      return
+    when :explicit
+      raise 'Implicit update encountered after explicit update'
+    when nil
+      @updates_by_viewmodel[ref] = :implicit
+    end
+
+    old_parent_model     = assoc.klass.find(parent_model_id)
+    old_parent_viewmodel = parent_viewmodel_class.new(old_parent_model)
+
+    @updates_by_viewmodel[ref] =
+      ActiveRecordViewModel::UpdateOperation.new(old_parent_viewmodel, {}).tap do |update|
+        update.build!(self)
+        update.association_changed!
+        @root_updates << update
+      end
+  end
 
   # Methods for objects being built in this context
+
+  def add_explicit_update(vm_ref, update)
+    case @updates_by_viewmodel[vm_ref]
+    when :explicit
+      raise 'viewmodel updated twice'
+      # seen twice
+    when :implicit
+      # internal error
+      raise 'Explicit update encountered after implicit update'
+    when nil
+      @updates_by_viewmodel[vm_ref] = :explicit
+    end
+  end
 
   def resolve_reference(ref)
     @referenced_updates.fetch(ref) do

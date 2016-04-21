@@ -502,6 +502,35 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(moved_child, new_children.first)
   end
 
+  def test_implicit_release_has_many
+    old_children = @parent1.children.order(:position)
+    view = {'_type'    => 'Parent',
+            'name'     => 'newp',
+            'children' => old_children.map { |x| update_hash_ref(Views::Child, x) }}
+
+    new_parent_model = Views::Parent.deserialize_from_view(view).model
+
+    @parent1.reload
+    new_parent_model.reload
+
+    assert_equal([], @parent1.children)
+    assert_equal(old_children,
+                 new_parent_model.children.order(:position))
+  end
+
+  def test_implicit_release_invalid
+    old_children = @parent1.children.order(:position)
+    old_children_refs = old_children.map { |x| update_hash_ref(Views::Child, x) }
+
+    assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view(
+        [{ '_type'    => 'Parent',
+           'name'     => 'newp',
+           'children' => old_children_refs },
+         update_hash_ref(Views::Parent, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
+    end
+  end
+
   def test_move_child_to_existing
     old_children = @parent1.children.order(:position)
     moved_child = old_children[1]
