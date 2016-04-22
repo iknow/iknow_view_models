@@ -58,7 +58,7 @@ class ActiveRecordViewModel::UpdateContext
           else
             viewmodel_class.new
           end
-        [ref, ActiveRecordViewModel::UpdateOperation.new(viewmodel, subtree_hash)]
+        [ref, new_explicit_update(viewmodel, subtree_hash)]
       end
     end
   end
@@ -103,12 +103,6 @@ class ActiveRecordViewModel::UpdateContext
 
     # Separate out root and referenced updates
     all_root_updates.each do |ref, update|
-      if (vm_ref = update.viewmodel_reference)
-        # only non-creates have valid viewmodel references
-        # TODO every call site to UpdateOperation.new must contribute to the tracking
-        add_explicit_update(vm_ref, update)
-      end
-
       if ref.nil?
         @root_updates << update
       else
@@ -218,39 +212,52 @@ class ActiveRecordViewModel::UpdateContext
     ref = ActiveRecordViewModel::ViewModelReference.new(
       parent_viewmodel_class, parent_model_id)
 
-    case @updates_by_viewmodel[ref]
-    when :implicit
-      # Already implicitly created
-      return
-    when :explicit
-      raise 'Implicit update encountered after explicit update'
-    when nil
-      @updates_by_viewmodel[ref] = :implicit
-    end
+    return if @updates_by_viewmodel[ref] == :implicit
 
     old_parent_model     = assoc.klass.find(parent_model_id)
     old_parent_viewmodel = parent_viewmodel_class.new(old_parent_model)
 
-    @updates_by_viewmodel[ref] =
-      ActiveRecordViewModel::UpdateOperation.new(old_parent_viewmodel, {}).tap do |update|
-        update.build!(self)
-        update.association_changed!
-        @root_updates << update
-      end
+    new_implicit_update(old_parent_viewmodel, {}).tap do |update|
+      update.build!(self)
+      update.association_changed!
+      @root_updates << update
+    end
   end
 
-  # Methods for objects being built in this context
+  ## Methods for objects being built in this context
 
-  def add_explicit_update(vm_ref, update)
-    case @updates_by_viewmodel[vm_ref]
-    when :explicit
-      raise 'viewmodel updated twice'
-      # seen twice
-    when :implicit
-      # internal error
-      raise 'Explicit update encountered after implicit update'
-    when nil
-      @updates_by_viewmodel[vm_ref] = :explicit
+  # We require the updates to be recorded in the context so we can enforce the
+  # property that each viewmodel is in the tree at most once. To avoid mistakes,
+  # we require construction to go via methods that do this tracking.
+
+  def new_explicit_update(*args)
+    update = ActiveRecordViewModel::UpdateOperation.new(*args)
+    if (vm_ref = update.viewmodel_reference)
+      set_update_type(vm_ref, :explicit)
+    end
+    update
+  end
+
+  def new_implicit_update(*args)
+    update = ActiveRecordViewModel::UpdateOperation.new(*args)
+    if (vm_ref = update.viewmodel_reference)
+      set_update_type(vm_ref, :implicit)
+    end
+    update
+  end
+
+  def set_update_type(vm_ref, new_type)
+    if (current_type = @updates_by_viewmodel[vm_ref]).nil?
+      @updates_by_viewmodel[vm_ref] = new_type
+    elsif current_type == :implicit && new_type == :implicit
+      return
+    else
+      # explicit -> explicit; updating the same thing twice
+      # implicit -> explicit; internal error, user update processed after implicit udpate
+      # explicit -> implicit; trying to take something twice, once from user, then once again
+
+      # TODO error messages
+      raise "Not a valid type transition: #{current_type} -> #{new_type}"
     end
   end
 
@@ -260,7 +267,7 @@ class ActiveRecordViewModel::UpdateContext
     end
   end
 
-  def try_claim_released_viewmodel(vm_ref)
+  def try_take_released_viewmodel(vm_ref)
     @released_viewmodels.delete(vm_ref)
   end
 

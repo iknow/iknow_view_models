@@ -15,7 +15,11 @@ class ActiveRecordViewModel::UpdateOperation
                 :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
                 :reposition_to # if this node participates in a list under its parent, what should its position be?
 
-  def initialize(viewmodel, subtree_hash, reparent_to: nil, reposition_to: nil)
+  # The reference of the viewmodel being updated or deleted. Nil when the
+  # viewmodel is creating a new model.
+  attr_reader :viewmodel_reference
+
+  def initialize(viewmodel, subtree_hash, reparent_to: nil, reposition_to: nil, viewmodel_reference: nil)
     self.viewmodel     = viewmodel
     self.subtree_hash  = subtree_hash
     self.attributes    = {}
@@ -26,6 +30,17 @@ class ActiveRecordViewModel::UpdateOperation
 
     @run_state = RunState::Pending
     @association_changed = false
+
+    if viewmodel_reference.nil? && viewmodel.nil?
+      raise 'Need either explicit reference or a viewmodel to update'
+    else
+      @viewmodel_reference =
+        if viewmodel_reference
+          viewmodel_reference
+        elsif !viewmodel.model.new_record?
+          ActiveRecordViewModel::ViewModelReference.new(viewmodel.class, viewmodel.model.id)
+        end
+    end
   end
 
   def deferred?
@@ -42,13 +57,6 @@ class ActiveRecordViewModel::UpdateOperation
 
   def association_changed?
     @association_changed
-  end
-
-  def viewmodel_reference
-    unless viewmodel.model.new_record?
-      @viewmodel_reference ||=
-        ActiveRecordViewModel::ViewModelReference.new(viewmodel.class, viewmodel.model.id)
-    end
   end
 
   # Determines user intent from a hash, extracting identity metadata and
@@ -292,7 +300,7 @@ class ActiveRecordViewModel::UpdateOperation
         else
           key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
           case
-          when taken_child_release_entry = update_context.try_claim_released_viewmodel(key)
+          when taken_child_release_entry = update_context.try_take_released_viewmodel(key)
             self.association_changed!
             taken_child_release_entry.viewmodel
           when key == previous_child_key
@@ -318,9 +326,9 @@ class ActiveRecordViewModel::UpdateOperation
         when ActiveRecordViewModel::ViewModelReference # deferred
           reference = child_viewmodel
           update_context.defer_update(
-            reference, ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data))
+            reference, update_context.new_explicit_update(nil, child_hash, reparent_to: parent_data, viewmodel_reference: reference))
         else
-          ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data).build!(update_context)
+          update_context.new_explicit_update(child_viewmodel, child_hash, reparent_to: parent_data).build!(update_context)
         end
     end
 
@@ -408,7 +416,7 @@ class ActiveRecordViewModel::UpdateOperation
         child_viewmodel_class.new
       when existing_child = previous_children.delete(id)
         child_viewmodel_class.new(existing_child)
-      when taken_child_release_entry = update_context.try_claim_released_viewmodel(key)
+      when taken_child_release_entry = update_context.try_take_released_viewmodel(key)
         self.association_changed!
         taken_child_release_entry.viewmodel
       else
@@ -447,9 +455,9 @@ class ActiveRecordViewModel::UpdateOperation
       when ActiveRecordViewModel::ViewModelReference # deferred
         reference = child_viewmodel
         update_context.defer_update(
-          reference, ActiveRecordViewModel::UpdateOperation.new(nil, child_hash, reparent_to: parent_data, reposition_to: position))
+          reference, update_context.new_explicit_update(nil, child_hash, reparent_to: parent_data, reposition_to: position, viewmodel_reference: reference))
       else
-        ActiveRecordViewModel::UpdateOperation.new(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(update_context)
+        update_context.new_explicit_update(child_viewmodel, child_hash, reparent_to: parent_data, reposition_to: position).build!(update_context)
       end
     end
 
