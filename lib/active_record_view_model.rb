@@ -302,37 +302,6 @@ class ActiveRecordViewModel < ViewModel
     raise UnimplementedException.new
   end
 
-  # Entry point for appending to a collection association of an existing record
-  # FIXME: no reason for this to be separate from append_association any more,
-  # since we're no longer providing overridable append_* hooks for each association.
-  def deserialize_associated(association_name, hash_data, view_context: default_deserialize_context)
-    unimplemented
-
-    view = nil
-    model_class.transaction do
-      editable!(view_context: view_context)
-      case hash_data
-      when Hash
-        view = append_association(association_name, hash_data, view_context: view_context)
-      else
-        raise ViewModel::DeserializationError.new("Invalid data for association: '#{hash_data.inspect}'")
-      end
-      model.save!
-    end
-    view
-  end
-
-  # Entry point for destroying the association between an existing record and a child:
-  # will be necessary for shared data.
-  def delete_associated(association_name, associated, view_context: default_deserialize_context)
-    unimplemented
-
-    model_class.transaction do
-      editable!(view_context: view_context)
-      delete_association(association_name, associated, view_context: view_context)
-    end
-  end
-
   def load_associated(association_name)
     self.public_send(association_name)
   end
@@ -342,6 +311,56 @@ class ActiveRecordViewModel < ViewModel
     associated_viewmodel = association_data.viewmodel_class
     association_scope = self.model.association(association_name).association_scope
     associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include, view_context: view_context)
+  end
+
+  # Create or update a single member of an associated collection. For an ordered
+  # collection, the new item is added at the end appended.
+  def append_associated(association_name, subtree_hashes, view_context: default_deserialize_context)
+    model_class.transaction do
+      editable!(view_context: view_context)
+
+      association_data = self.class._association_data(association_name)
+      raise ViewModel::DeserializationError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
+
+      associated_viewmodel_class = association_data.viewmodel_class
+
+      if associated_viewmodel_class._list_member?
+        # find append position
+        last_position = model.association(association_name).scope.maximum(associated_viewmodel_class._list_attribute_name) || 0
+        position = last_position + 1.0
+      end
+
+      # construct a update operation tree for the provided child hashes, then before running it poke in the new position(s) and parent(s)?
+
+        association = model.association(association_name)
+        viewmodel = association_data.viewmodel_class
+        assoc_view = viewmodel.deserialize_from_view(hash_data, view_context: view_context)
+        assoc_model = assoc_view.model
+        association.concat(assoc_model)
+
+        assoc_view
+    end
+  end
+
+  # Removes the association between the models represented by this viewmodel and
+  # the provided associated viewmodel. The associated model will be
+  # garbage-collected if the assocation is specified with `dependent: :destroy`
+  # or `:delete_all`
+  def delete_associatied(association_name, associated, view_context: default_deserialize_context)
+    model_class.transaction do
+        editable!(view_context: view_context)
+
+    association_data = self.class._association_data(association_name)
+
+    if association_data.collection?
+      association = model.association(association_name)
+      association.delete(associated.model)
+    else
+      # Delete using `deserialize_association` of nil to ensure that belongs_to
+      # garbage collection is performed.
+      deserialize_association(assocation_name, nil, view_context: view_context)
+    end
+    end
   end
 
   private
@@ -365,45 +384,6 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  # Create or update a single member of an associated subtree. For a collection
-  # association, this deserializes and appends to the collection, otherwise it
-  # has the same effect as `deserialize_association`.
-  def append_association(association_name, hash_data, view_context: default_deserialize_context)
-    unimplemented
-
-    association_data = self.class._association_data(association_name)
-
-    if association_data.collection?
-      association = model.association(association_name)
-      viewmodel = association_data.viewmodel_class
-      assoc_view = viewmodel.deserialize_from_view(hash_data, view_context: view_context)
-      assoc_model = assoc_view.model
-      association.concat(assoc_model)
-
-      assoc_view
-    else
-      deserialize_association(association_name, hash_data, view_context: view_context)
-    end
-  end
-
-  # Removes the association between the models represented by this viewmodel and
-  # the provided associated viewmodel. The associated model will be
-  # garbage-collected if the assocation is specified with `dependent: :destroy`
-  # or `:delete_all`
-  def delete_association(association_name, associated, view_context: default_deserialize_context)
-    unimplemented
-
-    association_data = self.class._association_data(association_name)
-
-    if association_data.collection?
-      association = model.association(association_name)
-      association.delete(associated.model)
-    else
-      # Delete using `deserialize_association` of nil to ensure that belongs_to
-      # garbage collection is performed.
-      deserialize_association(assocation_name, nil, view_context: view_context)
-    end
-  end
 
 
   ####### TODO LIST ########

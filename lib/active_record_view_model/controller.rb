@@ -4,10 +4,8 @@ require 'active_record_view_model/nested_controller'
 # Controller for accessing an ActiveRecordViewModel
 # Provides for the following routes:
 # GET    /models      #index
-# POST   /models      #create
+# POST   /models      #create or update (possibly multiple)
 # GET    /models/:id  #show
-# PATCH  /models/:id  #update
-# PUT    /models/:id  #update
 # DELETE /models/:id  #destroy
 
 module ActiveRecordViewModel::Controller
@@ -35,12 +33,24 @@ module ActiveRecordViewModel::Controller
   end
 
   def create
-    deserialize(nil)
+    update_hash = params[:data]
+    refs = params[:references]
+
+    # Type-check incoming data
+    unless update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")
+    end
+
+    if refs.present? && !refs.is_a?(Hash)
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid references submitted")
+    end
+
+    viewmodel.transaction do
+      view = viewmodel.deserialize_from_view(update_hash, references: refs, view_context: deserialize_view_context)
+      render_viewmodel(view, view_context: serialize_view_context)
+    end
   end
 
-  def update
-    deserialize(viewmodel_id)
-  end
 
   def destroy
     viewmodel.transaction do
@@ -64,31 +74,6 @@ module ActiveRecordViewModel::Controller
 
   def viewmodel_id
     parse_integer_param(:id)
-  end
-
-  def deserialize(requested_id)
-    update_hash = params[:data].to_h
-
-    unless update_hash.is_a?(Hash)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")
-    end
-
-    # TODO check type as well?
-
-    if requested_id.present?
-      if !update_hash.has_key?(ActiveRecordViewModel::ID_ATTRIBUTE)
-        raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not an update action: provided data doesn't represent an existing object")
-      elsif update_hash[ActiveRecordViewModel::ID_ATTRIBUTE] != requested_id
-        raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid update action: provided data represents a different object")
-      end
-    elsif update_hash.has_key?(ActiveRecordViewModel::ID_ATTRIBUTE)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not a create action: provided data represents an existing object")
-    end
-
-    viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(update_hash, view_context: deserialize_view_context)
-      render_viewmodel(view, view_context: serialize_view_context)
-    end
   end
 
   class_methods do
