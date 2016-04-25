@@ -73,7 +73,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
              'name'  => 'new' }
 
     parentcontroller = ParentController.new(id: @parent.id, data: data)
-    parentcontroller.invoke(:update)
+    parentcontroller.invoke(:create)
 
     assert_equal(200, parentcontroller.status)
 
@@ -103,29 +103,6 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     assert_equal(404, parentcontroller.status)
     assert_equal({ 'errors' => [{ 'status' => 404,
                                   'detail' => "Couldn't find Parent with 'id'=9999" }] },
-                 parentcontroller.hash_response)
-  end
-
-  def test_update_incorrect
-    data = { 'id' => @parent.id, '_type' => 'Parent', 'name' => 'new' }
-    parentcontroller = ParentController.new(id: 9999, data: data)
-    parentcontroller.invoke(:update)
-
-    assert_equal(400, parentcontroller.status)
-    assert_equal({ 'errors' => [{ 'status' => 400,
-                                  'detail' => 'Invalid update action: provided data represents a different object' }] },
-                 parentcontroller.hash_response)
-  end
-
-  def test_create_existing
-    data = { 'id' => @parent.id, '_type' => 'Parent', 'name' => 'p2' }
-
-    parentcontroller = ParentController.new(data: data)
-    parentcontroller.invoke(:create)
-
-    assert_equal(400, parentcontroller.status)
-    assert_equal({ 'errors' => [{ 'status' => 400,
-                                  'detail' => 'Not a create action: provided data represents an existing object' }] },
                  parentcontroller.hash_response)
   end
 

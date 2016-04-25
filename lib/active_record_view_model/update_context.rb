@@ -79,15 +79,17 @@ class ActiveRecordViewModel::UpdateContext
       [nil, viewmodel_class, id, safe_hash]
     end
 
-    references = referenced_subtree_hashes.map do |reference, subtree_hash|
-      viewmodel_class, id, safe_hash =
-        ActiveRecordViewModel::UpdateOperation.extract_metadata_from_hash(subtree_hash)
+    if referenced_subtree_hashes.present?
+      references = referenced_subtree_hashes.map do |reference, subtree_hash|
+        viewmodel_class, id, safe_hash =
+          ActiveRecordViewModel::UpdateOperation.extract_metadata_from_hash(subtree_hash)
 
-      raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
-      [reference, viewmodel_class, id, safe_hash]
+        raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
+        [reference, viewmodel_class, id, safe_hash]
+      end
+      roots.concat(references)
     end
 
-    roots.concat(references)
 
     # Ensure that no root is referred to more than once
     ref_counts = roots.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|

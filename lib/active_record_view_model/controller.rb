@@ -38,11 +38,11 @@ module ActiveRecordViewModel::Controller
 
     # Type-check incoming data
     unless update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Empty or invalid data submitted')
     end
 
     if refs.present? && !refs.is_a?(Hash)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid references submitted")
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid references submitted')
     end
 
     viewmodel.transaction do
