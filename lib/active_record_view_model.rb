@@ -179,7 +179,6 @@ class ActiveRecordViewModel < ViewModel
         root_updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: self)
 
         updated_viewmodels = root_updates.map do |root_update|
-          root_update.send(:print)
           root_update.run!(view_context: view_context)
         end
 
@@ -315,30 +314,57 @@ class ActiveRecordViewModel < ViewModel
 
   # Create or update a single member of an associated collection. For an ordered
   # collection, the new item is added at the end appended.
-  def append_associated(association_name, subtree_hashes, view_context: default_deserialize_context)
+  def append_associated(association_name, subtree_hashes, references: {}, view_context: default_deserialize_context)
+    return_array = subtree_hashes.is_a?(Array)
+    subtree_hashes = Array.wrap(subtree_hashes)
+
     model_class.transaction do
       editable!(view_context: view_context)
 
       association_data = self.class._association_data(association_name)
+      # TODO why not ArgumentError? The User was not responsible for this failure.
       raise ViewModel::DeserializationError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
 
       associated_viewmodel_class = association_data.viewmodel_class
 
+      # construct a update operation tree for the provided child hashes, then before running it poke in the new position(s) and parent(s)?
+      viewmodel_class = association_data.viewmodel_class
+      child_updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: viewmodel_class)
+
+      # Set new parent
+      new_parent = ParentData.new(association_data.reflection, self)
+      child_updates.each { |update| update.reparent_to = new_parent }
+
+      # Set place in list
       if associated_viewmodel_class._list_member?
-        # find append position
         last_position = model.association(association_name).scope.maximum(associated_viewmodel_class._list_attribute_name) || 0
-        position = last_position + 1.0
+        base_position = last_position + 1.0
+        child_updates.each_with_index { |update, index| update.reposition_to = base_position + index }
       end
 
-      # construct a update operation tree for the provided child hashes, then before running it poke in the new position(s) and parent(s)?
+      # Edit check parent
 
-        association = model.association(association_name)
-        viewmodel = association_data.viewmodel_class
-        assoc_view = viewmodel.deserialize_from_view(hash_data, view_context: view_context)
-        assoc_model = assoc_view.model
-        association.concat(assoc_model)
 
-        assoc_view
+      # Run as per usual
+      updated_viewmodels = child_updates.map do |root_update|
+        root_update.run!(view_context: view_context)
+      end
+
+      released_viewmodels.each_value do |release_entry|
+        release_entry.release!
+      end
+
+      if return_array
+        updated_viewmodels
+      else
+        updated_viewmodels.first
+      end
+    end
+  end
+
+  def deserialize_asociated(association_name, subtree_hashes, view_context: default_deserialize_context)
+    model_class.transaction do
+
     end
   end
 
@@ -346,20 +372,20 @@ class ActiveRecordViewModel < ViewModel
   # the provided associated viewmodel. The associated model will be
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
-  def delete_associatied(association_name, associated, view_context: default_deserialize_context)
+  def delete_associated(association_name, associated, view_context: default_deserialize_context)
     model_class.transaction do
-        editable!(view_context: view_context)
+      editable!(view_context: view_context)
 
-    association_data = self.class._association_data(association_name)
+      association_data = self.class._association_data(association_name)
 
-    if association_data.collection?
-      association = model.association(association_name)
-      association.delete(associated.model)
-    else
-      # Delete using `deserialize_association` of nil to ensure that belongs_to
-      # garbage collection is performed.
-      deserialize_association(assocation_name, nil, view_context: view_context)
-    end
+      if association_data.collection?
+        association = model.association(association_name)
+        association.delete(associated.model)
+      else
+        # Delete using `deserialize_association` of nil to ensure that belongs_to
+        # garbage collection is performed.
+        deserialize_association(assocation_name, nil, view_context: view_context)
+      end
     end
   end
 

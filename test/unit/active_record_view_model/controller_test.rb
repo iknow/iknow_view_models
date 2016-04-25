@@ -145,15 +145,13 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
   #### Controller for nested model
 
   def test_nested_index
-    skip('unimplemented')
-
     childcontroller = ChildController.new(parent_id: @parent.id)
 
     childcontroller.invoke(:index)
 
     assert_equal(200, childcontroller.status)
 
-    assert_equal({ "data" => @parent.children.map { |c| Views::Child.new(c).to_hash } },
+    assert_equal({ 'data' => @parent.children.map { |c| Views::Child.new(c).to_hash } },
                  childcontroller.hash_response)
   end
 

@@ -37,7 +37,7 @@ module ActiveRecordViewModel::Controller
     refs = params[:references]
 
     # Type-check incoming data
-    unless update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
+    unless _valid_update_hash?(update_hash)
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Empty or invalid data submitted')
     end
 
@@ -74,6 +74,10 @@ module ActiveRecordViewModel::Controller
 
   def viewmodel_id
     parse_integer_param(:id)
+  end
+
+  def _valid_update_hash?(update_hash)
+    update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
   end
 
   class_methods do
