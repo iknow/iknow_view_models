@@ -518,7 +518,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                  new_parent_model.children.order(:position))
   end
 
-  def test_implicit_release_invalid
+  def test_implicit_release_invalid_has_many
     old_children = @parent1.children.order(:position)
     old_children_refs = old_children.map { |x| update_hash_ref(Views::Child, x) }
 
@@ -749,6 +749,19 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     assert_equal(old_p1_label, @parent2.label)
     assert_equal("p1l", @parent2.label.text)
+  end
+
+  def test_implicit_release_invalid_belongs_to
+    taken_label_ref = update_hash_ref(Views::Label, @parent1.label)
+    ex = assert_raises(ViewModel::DeserializationError) do
+      Views::Parent.deserialize_from_view(
+        [{ '_type' => 'Parent',
+           'name'  => 'newp',
+           'label' => taken_label_ref }])
+    end
+
+    assert_match(/Cannot resolve previous parents/, ex.message,
+                 'belongs_to does not infer previous parents')
   end
 
   # test belongs_to garbage collection - dependent: delete_all
