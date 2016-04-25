@@ -26,13 +26,13 @@ module CeregoViewModels
 
   def self.renderable!(klass)
     klass.class_eval do
-      def render_viewmodel(viewmodel, status: nil, view_context: viewmodel.default_deserialize_context)
+      def render_viewmodel(viewmodel, status: nil, view_context: viewmodel.try(:default_deserialize_context))
         render_jbuilder(status: status) do |json|
           json.data do
             ViewModel.serialize(viewmodel, json, view_context: view_context)
           end
 
-          if view_context.has_references?
+          if view_context && view_context.has_references?
             json.references do
               view_context.serialize_references(json)
             end

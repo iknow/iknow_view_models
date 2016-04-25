@@ -15,26 +15,22 @@ module ActiveRecordViewModel::Controller
   include ActiveRecordViewModel::ControllerBase
 
   included do
-    attr_reader :view_context
     delegate :viewmodel, to: :class
   end
 
-  def initialize(*)
-    super
-    @view_context = nil
-  end
-
   def show(scope: nil)
+    view_context = serialize_view_context
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, scope: scope, view_context: view_context)
-      render_viewmodel({ data: view }, view_context: view_context)
+      render_viewmodel(view, view_context: view_context)
     end
   end
 
   def index(scope: nil)
+    view_context = serialize_view_context
     viewmodel.transaction do
       views = viewmodel.load(scope: scope, view_context: view_context)
-      render_viewmodel({ data: views }, view_context: view_context)
+      render_viewmodel(views, view_context: view_context)
     end
   end
 
@@ -48,16 +44,20 @@ module ActiveRecordViewModel::Controller
 
   def destroy
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, eager_load: false, view_context: view_context)
-      view.destroy!(view_context: view_context)
+      view = viewmodel.find(viewmodel_id, eager_include: false, view_context: serialize_view_context)
+      view.destroy!(view_context: deserialize_view_context)
     end
-    render_viewmodel({ data: nil })
+    render_viewmodel(nil)
   end
 
   protected
 
-  def set_view_context(value)
-    @view_context = value
+  def deserialize_view_context
+    viewmodel.default_deserialize_context
+  end
+
+  def serialize_view_context
+    viewmodel.default_serialize_context
   end
 
   private
@@ -67,25 +67,27 @@ module ActiveRecordViewModel::Controller
   end
 
   def deserialize(requested_id)
-    data = params[:data].to_h
+    update_hash = params[:data].to_h
 
-    unless data.is_a?(Hash)
+    unless update_hash.is_a?(Hash)
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Empty or invalid data submitted")
     end
 
+    # TODO check type as well?
+
     if requested_id.present?
-      if !viewmodel._is_update_hash?(data)
+      if !update_hash.has_key?(ActiveRecordViewModel::ID_ATTRIBUTE)
         raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not an update action: provided data doesn't represent an existing object")
-      elsif viewmodel._update_id(data) != requested_id
+      elsif update_hash[ActiveRecordViewModel::ID_ATTRIBUTE] != requested_id
         raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid update action: provided data represents a different object")
       end
-    elsif viewmodel._is_update_hash?(data)
+    elsif update_hash.has_key?(ActiveRecordViewModel::ID_ATTRIBUTE)
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Not a create action: provided data represents an existing object")
     end
 
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(data, view_context: view_context)
-      render_viewmodel(view, view_context: view_context)
+      view = viewmodel.deserialize_from_view(update_hash, view_context: deserialize_view_context)
+      render_viewmodel(view, view_context: serialize_view_context)
     end
   end
 
@@ -94,9 +96,11 @@ module ActiveRecordViewModel::Controller
     def viewmodel
       unless instance_variable_defined?(:@viewmodel)
         # try to autodetect the viewmodel based on our name
-        match = /(.*)Controller$/.match(self.name)
-        raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'") if match.nil?
-        self.viewmodel_name = match[1].singularize + "View"
+        if (match = /(.*)Controller$/.match(self.name))
+          self.viewmodel_name = match[1].singularize
+        else
+          raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'") if match.nil?
+        end
       end
       @viewmodel
     end
@@ -111,9 +115,7 @@ module ActiveRecordViewModel::Controller
     private
 
     def viewmodel_name=(name)
-      type = name.to_s.camelize.safe_constantize
-      raise ArgumentError.new("Could not find ViewModel class '#{name}'") if type.nil?
-      self.viewmodel = type
+      self.viewmodel = ActiveRecordViewModel.for_view_name(name)
     end
 
     def viewmodel=(type)
