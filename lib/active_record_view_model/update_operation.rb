@@ -215,23 +215,18 @@ class ActiveRecordViewModel::UpdateOperation
 
         association_data = self.viewmodel.class._association_data(association_name)
 
-        if association_data.collection?
-          self.pointed_to[association_data] = build_updates_for_collection_association(association_data, association_hash, update_context)
-        else
-          target =
-            case association_data.pointer_location
-            when :remote; self.pointed_to
-            when :local;  self.points_to
-            end
+        # TODO the only thing changing here is the target of the method invocation, is that worth using method()?
+        update =
+          case
+          when association_data.collection?
+            build_updates_for_collection_association(association_data, association_hash, update_context)
+          when association_data.shared
+            build_update_for_single_referenced_association(association_data, association_hash, update_context)
+          else
+            build_update_for_single_association(association_data, association_hash, update_context)
+          end
 
-          target[association_data] =
-            if association_data.shared
-              build_update_for_single_referenced_association(association_data, association_hash, update_context)
-            else
-              build_update_for_single_association(association_data, association_hash, update_context)
-            end
-        end
-
+        add_update(association_data, update)
       else
         raise "Unknown hash member #{k}" # TODO
       end
@@ -240,6 +235,20 @@ class ActiveRecordViewModel::UpdateOperation
     self.subtree_hash = nil
 
     self
+  end
+
+  def add_update(association_data, update)
+    target =
+      case association_data.pointer_location
+      when :remote; pointed_to
+      when :local;  points_to
+      end
+
+    target[association_data] = update
+  end
+
+  def add_update_by_name(association_name, update)
+    add_update(self.viewmodel.class._association_data(association_name), update)
   end
 
   private

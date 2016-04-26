@@ -12,8 +12,11 @@ require 'minitest/unit'
 
 class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
   def setup
-    @parent = Parent.create(name: "p",
-                            children: [Child.new(name: "c1"), Child.new(name: "c2")])
+    @parent = Parent.create(name: 'p',
+                            children: [Child.new(name: 'c1', position: 1.0),
+                                       Child.new(name: 'c2', position: 2.0)],
+                            label: Label.new,
+                            target: Target.new)
 
     # Enable logging for the test
     ActiveRecord::Base.logger = Logger.new(STDOUT)
@@ -165,14 +168,34 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(3, @parent.children.count, "@parent.children.count == 3")
-    c3 = @parent.children.last
-    assert_equal("c3", c3.name)
+    assert_equal(3, @parent.children.count, '@parent.children.count == 3')
+    c3 = @parent.children.order(:position).last
+    assert_equal('c3', c3.name)
 
-    assert_equal({ "data" => Views::Child.new(c3).to_hash },
+    assert_equal({ 'data' => Views::Child.new(c3).to_hash },
                  childcontroller.hash_response)
+  end
 
+  def test_nested_replace_belongs_to
+    # Parent.label
+    data = {'_type' => 'Label', 'text' => 'new label'}
+    labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
+    labelcontroller.invoke(:update)
 
+    assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
+
+    old_label = @parent.label
+    @parent.reload
+    refute_equal(old_label, @parent.label)
+    assert_equal('new label', @parent.label.text)
+  end
+
+  def test_nested_replace_has_one
+    # Parent.target
+  end
+
+  def test_nested_replace_has_many
+    # Parent.children
   end
 
   def test_nested_create_bad_data

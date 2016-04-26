@@ -33,17 +33,7 @@ module ActiveRecordViewModel::Controller
   end
 
   def create
-    update_hash = params[:data]
-    refs = params[:references]
-
-    # Type-check incoming data
-    unless _valid_update_hash?(update_hash)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Empty or invalid data submitted')
-    end
-
-    if refs.present? && !refs.is_a?(Hash)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid references submitted')
-    end
+    update_hash, refs = parse_viewmodel_updates
 
     viewmodel.transaction do
       view = viewmodel.deserialize_from_view(update_hash, references: refs, view_context: deserialize_view_context)
@@ -76,8 +66,28 @@ module ActiveRecordViewModel::Controller
     parse_integer_param(:id)
   end
 
+  def parse_viewmodel_updates
+    update_hash = params[:data]
+    refs = params[:references]
+
+    # Type-check incoming data
+    unless _valid_update_hash?(update_hash)
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Empty or invalid data submitted')
+    end
+
+    unless _valid_references?(refs)
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid references submitted')
+    end
+
+    return update_hash, refs
+  end
+
   def _valid_update_hash?(update_hash)
     update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
+  end
+
+  def _valid_references?(refs)
+    !refs.present? || refs.is_a?(Hash)
   end
 
   class_methods do

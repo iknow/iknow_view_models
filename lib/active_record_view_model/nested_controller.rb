@@ -27,15 +27,8 @@ module ActiveRecordViewModel::NestedController
   def create
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: serialize_view_context)
-
-      update_hash = params[:data]
-
-      unless _valid_update_hash?(update_hash)
-        raise BadRequest.new('Empty or invalid data submitted')
-      end
-
-      assoc_view = owner_view.append_associated(association_name, update_hash, view_context: deserialize_view_context)
-
+      update_hash, refs = parse_viewmodel_updates
+      assoc_view = owner_view.append_associated(association_name, update_hash, references: refs, view_context: deserialize_view_context)
       render_viewmodel(assoc_view, view_context: serialize_view_context)
     end
   end
@@ -43,12 +36,15 @@ module ActiveRecordViewModel::NestedController
   # Change the contents of the association.
   # Same as setting an entity with recursive edit.
   def update
+    update_hash, refs = parse_viewmodel_updates
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: serialize_view_context)
+      parent_update_hash = {ActiveRecordViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
+                            ActiveRecordViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
+                            association_name.to_s                 => update_hash}
 
-      assoc_view = owner_view.deserialize_associated(association_name, udpate_hash, view_context, deserialize_view_context)
+      updated_view = owner_viewmodel.deserialize_from_view(parent_update_hash, references: refs, view_context: deserialize_view_context)
 
-      render_viewmodel(assoc_view, view_context, serialize_view_context)
+      render_viewmodel(updated_view, view_context: serialize_view_context)
     end
   end
 

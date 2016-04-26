@@ -309,6 +309,10 @@ class DummyController
     end
   end
 
+  def invoke_without_rescue(method)
+    self.public_send(method)
+  end
+
   def render(status:, **options)
     if options.has_key?(:json)
       @response_body = options[:json]
@@ -355,4 +359,14 @@ end
 class ChildController < DummyController
   include ActiveRecordViewModel::Controller
   nested_in :parent, as: :children
+end
+
+class LabelController < DummyController
+  include ActiveRecordViewModel::Controller
+  nested_in :parent, as: :label
+end
+
+class TargetController < DummyController
+  include ActiveRecordViewModel::Controller
+  nested_in :parent, as: :target
 end

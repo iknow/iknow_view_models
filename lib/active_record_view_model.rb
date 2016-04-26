@@ -330,8 +330,7 @@ class ActiveRecordViewModel < ViewModel
 
       # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      update_context = UpdateContext.new
-      updates, released_viewmodels = update_context.build_updates(subtree_hashes, references, root_type: viewmodel_class)
+      updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: viewmodel_class)
 
       # Set new parent
       new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
@@ -358,12 +357,6 @@ class ActiveRecordViewModel < ViewModel
       else
         updated_viewmodels.first
       end
-    end
-  end
-
-  def deserialize_associated(association_name, subtree_hashes, view_context: default_deserialize_context)
-    model_class.transaction do
-
     end
   end
 
