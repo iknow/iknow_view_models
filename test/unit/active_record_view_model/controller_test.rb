@@ -156,9 +156,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_nested_create_append
-    skip('unimplemented')
-
-    data = { "name" => "c3" }
+    data = { '_type' => 'Child', 'name' => 'c3' }
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
     childcontroller.invoke(:create)

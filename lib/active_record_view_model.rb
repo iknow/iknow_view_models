@@ -322,31 +322,30 @@ class ActiveRecordViewModel < ViewModel
       editable!(view_context: view_context)
 
       association_data = self.class._association_data(association_name)
+
       # TODO why not ArgumentError? The User was not responsible for this failure.
       raise ViewModel::DeserializationError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
 
       associated_viewmodel_class = association_data.viewmodel_class
 
-      # construct a update operation tree for the provided child hashes, then before running it poke in the new position(s) and parent(s)?
+      # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      child_updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: viewmodel_class)
+      update_context = UpdateContext.new
+      updates, released_viewmodels = update_context.build_updates(subtree_hashes, references, root_type: viewmodel_class)
 
       # Set new parent
-      new_parent = ParentData.new(association_data.reflection, self)
-      child_updates.each { |update| update.reparent_to = new_parent }
+      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
+      updates.each { |update| update.reparent_to = new_parent }
 
       # Set place in list
       if associated_viewmodel_class._list_member?
         last_position = model.association(association_name).scope.maximum(associated_viewmodel_class._list_attribute_name) || 0
         base_position = last_position + 1.0
-        child_updates.each_with_index { |update, index| update.reposition_to = base_position + index }
+        updates.each_with_index { |update, index| update.reposition_to = base_position + index }
       end
 
-      # Edit check parent
-
-
       # Run as per usual
-      updated_viewmodels = child_updates.map do |root_update|
+      updated_viewmodels = updates.map do |root_update|
         root_update.run!(view_context: view_context)
       end
 
@@ -362,7 +361,7 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  def deserialize_asociated(association_name, subtree_hashes, view_context: default_deserialize_context)
+  def deserialize_associated(association_name, subtree_hashes, view_context: default_deserialize_context)
     model_class.transaction do
 
     end

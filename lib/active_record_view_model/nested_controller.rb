@@ -62,7 +62,7 @@ module ActiveRecordViewModel::NestedController
   private
 
   def owner_viewmodel_id
-    id_param_name = owner_viewmodel.view_name + '_id'
+    id_param_name = owner_viewmodel.view_name.downcase + '_id'
     parse_integer_param(id_param_name)
   end
 
