@@ -104,7 +104,7 @@ class ActiveRecordViewModel::UpdateContext
 
     # Ensure that no root is referred to more than once
     ref_counts = proto_updates.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|
-      counts[[viewmodel_class, id]] += 1
+      counts[[viewmodel_class, id]] += 1 if id
     end.delete_if { |_, count| count == 1 }
 
     if ref_counts.present?

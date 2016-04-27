@@ -287,6 +287,17 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal("pol", p.poly.text)
   end
 
+  def test_create_multiple
+    view = [{'_type' => 'Parent', 'name' => 'newp1'},
+            {'_type' => 'Parent', 'name' => 'newp2'}]
+
+    result = Views::Parent.deserialize_from_view(view)
+
+    new_parents = Parent.where(id: result.map{|x| x.model.id})
+
+    assert_equal(%w{newp1 newp2}, new_parents.pluck(:name).sort)
+  end
+
   def test_create_invalid_type
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view({ "target" => [] })
