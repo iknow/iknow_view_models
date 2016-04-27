@@ -14,9 +14,13 @@ class ActiveRecordViewModel::UpdateContext
     end
   end
 
+  # TODO an unfortunate abstraction violation. The `append` case constructs an
+  # update tree and later injects the context of parent and position.
+  attr_reader :root_updates
+
   def initialize
-    @root_updates = []
-    @referenced_updates = {}
+    @root_updates       = [] # The subject(s) of this update
+    @referenced_updates = {} # Shared data updates, referred to by a ref hash
 
     # hash of { ViewModelReference => :implicit || :explicit }; used to assert
     # only a single update is present for each viewmodel, and prevents conflicts
@@ -34,11 +38,11 @@ class ActiveRecordViewModel::UpdateContext
 
   # Loads corresponding viewmodels and constructs UpdateOperations for the
   # provided [[ref, viewmodel_class, id-or-nil, safe_root_subtree],...]
-  def construct_root_updates(roots)
+  def construct_updates(updates)
     # Look up viewmodel classes for each tree with eager_includes. Note this
     # won't yet include through a polymorphic boundary: for now we become
     # lazy-loading and slow every time that happens.
-    roots_by_viewmodel_class = roots.group_by { |_, viewmodel_class, _, _| viewmodel_class }
+    roots_by_viewmodel_class = updates.group_by { |_, viewmodel_class, _, _| viewmodel_class }
 
     # For each viewmodel type, look up referenced models and construct viewmodels to update
     roots_by_viewmodel_class.flat_map do |viewmodel_class, viewmodel_roots|
@@ -63,11 +67,18 @@ class ActiveRecordViewModel::UpdateContext
     end
   end
 
-  private :construct_root_updates
+  private :construct_updates
 
-  def build_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
+  def self.new_update_tree(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
+    self.new
+      .build_root_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: root_type)
+      .assemble_update_tree!
+  end
+
+  # Processes root hashes and subtree hashes into @root_updates and @referenced_updates.
+  def build_root_updates(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
     # Check input and build an array of [ref-or-nil, viewmodel_class, hash] for all subtrees
-    roots = root_subtree_hashes.map do |subtree_hash|
+    proto_updates = root_subtree_hashes.map do |subtree_hash|
       viewmodel_class, id, safe_hash =
         ActiveRecordViewModel::UpdateOperation.extract_metadata_from_hash(subtree_hash)
 
@@ -87,12 +98,12 @@ class ActiveRecordViewModel::UpdateContext
         raise "Invalid reference string: #{reference}" unless reference.is_a?(String)
         [reference, viewmodel_class, id, safe_hash]
       end
-      roots.concat(references)
+
+      proto_updates.concat(references)
     end
 
-
     # Ensure that no root is referred to more than once
-    ref_counts = roots.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|
+    ref_counts = proto_updates.each_with_object(Hash.new(0)) do |(_, viewmodel_class, id, _), counts|
       counts[[viewmodel_class, id]] += 1
     end.delete_if { |_, count| count == 1 }
 
@@ -101,10 +112,10 @@ class ActiveRecordViewModel::UpdateContext
     end
 
     # construct [[ref-or-nil, update]]
-    all_root_updates = construct_root_updates(roots)
+    updates = construct_updates(proto_updates)
 
     # Separate out root and referenced updates
-    all_root_updates.each do |ref, update|
+    updates.each do |ref, update|
       if ref.nil?
         @root_updates << update
       else
@@ -114,10 +125,22 @@ class ActiveRecordViewModel::UpdateContext
       end
     end
 
-    assemble_update_tree!
+    self
   end
 
-  # Build root updates
+  # Applies updates and subsequently releases. Returns the updated viewmodels.
+  def run!(view_context:)
+    updated_viewmodels = @root_updates.map do |root_update|
+      root_update.run!(view_context: view_context)
+    end
+
+    @released_viewmodels.each_value do |release_entry|
+      release_entry.release!
+    end
+
+    updated_viewmodels
+  end
+
   def assemble_update_tree!
     @root_updates.each do |root_update|
       root_update.build!(self)
@@ -199,7 +222,7 @@ class ActiveRecordViewModel::UpdateContext
       raise ViewModel::DeserializationError.new("Reference '#{ref}' was not referred to from roots") unless upd.built? # TODO
     end
 
-    return @root_updates, @released_viewmodels
+    self
   end
 
   # When a child holds the pointer and has a parent that is not part of the

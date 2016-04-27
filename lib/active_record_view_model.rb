@@ -176,15 +176,10 @@ class ActiveRecordViewModel < ViewModel
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
 
-        root_updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: self)
-
-        updated_viewmodels = root_updates.map do |root_update|
-          root_update.run!(view_context: view_context)
-        end
-
-        released_viewmodels.each_value do |release_entry|
-          release_entry.release!
-        end
+        updated_viewmodels =
+          UpdateContext
+            .new_update_tree(subtree_hashes, references, root_type: self)
+            .run!(view_context: view_context)
 
         if return_array
           updated_viewmodels
@@ -330,27 +325,20 @@ class ActiveRecordViewModel < ViewModel
 
       # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      updates, released_viewmodels = UpdateContext.new.build_updates(subtree_hashes, references, root_type: viewmodel_class)
+      update_context = UpdateContext.new_update_tree(subtree_hashes, references, root_type: viewmodel_class)
 
       # Set new parent
       new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
-      updates.each { |update| update.reparent_to = new_parent }
+      update_context.root_updates.each { |update| update.reparent_to = new_parent }
 
       # Set place in list
       if associated_viewmodel_class._list_member?
         last_position = model.association(association_name).scope.maximum(associated_viewmodel_class._list_attribute_name) || 0
         base_position = last_position + 1.0
-        updates.each_with_index { |update, index| update.reposition_to = base_position + index }
+        update_context.root_updates.each_with_index { |update, index| update.reposition_to = base_position + index }
       end
 
-      # Run as per usual
-      updated_viewmodels = updates.map do |root_update|
-        root_update.run!(view_context: view_context)
-      end
-
-      released_viewmodels.each_value do |release_entry|
-        release_entry.release!
-      end
+      updated_viewmodels = update_context.run!(view_context: view_context)
 
       if return_array
         updated_viewmodels
