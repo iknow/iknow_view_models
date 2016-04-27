@@ -369,8 +369,6 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  private
-
   def read_association(association_name)
     associated = model.public_send(association_name)
     return nil if associated.nil?

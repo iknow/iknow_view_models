@@ -41,7 +41,6 @@ module ActiveRecordViewModel::Controller
     end
   end
 
-
   def destroy
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, eager_include: false, view_context: serialize_view_context)

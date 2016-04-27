@@ -26,9 +26,15 @@ module ActiveRecordViewModel::NestedController
   # For a collection association, this appends to the collection.
   def create
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: serialize_view_context)
       update_hash, refs = parse_viewmodel_updates
-      assoc_view = owner_view.append_associated(association_name, update_hash, references: refs, view_context: deserialize_view_context)
+
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: serialize_view_context)
+
+      assoc_view = owner_view.append_associated(association_name,
+                                                update_hash,
+                                                references: refs,
+                                                view_context: deserialize_view_context)
+
       render_viewmodel(assoc_view, view_context: serialize_view_context)
     end
   end
@@ -37,25 +43,32 @@ module ActiveRecordViewModel::NestedController
   # Same as setting an entity with recursive edit.
   def update
     update_hash, refs = parse_viewmodel_updates
-    owner_viewmodel.transaction do
-      parent_update_hash = {ActiveRecordViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
-                            ActiveRecordViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
-                            association_name.to_s                 => update_hash}
-
-      updated_view = owner_viewmodel.deserialize_from_view(parent_update_hash, references: refs, view_context: deserialize_view_context)
-
-      render_viewmodel(updated_view, view_context: serialize_view_context)
-    end
+    update_association(update_hash, refs)
   end
 
 
-  # Destroy association, not either of the records
-  # Same as setting association to `nil` in recursive edit
+  # Destroy association. Same as setting association to `nil` in recursive edit
   def destroy
-
+    # TODO not appropriate for collections; need proper error
+    update_association(nil, {})
   end
 
   private
+
+  def update_association(update_hash, refs)
+    owner_viewmodel.transaction do
+      owner_update_hash = { ActiveRecordViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
+                            ActiveRecordViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
+                            association_name.to_s                 => update_hash }
+
+      updated_owner_view = owner_viewmodel.deserialize_from_view(owner_update_hash,
+                                                                 references: refs,
+                                                                 view_context: deserialize_view_context)
+
+      association_view = updated_owner_view.read_association(association_name)
+      render_viewmodel(association_view, view_context: serialize_view_context)
+    end
+  end
 
   def owner_viewmodel_id
     id_param_name = owner_viewmodel.view_name.downcase + '_id'

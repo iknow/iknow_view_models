@@ -158,7 +158,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
                  childcontroller.hash_response)
   end
 
-  def test_nested_create_append
+  def test_nested_create_append_one
     data = { '_type' => 'Child', 'name' => 'c3' }
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
@@ -168,34 +168,87 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(3, @parent.children.count, '@parent.children.count == 3')
-    c3 = @parent.children.order(:position).last
-    assert_equal('c3', c3.name)
-
-    assert_equal({ 'data' => Views::Child.new(c3).to_hash },
+    assert_equal(%w{c1 c2 c3}, @parent.children.order(:position).pluck(:name))
+    assert_equal({ 'data' => Views::Child.new(@parent.children.last).to_hash },
                  childcontroller.hash_response)
   end
 
-  def test_nested_replace_belongs_to
-    # Parent.label
+  def test_nested_create_append_many
+    data = [{ '_type' => 'Child', 'name' => 'c3' },
+            { '_type' => 'Child', 'name' => 'c4' }]
+
+    childcontroller = ChildController.new(parent_id: @parent.id, data: data)
+
+    childcontroller.invoke(:create)
+
+    assert_equal(200, childcontroller.status, childcontroller.hash_response)
+
+    @parent.reload
+
+    assert_equal(%w{c1 c2 c3 c4}, @parent.children.order(:position).pluck(:name))
+    new_children_hashes = @parent.children.last(2).map{ |c| Views::Child.new(c).to_hash }
+    assert_equal({ 'data' => new_children_hashes },
+                 childcontroller.hash_response)
+  end
+
+  def test_nested_replace_many
+    # Parent.children
+    old_children = @parent.children
+
+    data = [{'_type' => 'Child', 'name' => 'newc1'},
+            {'_type' => 'Child', 'name' => 'newc2'}]
+
+    labelcontroller = ChildController.new(parent_id: @parent.id, data: data)
+    labelcontroller.invoke(:update)
+
+    assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
+
+    @parent.reload
+
+    assert_equal(%w{newc1 newc2}, @parent.children.order(:position).pluck(:name))
+    assert_predicate(Child.where(id: old_children.map(&:id)), :empty?)
+  end
+
+  def test_nested_destroy_many
+    # Collection can't be destroyed. Currently only true due to implentation quirk.
+    # TODO Check error when nested collections are more fleshed out
+
+    labelcontroller = ChildController.new(parent_id: @parent.id)
+    labelcontroller.invoke(:destroy)
+
+    assert_equal(400, labelcontroller.status, labelcontroller.hash_response)
+  end
+
+  def test_nested_replace_one
+    old_label = @parent.label
+
     data = {'_type' => 'Label', 'text' => 'new label'}
     labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
     labelcontroller.invoke(:update)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
-    old_label = @parent.label
     @parent.reload
+
+    assert_equal({ 'data' => { '_type' => 'Label',
+                               'id'    => @parent.label.id,
+                               'text'  => 'new label' } },
+                 labelcontroller.hash_response)
+
     refute_equal(old_label, @parent.label)
     assert_equal('new label', @parent.label.text)
   end
 
-  def test_nested_replace_has_one
-    # Parent.target
-  end
+  def test_nested_destroy_one
+    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller.invoke(:destroy)
 
-  def test_nested_replace_has_many
-    # Parent.children
+    @parent.reload
+
+    assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
+    assert_equal({ 'data' => nil }, labelcontroller.hash_response)
+
+    assert_equal(nil, @parent.label)
   end
 
   def test_nested_create_bad_data
