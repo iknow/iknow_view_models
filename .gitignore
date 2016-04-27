@@ -22,3 +22,13 @@ tmp
 *.a
 mkmf.log
 *~
+
+# RubyMine
+.idea/
+
+# Appraisal
+gemfiles/*.lock
+
+# RVM
+.ruby-version
+.ruby-gemset
