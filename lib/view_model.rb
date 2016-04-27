@@ -8,7 +8,7 @@ class ViewModel
 
   # A bucket for configuration, used for serializing and deserializing.
   class SerializeContext
-    attr_accessor :prune, :include
+    attr_accessor :include
 
     def initialize
       @last_ref = 0
@@ -19,8 +19,23 @@ class ViewModel
     # TODO integrate this
     def for_association(association_name)
       copy = self.dup
-      copy.prune = prune.try(:[], association_name)
+      copy.include = include.try(:[], association_name)
       copy
+    end
+
+    def includes_association?(association_name)
+      association_name = association_name.to_s
+
+      case include
+      when Array
+        include.include?(association_name)
+      when Hash
+        include.has_key?(association_name)
+      when nil
+        false
+      else
+        include.to_s == association_name
+      end
     end
 
     # Takes a reference to a thing that is to be shared, and returns the id

@@ -1,8 +1,8 @@
 class ActiveRecordViewModel::AssociationData
-  attr_accessor :reflection, :viewmodel_classes, :shared
+  attr_accessor :reflection, :viewmodel_classes, :shared, :optional
   delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
 
-  def initialize(reflection, viewmodel_classes, shared)
+  def initialize(reflection, viewmodel_classes, shared, optional)
     if viewmodel_classes.nil?
       # If the association isn't polymorphic, we may be able to guess from the reflection
       model_class = reflection.klass
@@ -16,6 +16,7 @@ class ActiveRecordViewModel::AssociationData
     self.reflection        = reflection
     self.viewmodel_classes = Array.wrap(viewmodel_classes)
     self.shared            = shared
+    self.optional          = optional
 
     @model_to_viewmodel = viewmodel_classes.each_with_object({}) do |vm, h|
       h[vm.model_class] = vm

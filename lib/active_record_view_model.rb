@@ -11,6 +11,7 @@ module Views; end
 class ActiveRecordViewModel < ViewModel
   require 'active_record_view_model/association_data'
   require 'active_record_view_model/view_model_reference'
+  require 'active_record_view_model/update_data'
   require 'active_record_view_model/update_context'
   require 'active_record_view_model/update_operation'
 
@@ -119,7 +120,7 @@ class ActiveRecordViewModel < ViewModel
     # Specifies an association from the model to be recursively serialized using
     # another viewmodel. If the target viewmodel is not specified, attempt to
     # locate a default viewmodel based on the name of the associated model.
-    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false)
+    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: false)
       reflection = model_class.reflect_on_association(association_name)
 
       if reflection.nil?
@@ -129,7 +130,7 @@ class ActiveRecordViewModel < ViewModel
       viewmodel_spec = viewmodel || viewmodels
 
       _members[association_name.to_s] = :association
-      _associations[association_name.to_s] = AssociationData.new(reflection, viewmodel_spec, shared)
+      _associations[association_name.to_s] = AssociationData.new(reflection, viewmodel_spec, shared, optional)
 
       @generated_accessor_module.module_eval do
         define_method association_name do
@@ -178,7 +179,7 @@ class ActiveRecordViewModel < ViewModel
 
         updated_viewmodels =
           UpdateContext
-            .new_update_tree(subtree_hashes, references, root_type: self)
+            .build!(subtree_hashes, references, root_type: self)
             .run!(view_context: view_context)
 
         if return_array
@@ -193,6 +194,17 @@ class ActiveRecordViewModel < ViewModel
     # specify "when type A, go on to load these, but type B go on to load
     # those?"
     def eager_includes(view_context: default_serialize_context)
+      # When serializing, we need to (recursively) include all intrinsic
+      # associations and also those optional associations specified in the
+      # serialize_context.
+
+      # when deserializing, we start with intrinsic non-shared associations. We
+      # then traverse the structure of the tree to deserialize to map out which
+      # optional or shared associations are used from each type. We then explore
+      # from the root type to build an preload specification that will include
+      # them all. (We can subsequently use this same structure to build a
+      # serialization context featuring the same associations.)
+
       _associations.each_with_object({}) do |(assoc_name, association_data), h|
         if association_data.polymorphic?
           # The regular AR preloader doesn't support child includes that are
@@ -277,9 +289,17 @@ class ActiveRecordViewModel < ViewModel
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
 
-    self.class._members.keys.each do |member_name|
+    self.class._members.each do |member_name, member_type|
+      member_context = view_context
+
+      if member_type == :association
+        member_context = member_context.for_association(member_name)
+        association_data = self.class._association_data(member_name)
+        next if association_data.optional && !view_context.includes_association?(member_name)
+      end
+
       json.set! member_name do
-        self.public_send("serialize_#{member_name}", json, view_context: view_context)
+        self.public_send("serialize_#{member_name}", json, view_context: member_context)
       end
     end
   end
@@ -325,7 +345,7 @@ class ActiveRecordViewModel < ViewModel
 
       # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      update_context = UpdateContext.new_update_tree(subtree_hashes, references, root_type: viewmodel_class)
+      update_context = UpdateContext.build!(subtree_hashes, references, root_type: viewmodel_class)
 
       # Set new parent
       new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
