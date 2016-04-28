@@ -171,7 +171,8 @@ class ActiveRecordViewModel
       update_data.referenced_associations.each do |association_name, reference_string|
         association_data = self.viewmodel.class._association_data(association_name)
 
-        build_update_for_single_referenced_association(association_data, reference_string, update_context)
+        update =
+          build_update_for_single_referenced_association(association_data, reference_string, update_context)
 
         add_update(association_data, update)
       end

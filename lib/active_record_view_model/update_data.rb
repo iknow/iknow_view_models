@@ -19,7 +19,7 @@ class ActiveRecordViewModel
 
       # Ensure that no root is referred to more than once
       ref_counts = root_updates.each_with_object(Hash.new(0)) do |upd, counts|
-        counts[[upd.viewmodel_class, upd.id]] += 1 if id
+        counts[[upd.viewmodel_class, upd.id]] += 1 if upd.id
       end.delete_if { |_, count| count == 1 }
 
       if ref_counts.present?
@@ -27,7 +27,7 @@ class ActiveRecordViewModel
       end
 
       # Construct reference UpdateData
-      referenced_updates = referenced_subtree_hashes.map_values do |subtree_hash|
+      referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
         viewmodel_name, id = extract_viewmodel_metadata(subtree_hash)
         viewmodel_class    = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
@@ -85,13 +85,17 @@ class ActiveRecordViewModel
 
     def parse(hash_data, valid_reference_keys)
       hash_data.each do |name, value|
-        case self.viewmodel.class._members[name]
+        case self.viewmodel_class._members[name]
         when :attribute
           attributes[name] = value
 
         when :association
-          association_data = self.viewmodel.class._association_data(association_name)
-          if association_data.shared?
+          association_data = self.viewmodel_class._association_data(name)
+          case
+          when value.nil?
+            associations[name] = nil
+
+          when association_data.shared
             # Extract and check reference
             ref = UpdateData.extract_reference_metadata(value)
 

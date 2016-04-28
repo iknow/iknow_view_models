@@ -16,9 +16,9 @@ class ActiveRecordViewModel
     end
 
     def self.build!(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
-      root_update_data, referenced_update_data = UpdateData.parse_hashes(root_update_data, referenced_subtree_hashes)
+      root_update_data, referenced_update_data = UpdateData.parse_hashes(root_subtree_hashes, referenced_subtree_hashes)
 
-      if root_type.present? && (bad_types = root_update_data.map(&:viewmodel_class).to_set.delete(root_type))
+      if root_type.present? && (bad_types = root_update_data.map(&:viewmodel_class).to_set.delete(root_type)).present?
         raise ViewModel::DeserializationError.new(
                 "Cannot deserialize incorrect root viewmodel type(s) '#{bad_types.map(&:view_name)}'")
       end
@@ -52,16 +52,15 @@ class ActiveRecordViewModel
 
     # Processes root hashes and subtree hashes into @root_updates and @referenced_updates.
     def build_root_update_operations(root_updates, referenced_updates)
-
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
 
       # Combine our root and referenced updates, and separate by viewmodel type
       updates_by_viewmodel_class =
-        root_updates.map { |root_update| [nil, root_update] }
-        .concat(referenced_updates)
-        .group_by { |_, update_data| update_data.viewmodel_class }
+        Lazily.concat(root_updates.map { |root_update| [nil, root_update] },
+                      referenced_updates)
+          .group_by { |_, update_data| update_data.viewmodel_class }
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       updates_by_viewmodel_class.each do |viewmodel_class, updates|
@@ -83,7 +82,7 @@ class ActiveRecordViewModel
               viewmodel_class.new
             end
 
-          update_op = new_update_operation(viewmodel, update_data)
+          update_op = new_update(viewmodel, update_data)
 
           if ref.nil?
             @root_update_operations << update_op
@@ -100,7 +99,7 @@ class ActiveRecordViewModel
 
     # Applies updates and subsequently releases. Returns the updated viewmodels.
     def run!(view_context:)
-      updated_viewmodels = @root_updates.map do |root_update|
+      updated_viewmodels = @root_update_operations.map do |root_update|
         root_update.run!(view_context: view_context)
       end
 
@@ -112,7 +111,7 @@ class ActiveRecordViewModel
     end
 
     def assemble_update_tree
-      @root_updates.each do |root_update|
+      @root_update_operations.each do |root_update|
         root_update.build!(self)
       end
 
@@ -183,7 +182,7 @@ class ActiveRecordViewModel
         deferred_update.build!(self)
       end
 
-      @referenced_updates.each do |ref, upd|
+      @referenced_update_operations.each do |ref, upd|
         raise ViewModel::DeserializationError.new("Reference '#{ref}' was not referred to from roots") unless upd.built? # TODO
       end
 
@@ -213,7 +212,7 @@ class ActiveRecordViewModel
 
       update.build!(self)
       update.association_changed!
-      @root_updates << update
+      @root_update_operations << update
       update
     end
 
@@ -224,9 +223,10 @@ class ActiveRecordViewModel
     # we require construction to go via methods that do this tracking.
 
     def new_deferred_update(viewmodel_reference, update_data, reparent_to: nil, reposition_to: nil)
-      update_operation = new_update(nil, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
+      update_operation = ActiveRecordViewModel::UpdateOperation.new(
+        nil, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
       set_update_type(viewmodel_reference, :explicit)
-      @worklist[vm_ref] = update_operation
+      @worklist[viewmodel_reference] = update_operation
     end
 
     def new_update(viewmodel, update_data, reparent_to: nil, reposition_to: nil, update_type: :explicit)
@@ -256,7 +256,7 @@ class ActiveRecordViewModel
     end
 
     def resolve_reference(ref)
-      @referenced_updates.fetch(ref) do
+      @referenced_update_operations.fetch(ref) do
         raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'")
       end
     end
