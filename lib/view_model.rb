@@ -7,8 +7,8 @@ class ViewModel
   class SerializationError < StandardError; end
 
   # A bucket for configuration, used for serializing and deserializing.
-  class SerializeContext
-    attr_accessor :include
+  class References
+    delegate :each, :size, to: :@value_by_ref
 
     def initialize
       @last_ref = 0
@@ -16,8 +16,43 @@ class ViewModel
       @value_by_ref = {}
     end
 
+    def has_references?
+      @ref_by_value.present?
+    end
+
+    # Takes a reference to a thing that is to be shared, and returns the id
+    # under which the data is stored. If the data is not present, will compute
+    # it by calling the given block.
+    def add_reference(value)
+      if (ref = @ref_by_value[value]).present?
+        ref
+      else
+        ref = new_ref!
+        @ref_by_value[value] = ref
+        @value_by_ref[ref] = value
+        ref
+      end
+    end
+
+    private
+
+    def new_ref!
+      'ref%06d' % (@last_ref += 1)
+    end
+  end
+
+  class SerializeContext
+    delegate :add_reference, to: :references
+    attr_accessor :include, :references
+
+    def initialize
+      @references = References.new
+    end
+
     # TODO integrate this
     def for_association(association_name)
+      # Shallow clone aliases @references; association traversal must not
+      # "change" the context, otherwise references will be lost.
       copy = self.dup
       copy.include = include.try(:[], association_name)
       copy
@@ -38,27 +73,14 @@ class ViewModel
       end
     end
 
-    # Takes a reference to a thing that is to be shared, and returns the id
-    # under which the data is stored. If the data is not present, will compute
-    # it by calling the given block.
-    def add_reference(value)
-      if (ref = @ref_by_value[value]).present?
-        ref
-      else
-        ref = new_ref!
-        @ref_by_value[value] = ref
-        @value_by_ref[ref] = value
-        ref
-      end
-    end
 
     def serialize_references(json)
       seen = Set.new
-      while seen.size != @value_by_ref.size
-        @value_by_ref.keys.each do |ref|
+      while seen.size != @references.size
+        @references.each do |ref, value|
           if seen.add?(ref)
             json.set!(ref) do
-              ViewModel.serialize(@value_by_ref[ref], json, view_context: self)
+              ViewModel.serialize(value, json, view_context: self)
             end
           end
         end
@@ -67,16 +89,6 @@ class ViewModel
 
     def serialize_references_to_hash
       Jbuilder.new { |json| serialize_references(json) }.attributes!
-    end
-
-    def has_references?
-      @ref_by_value.present?
-    end
-
-    private
-
-    def new_ref!
-      'ref%06d' % (@last_ref += 1)
     end
   end
 
