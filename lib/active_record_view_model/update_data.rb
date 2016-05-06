@@ -18,13 +18,7 @@ class ActiveRecordViewModel
       end
 
       # Ensure that no root is referred to more than once
-      ref_counts = root_updates.each_with_object(Hash.new(0)) do |upd, counts|
-        counts[[upd.viewmodel_class, upd.id]] += 1 if upd.id
-      end.delete_if { |_, count| count == 1 }
-
-      if ref_counts.present?
-        raise ViewModel::DeserializationError.new("Duplicate entries in specification: '#{ref_counts.keys.to_h}'")
-      end
+      check_duplicates(root_updates, type: "root") { |upd| [upd.viewmodel_class, upd.id] if upd.id }
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
@@ -33,6 +27,8 @@ class ActiveRecordViewModel
 
         UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
       end
+
+      check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] }
 
       return root_updates, referenced_updates
     end
@@ -65,6 +61,18 @@ class ActiveRecordViewModel
       end
 
       hash.delete(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
+    end
+
+    def self.check_duplicates(arr, type:)
+      # Ensure that no root is referred to more than once
+      ref_counts = arr.each_with_object(Hash.new(0)) do |el, counts|
+        key = yield(el)
+        counts[key] += 1 unless key.nil?
+      end.delete_if { |_, count| count == 1 }
+
+      if ref_counts.present?
+        raise ViewModel::DeserializationError.new("Duplicate #{name}(s) specified: '#{ref_counts.keys.to_h}'")
+      end
     end
 
     def initialize(viewmodel_class, id, hash_data, valid_reference_keys)
