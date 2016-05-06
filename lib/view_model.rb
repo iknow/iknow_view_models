@@ -42,7 +42,7 @@ class ViewModel
   end
 
   class SerializeContext
-    delegate :add_reference, to: :references
+    delegate :add_reference, :has_references?, to: :references
     attr_accessor :include, :references
 
     def initialize
