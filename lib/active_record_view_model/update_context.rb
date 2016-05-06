@@ -30,7 +30,9 @@ class ActiveRecordViewModel
 
     # TODO an unfortunate abstraction violation. The `append` case constructs an
     # update tree and later injects the context of parent and position.
-    attr_reader :root_updates
+    def root_updates
+      @root_update_operations
+    end
 
     def initialize
       @root_update_operations       = [] # The subject(s) of this update
