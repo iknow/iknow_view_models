@@ -78,6 +78,9 @@ module ActiveRecordViewModel::Controller
       raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid references submitted')
     end
 
+    # Normalize
+    refs ||= {}
+
     return update_hash, refs
   end
 
