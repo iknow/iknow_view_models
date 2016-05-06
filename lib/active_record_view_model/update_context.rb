@@ -4,12 +4,14 @@
 class ActiveRecordViewModel
   class UpdateContext
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
-      def release!
+      def release!(view_context:)
         model = viewmodel.model
         case association_data.reflection.options[:dependent]
         when :delete
+          viewmodel.editable!(view_context: view_context)
           model.delete
         when :destroy
+          viewmodel.editable!(view_context: view_context)
           model.destroy
         end
       end
@@ -106,7 +108,7 @@ class ActiveRecordViewModel
       end
 
       @released_viewmodels.each_value do |release_entry|
-        release_entry.release!
+        release_entry.release!(view_context: view_context)
       end
 
       updated_viewmodels
