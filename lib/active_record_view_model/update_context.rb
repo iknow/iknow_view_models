@@ -255,7 +255,7 @@ class ActiveRecordViewModel
         # explicit -> implicit; trying to take something twice, once from user, then once again
 
         # TODO error messages
-        raise "Not a valid type transition: #{current_type} -> #{new_type}"
+        raise ViewModel::DeserializationError.new("Not a valid type transition: #{current_type} -> #{new_type}")
       end
     end
 

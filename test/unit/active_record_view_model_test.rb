@@ -58,10 +58,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   # Construct an update hash that references an existing model. Does not include
   # any of the model's attributes or association.
-  def update_hash_ref(viewmodel_class, model)
-    ref = {'_type' => viewmodel_class.view_name, 'id' => model.id}
-    yield(ref) if block_given?
-    ref
+  def update_hash_for(viewmodel_class, model)
+    refhash = {'_type' => viewmodel_class.view_name, 'id' => model.id}
+    yield(refhash) if block_given?
+    refhash
   end
 
   # Test helper: update a model by manipulating the full view hash
@@ -93,7 +93,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def set_by_view!(viewmodel_class, model)
     models = Array.wrap(model)
 
-    data = models.map { |m| update_hash_ref(viewmodel_class, m) }
+    data = models.map { |m| update_hash_for(viewmodel_class, m) }
     refs = {}
 
     if model.is_a?(Array)
@@ -302,7 +302,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view({ "target" => [] })
     end
-    assert_match(/\b_type\b.*\battribute missing/, ex.message)
+    assert_match(/Missing '_type' field in update hash/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view({ "_type" => "Child" })
@@ -409,8 +409,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       view['children'] = []
     end
 
-    assert_equal(Set.new([[Views::Parent, @parent1.id]] +
-                           [old_children.map { |x| [Views::Child, x.id] }]),
+    assert_equal(Set.new([[Views::Parent, @parent1.id]]).merge(old_children.map { |x| [Views::Child, x.id] }),
                  context.edit_checks.to_set)
 
     assert_equal([], @parent1.children, 'no children associated with parent1')
@@ -425,7 +424,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
 
     assert_equal({ [Views::Parent, @parent1.id] => 1,
-                   [Views::Child,  nil]         => 1 },
+                   [Views::Child,  c1.id]       => 1, # deleted child
+                   [Views::Child,  nil]         => 1, # created child
+                 },
                  count_all(context.edit_checks))
 
     assert_equal([c2, c3, Child.find_by_name('new_c')],
@@ -449,7 +450,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     old_children = @parent1.children.order(:position)
     moved_child = old_children[1]
 
-    moved_child_ref = update_hash_ref(Views::Child, moved_child)
+    moved_child_ref = update_hash_for(Views::Child, moved_child)
 
     view = { '_type'    => 'Parent',
              'name'     => 'new_p',
@@ -459,7 +460,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     retained_children = old_children - [moved_child]
     release_view = { '_type'    => 'Parent',
                      'id'       => @parent1.id,
-                     'children' => retained_children.map { |c| update_hash_ref(Views::Child, c) } }
+                     'children' => retained_children.map { |c| update_hash_for(Views::Child, c) } }
 
     pv = Views::Parent.deserialize_from_view([view, release_view])
 
@@ -482,7 +483,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     moved_child = old_children[1]
     retained_children = old_children - [moved_child]
 
-    moved_child_ref = update_hash_ref(Views::Child, moved_child)
+    moved_child_ref = update_hash_for(Views::Child, moved_child)
 
     view = { '_type'    => 'Parent',
              'name'     => 'new_p',
@@ -517,7 +518,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     old_children = @parent1.children.order(:position)
     view = {'_type'    => 'Parent',
             'name'     => 'newp',
-            'children' => old_children.map { |x| update_hash_ref(Views::Child, x) }}
+            'children' => old_children.map { |x| update_hash_for(Views::Child, x) }}
 
     new_parent_model = Views::Parent.deserialize_from_view(view).model
 
@@ -531,14 +532,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_implicit_release_invalid_has_many
     old_children = @parent1.children.order(:position)
-    old_children_refs = old_children.map { |x| update_hash_ref(Views::Child, x) }
+    old_children_refs = old_children.map { |x| update_hash_for(Views::Child, x) }
 
     assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view(
         [{ '_type'    => 'Parent',
            'name'     => 'newp',
            'children' => old_children_refs },
-         update_hash_ref(Views::Parent, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
+         update_hash_for(Views::Parent, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
     end
   end
 
@@ -551,7 +552,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     retained_children = old_children - [moved_child]
     release_view = { '_type' => 'Parent', 'id' => @parent1.id,
-                     'children' => retained_children.map { |c| update_hash_ref(Views::Child, c) }}
+                     'children' => retained_children.map { |c| update_hash_for(Views::Child, c) }}
 
     Views::Parent.deserialize_from_view([view, release_view])
 
@@ -574,8 +575,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view_context = Views::ApplicationView::DeserializeContext.new
 
     Views::Parent.deserialize_from_view(
-      [update_hash_ref(Views::Parent, @parent1) { |p| p['target'] = update_hash_ref(Views::Target, t2) },
-       update_hash_ref(Views::Parent, @parent2) { |p| p['target'] = update_hash_ref(Views::Target, t1) }],
+      [update_hash_for(Views::Parent, @parent1) { |p| p['target'] = update_hash_for(Views::Target, t2) },
+       update_hash_for(Views::Parent, @parent2) { |p| p['target'] = update_hash_for(Views::Target, t1) }],
       view_context: view_context)
 
     assert_equal(Set.new([[Views::Parent, @parent1.id],
@@ -695,7 +696,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     set_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
       p1['label'] = nil
-      p2['label'] = update_hash_ref(Views::Label, old_p1_label)
+      p2['label'] = update_hash_for(Views::Label, old_p1_label)
     end
 
     assert(@parent1.label.blank?, 'l1 label reference removed')
@@ -708,8 +709,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     old_p2_label = @parent2.label
 
     alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
-      p1['label'] = update_hash_ref(Views::Label, old_p2_label)
-      p2['label'] = update_hash_ref(Views::Label, old_p1_label)
+      p1['label'] = update_hash_for(Views::Label, old_p2_label)
+      p2['label'] = update_hash_for(Views::Label, old_p1_label)
     end
 
     assert_equal(old_p2_label, @parent1.label, 'p1 has label from p2')
@@ -763,7 +764,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_implicit_release_invalid_belongs_to
-    taken_label_ref = update_hash_ref(Views::Label, @parent1.label)
+    taken_label_ref = update_hash_for(Views::Label, @parent1.label)
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view(
         [{ '_type' => 'Parent',
@@ -978,7 +979,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def test_shared_add_reference
     alter_by_view!(Views::Parent, @parent2) do |p2view, refs|
       p2view['category'] = {'_ref' => 'myref'}
-      refs['myref'] = update_hash_ref(Views::Category, @category1)
+      refs['myref'] = update_hash_for(Views::Category, @category1)
     end
 
     assert_equal(@category1, @parent2.category)
@@ -987,7 +988,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def test_shared_add_multiple_references
     alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
       refs.delete(p1view['category']['_ref'])
-      refs['myref'] = update_hash_ref(Views::Category, @category1)
+      refs['myref'] = update_hash_for(Views::Category, @category1)
 
       p1view['category'] = { '_ref' => 'myref' }
       p2view['category'] = { '_ref' => 'myref' }
@@ -1010,27 +1011,27 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       Views::Parent.deserialize_from_view(@parent1_view.to_hash) # no references:
     end
-    assert_match(/Could not find referenced/, ex.message)
+    assert_match(/Could not parse unresolvable reference/, ex.message)
   end
 
   def test_shared_requires_assignable_type
     ex = assert_raises(ViewModel::DeserializationError) do
       alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
         p1view['category'] = { '_ref' => 'p2' }
-        refs['p2'] = update_hash_ref(Views::Parent, @parent2)
+        refs['p2'] = update_hash_for(Views::Parent, @parent2)
       end
     end
     assert_match(/can't refer to/, ex.message)
   end
 
   def test_shared_requires_unique_references
-    c1_ref = update_hash_ref(Views::Category, @category1)
+    c1_ref = update_hash_for(Views::Category, @category1)
     ex = assert_raises(ViewModel::DeserializationError) do
       alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
         refs['c_a'] = c1_ref.dup
         refs['c_b'] = c1_ref.dup
-        p1view['category'] = { '_ref' => 'c1' }
-        p2view['category'] = { '_ref' => 'c2' }
+        p1view['category'] = { '_ref' => 'c_a' }
+        p2view['category'] = { '_ref' => 'c_b' }
       end
     end
     assert_match(/Duplicate/, ex.message)
