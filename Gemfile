@@ -9,3 +9,7 @@ gem 'acts_as_manual_list', git: 'git@bitbucket.org:iknow_research/acts_as_manual
 gem 'lazily', '~> 0.2'
 
 gem 'appraisal'
+
+group :development do
+  gem 'pry'
+end
