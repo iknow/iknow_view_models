@@ -28,7 +28,7 @@ class ActiveRecordViewModel
         UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
       end
 
-      check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] }
+      check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
 
       return root_updates, referenced_updates
     end
@@ -71,7 +71,7 @@ class ActiveRecordViewModel
       end.delete_if { |_, count| count == 1 }
 
       if ref_counts.present?
-        raise ViewModel::DeserializationError.new("Duplicate #{name}(s) specified: '#{ref_counts.keys.to_h}'")
+        raise ViewModel::DeserializationError.new("Duplicate #{type}(s) specified: '#{ref_counts.keys.to_h}'")
       end
     end
 
