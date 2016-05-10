@@ -4,14 +4,14 @@
 class ActiveRecordViewModel
   class UpdateContext
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
-      def release!(view_context:)
+      def release!(deserialize_context:)
         model = viewmodel.model
         case association_data.reflection.options[:dependent]
         when :delete
-          viewmodel.editable!(view_context: view_context)
+          viewmodel.editable!(deserialize_context: deserialize_context)
           model.delete
         when :destroy
-          viewmodel.editable!(view_context: view_context)
+          viewmodel.editable!(deserialize_context: deserialize_context)
           model.destroy
         end
       end
@@ -62,18 +62,22 @@ class ActiveRecordViewModel
 
       # Combine our root and referenced updates, and separate by viewmodel type
       updates_by_viewmodel_class =
-        Lazily.concat(root_updates.map { |root_update| [nil, root_update] },
-                      referenced_updates)
+        root_updates.lazily
+          .map { |root_update| [nil, root_update] }
+          .concat(referenced_updates)
           .group_by { |_, update_data| update_data.viewmodel_class }
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       updates_by_viewmodel_class.each do |viewmodel_class, updates|
+        dependencies = updates.map { |_, upd| upd.association_dependencies(referenced_updates) }
+                       .inject({}){ |acc, deps| acc.deep_merge(deps) }
+
         model_ids = updates.map { |_, update_data| update_data.id }.compact
 
         existing_models =
           if model_ids.present?
             #TODO: using model scope without providing the context means we'll potentially over-eager-load
-            viewmodel_class.model_scope.find_all!(model_ids).index_by(&:id)
+            viewmodel_class.model_scope.includes(dependencies).find_all!(model_ids).index_by(&:id)
           else
             {}
           end
@@ -102,13 +106,13 @@ class ActiveRecordViewModel
     end
 
     # Applies updates and subsequently releases. Returns the updated viewmodels.
-    def run!(view_context:)
+    def run!(deserialize_context:)
       updated_viewmodels = @root_update_operations.map do |root_update|
-        root_update.run!(view_context: view_context)
+        root_update.run!(deserialize_context: deserialize_context)
       end
 
       @released_viewmodels.each_value do |release_entry|
-        release_entry.release!(view_context: view_context)
+        release_entry.release!(deserialize_context: deserialize_context)
       end
 
       updated_viewmodels

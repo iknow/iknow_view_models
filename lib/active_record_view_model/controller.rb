@@ -17,18 +17,18 @@ module ActiveRecordViewModel::Controller
   end
 
   def show(scope: nil)
-    view_context = serialize_view_context
+    context = serialize_view_context
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, scope: scope, view_context: view_context)
-      render_viewmodel(view, view_context: view_context)
+      view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: context)
+      render_viewmodel(view, serialize_context: context)
     end
   end
 
   def index(scope: nil)
-    view_context = serialize_view_context
+    context = serialize_view_context
     viewmodel.transaction do
-      views = viewmodel.load(scope: scope, view_context: view_context)
-      render_viewmodel(views, view_context: view_context)
+      views = viewmodel.load(scope: scope, serialize_context: context)
+      render_viewmodel(views, serialize_context: context)
     end
   end
 
@@ -36,15 +36,15 @@ module ActiveRecordViewModel::Controller
     update_hash, refs = parse_viewmodel_updates
 
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(update_hash, references: refs, view_context: deserialize_view_context)
-      render_viewmodel(view, view_context: serialize_view_context)
+      view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_view_context)
+      render_viewmodel(view, serialize_context: serialize_view_context)
     end
   end
 
   def destroy
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, eager_include: false, view_context: serialize_view_context)
-      view.destroy!(view_context: deserialize_view_context)
+      view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_view_context)
+      view.destroy!(deserialize_context: deserialize_view_context)
     end
     render_viewmodel(nil)
   end
@@ -52,11 +52,11 @@ module ActiveRecordViewModel::Controller
   protected
 
   def deserialize_view_context
-    viewmodel.default_deserialize_context
+    viewmodel.new_deserialize_context
   end
 
   def serialize_view_context
-    viewmodel.default_serialize_context
+    viewmodel.new_serialize_context
   end
 
   private

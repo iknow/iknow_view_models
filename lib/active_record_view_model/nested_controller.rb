@@ -13,12 +13,12 @@ module ActiveRecordViewModel::NestedController
 
   # List items associated with the owner
   def index
-    view_context = serialize_view_context
+    context = serialize_view_context
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: view_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: context)
       associated_views = owner_view.load_associated(association_name)
 
-      render_viewmodel(associated_views, view_context: view_context)
+      render_viewmodel(associated_views, serialize_context: context)
     end
   end
 
@@ -28,14 +28,14 @@ module ActiveRecordViewModel::NestedController
     owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, view_context: serialize_view_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_view_context)
 
       assoc_view = owner_view.append_associated(association_name,
                                                 update_hash,
                                                 references: refs,
-                                                view_context: deserialize_view_context)
+                                                deserialize_context: deserialize_view_context)
 
-      render_viewmodel(assoc_view, view_context: serialize_view_context)
+      render_viewmodel(assoc_view, serialize_context: serialize_view_context)
     end
   end
 
@@ -63,10 +63,10 @@ module ActiveRecordViewModel::NestedController
 
       updated_owner_view = owner_viewmodel.deserialize_from_view(owner_update_hash,
                                                                  references: refs,
-                                                                 view_context: deserialize_view_context)
+                                                                 deserialize_context: deserialize_view_context)
 
       association_view = updated_owner_view.read_association(association_name)
-      render_viewmodel(association_view, view_context: serialize_view_context)
+      render_viewmodel(association_view, serialize_context: serialize_view_context)
     end
   end
 

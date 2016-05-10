@@ -45,13 +45,13 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   ## Test utilities
 
-  def serialize_with_references(serializable, view_context: Views::ApplicationView::SerializeContext.new)
-    data = ViewModel.serialize_to_hash(serializable, view_context: view_context)
-    references = view_context.serialize_references_to_hash
+  def serialize_with_references(serializable, serialize_context: Views::ApplicationBase.new_serialize_context)
+    data = ViewModel.serialize_to_hash(serializable, serialize_context: serialize_context)
+    references = serialize_context.serialize_references_to_hash
     return data, references
   end
 
-  def serialize(serializable, view_context: Views::ApplicationView::SerializeContext.new)
+  def serialize(serializable, serialize_context: Views::ApplicationBase.new_serialize_context)
     data, _ = serialize_with_references(serializable)
     data
   end
@@ -65,10 +65,13 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   # Test helper: update a model by manipulating the full view hash
-  def alter_by_view!(viewmodel_class, model)
+  def alter_by_view!(viewmodel_class, model,
+                     serialize_context:   viewmodel_class.new_serialize_context,
+                     deserialize_context: viewmodel_class.new_deserialize_context)
+
     models = Array.wrap(model)
 
-    data, refs = serialize_with_references(models.map { |m| viewmodel_class.new(m) })
+    data, refs = serialize_with_references(models.map { |m| viewmodel_class.new(m) }, serialize_context: serialize_context)
 
     if model.is_a?(Array)
       yield(data, refs)
@@ -77,10 +80,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
 
     begin
-      deserialize_context = Views::ApplicationView::DeserializeContext.new
-
       viewmodel_class.deserialize_from_view(
-        data, references: refs, view_context: deserialize_context)
+        data, references: refs, deserialize_context: deserialize_context)
 
       deserialize_context
     ensure
@@ -103,10 +104,10 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
 
     begin
-      deserialize_context = Views::ApplicationView::DeserializeContext.new
+      deserialize_context = Views::ApplicationBase::DeserializeContext.new
 
       viewmodel_class.deserialize_from_view(
-        data, references: refs, view_context: Views::ApplicationView::DeserializeContext.new)
+        data, references: refs, deserialize_context: Views::ApplicationBase::DeserializeContext.new)
 
       deserialize_context
     ensure
@@ -145,52 +146,52 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     parentview = Views::Parent.new(@parent1)
 
     assert_raises(ViewModel::SerializationError) do
-      no_view_context = Views::ApplicationView::SerializeContext.new(can_view: false)
-      parentview.to_hash(view_context: no_view_context)
+      no_view_context = Views::ApplicationBase::SerializeContext.new(can_view: false)
+      parentview.to_hash(serialize_context: no_view_context)
     end
   end
 
   def test_editability_checks_create
-    context = Views::ApplicationView::DeserializeContext.new
+    context = Views::ApplicationBase::DeserializeContext.new
     Views::Parent.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
-                                        view_context: context)
+                                        deserialize_context: context)
     assert_equal([[Views::Parent, nil]], context.edit_checks)
   end
 
   def test_editability_raises
-    no_edit_context = Views::ApplicationView::DeserializeContext.new(can_edit: false)
+    no_edit_context = Views::ApplicationBase::DeserializeContext.new(can_edit: false)
 
     assert_raises(ViewModel::DeserializationError) do
       # create
-      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, view_context: no_edit_context)
+      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # edit
       v = Views::Parent.new(@parent1).to_hash.merge("name" => "p2")
-      Views::Parent.deserialize_from_view(v, view_context: no_edit_context)
+      Views::Parent.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy
-      Views::Parent.new(@parent1).destroy!(view_context: no_edit_context)
+      Views::Parent.new(@parent1).destroy!(deserialize_context: no_edit_context)
     end
 
     skip("unimplemented")
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
-      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, view_context: no_edit_context)
+      Views::Parent.new(@parent1).deserialize_associated(:children, { "_type" => "Child", "text" => "hi" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # replace children
-      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], view_context: no_edit_context)
+      Views::Parent.new(@parent1).deserialize_associated(:children, [{"_type" => "Child", "text" => "hi" }], deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy child
-      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), view_context: no_edit_context)
+      Views::Parent.new(@parent1).delete_associated(:target, Views::Target.new(@parent1.target), deserialize_context: no_edit_context)
     end
   end
 
@@ -204,13 +205,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                    'label'    => nil,
                    'target'   => nil,
                    'poly'     => nil,
-                   'category' => nil,
                  }, empty_parent_view,
                  'all keys are present in default view')
   end
 
   def test_serialize_view
-    view, refs = serialize_with_references(Views::Parent.new(@parent1))
+    view, refs = serialize_with_references(Views::Parent.new(@parent1), serialize_context: Views::Parent.new_serialize_context(include: :category))
     cat1_ref = refs.detect { |_, v| v['_type'] == 'Category'  }.first
 
     assert_equal({cat1_ref => { '_type' => "Category",
@@ -242,12 +242,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def test_eager_includes
     parent_includes = Views::Parent.eager_includes
 
-    assert_equal({ 'children' => {},
-                   'category' => {},
-                   'label'    => {},
-                   'target'   => { 'label' => {} },
-                   'poly'     => nil },
-                 parent_includes)
+    expected = { 'children' => {},
+                 'label'    => {},
+                 'target'   => { 'label' => {} },
+                 'poly'     => {} }
+
+    assert_equal(expected, parent_includes)
+
+    extra_includes = Views::Parent.eager_includes(serialize_context: Views::Parent.new_serialize_context(include: :category))
+
+    assert_equal(expected.merge('category' => {}), extra_includes)
   end
 
   def test_create_from_view
@@ -382,8 +386,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
              'children' => [{ '_type' => 'Child', 'name' => 'c1' },
                             { '_type' => 'Child', 'name' => 'c2' }] }
 
-    context = Views::ApplicationView::DeserializeContext.new
-    pv = Views::Parent.deserialize_from_view(view, view_context: context)
+    context = Views::ApplicationBase::DeserializeContext.new
+    pv = Views::Parent.deserialize_from_view(view, deserialize_context: context)
 
     assert_equal({ [Views::Parent, nil] => 1,
                    [Views::Child,  nil] => 2 },
@@ -490,9 +494,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
              'children' => [moved_child_ref,
                             { '_type' => 'Child', 'name' => 'new' }] }
 
-    view_context = Views::ApplicationView::DeserializeContext.new
+    deserialize_context = Views::ApplicationBase::DeserializeContext.new
 
-    new_parent_view = Views::Parent.deserialize_from_view(view, view_context: view_context)
+    new_parent_view = Views::Parent.deserialize_from_view(view, deserialize_context: deserialize_context)
 
     new_parent = new_parent_view.model
     new_parent.reload
@@ -501,7 +505,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                    [Views::Child,  nil]           => 1,
                    [Views::Child,  moved_child.id]=> 1,
                    [Views::Parent, @parent1.id]   => 1 },
-                 count_all(view_context.edit_checks))
+                 count_all(deserialize_context.edit_checks))
 
     # child should be removed from old parent
     @parent1.reload
@@ -572,18 +576,18 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     @parent1.update(target: t1 = Target.new)
     @parent2.update(target: t2 = Target.new)
 
-    view_context = Views::ApplicationView::DeserializeContext.new
+    deserialize_context = Views::ApplicationBase::DeserializeContext.new
 
     Views::Parent.deserialize_from_view(
       [update_hash_for(Views::Parent, @parent1) { |p| p['target'] = update_hash_for(Views::Target, t2) },
        update_hash_for(Views::Parent, @parent2) { |p| p['target'] = update_hash_for(Views::Target, t1) }],
-      view_context: view_context)
+      deserialize_context: deserialize_context)
 
     assert_equal(Set.new([[Views::Parent, @parent1.id],
                           [Views::Parent, @parent2.id],
                           [Views::Target, t1.id],
                           [Views::Target, t2.id]]),
-                 view_context.edit_checks.to_set)
+                 deserialize_context.edit_checks.to_set)
 
     @parent1.reload
     @parent2.reload
@@ -977,7 +981,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_add_reference
-    alter_by_view!(Views::Parent, @parent2) do |p2view, refs|
+    serialize_context = Views::Parent.new_serialize_context(include: :category)
+    alter_by_view!(Views::Parent, @parent2, serialize_context: serialize_context) do |p2view, refs|
       p2view['category'] = {'_ref' => 'myref'}
       refs['myref'] = update_hash_for(Views::Category, @category1)
     end
@@ -986,7 +991,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_add_multiple_references
-    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
+    serialize_context = Views::Parent.new_serialize_context(include: :category)
+    alter_by_view!(Views::Parent, [@parent1, @parent2], serialize_context: serialize_context) do |(p1view, p2view), refs|
       refs.delete(p1view['category']['_ref'])
       refs['myref'] = update_hash_for(Views::Category, @category1)
 
@@ -1000,7 +1006,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_shared_requires_all_references
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, @parent2) do |p2view, refs|
+      serialize_context = Views::Parent.new_serialize_context(include: :category)
+      alter_by_view!(Views::Parent, @parent2, serialize_context: serialize_context) do |p2view, refs|
         refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
       end
     end
@@ -1009,14 +1016,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_shared_requires_valid_references
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(@parent1_view.to_hash) # no references:
+      serialize_context = Views::Parent.new_serialize_context(include: :category)
+      Views::Parent.deserialize_from_view(@parent1_view.to_hash(serialize_context: serialize_context)) # no references:
     end
     assert_match(/Could not parse unresolvable reference/, ex.message)
   end
 
   def test_shared_requires_assignable_type
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+      serialize_context = Views::Parent.new_serialize_context(include: :category)
+      alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
         p1view['category'] = { '_ref' => 'p2' }
         refs['p2'] = update_hash_for(Views::Parent, @parent2)
       end
@@ -1025,8 +1034,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_requires_unique_references
+    serialize_context = Views::Parent.new_serialize_context(include: :category)
     c1_ref = update_hash_for(Views::Category, @category1)
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError, serialize_context: serialize_context) do
       alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
         refs['c_a'] = c1_ref.dup
         refs['c_b'] = c1_ref.dup
@@ -1038,7 +1048,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_updates_shared_data
-    alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+    serialize_context = Views::Parent.new_serialize_context(include: :category)
+    alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
       category_ref = p1view['category']['_ref']
       refs[category_ref]['name'] = 'newcatname'
     end
@@ -1046,7 +1057,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_shared_delete_reference
-    alter_by_view!(Views::Parent, @parent1) do |p1view, refs|
+    serialize_context = Views::Parent.new_serialize_context(include: :category)
+    alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
       category_ref = p1view['category']['_ref']
       refs.delete(category_ref)
       p1view['category'] = nil

@@ -72,12 +72,12 @@ class ActiveRecordViewModel < ViewModel
           model.public_send(attr)
         end
 
-        define_method "serialize_#{attr}" do |json, view_context: default_serialize_context|
+        define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
           value = self.public_send(attr)
-          self.class.serialize(value, json, view_context: view_context)
+          self.class.serialize(value, json, serialize_context: serialize_context)
         end
 
-        define_method "deserialize_#{attr}" do |value, view_context: default_deserialize_context|
+        define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
           model.public_send("#{attr}=", value)
         end
       end
@@ -89,9 +89,9 @@ class ActiveRecordViewModel < ViewModel
     def acts_as_enum(*attrs)
       attrs.each do |attr|
         @generated_accessor_module.module_eval do
-          redefine_method("serialize_#{attr}") do |json, view_context: default_serialize_context|
+          redefine_method("serialize_#{attr}") do |json, serialize_context: self.class.new_serialize_context|
             value = self.public_send(attr)
-            self.class.serialize(value.enum_constant, json, view_context: view_context)
+            self.class.serialize(value.enum_constant, json, serialize_context: serialize_context)
           end
         end
       end
@@ -120,7 +120,7 @@ class ActiveRecordViewModel < ViewModel
     # Specifies an association from the model to be recursively serialized using
     # another viewmodel. If the target viewmodel is not specified, attempt to
     # locate a default viewmodel based on the name of the associated model.
-    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: false)
+    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared)
       reflection = model_class.reflect_on_association(association_name)
 
       if reflection.nil?
@@ -137,16 +137,16 @@ class ActiveRecordViewModel < ViewModel
           read_association(association_name)
         end
 
-        define_method :"serialize_#{association_name}" do |json, view_context: default_serialize_context|
+        define_method :"serialize_#{association_name}" do |json, serialize_context: self.class.new_serialize_context|
           associated = self.public_send(association_name)
 
           if associated.nil?
             json.null!
           elsif shared
-            reference = view_context.add_reference(associated)
+            reference = serialize_context.add_reference(associated)
             json.set!(ActiveRecordViewModel::REFERENCE_ATTRIBUTE, reference)
           else
-            self.class.serialize(associated, json, view_context: view_context)
+            self.class.serialize(associated, json, serialize_context: serialize_context)
           end
         end
       end
@@ -158,21 +158,21 @@ class ActiveRecordViewModel < ViewModel
     end
 
     ## Load an instance of the viewmodel by id
-    def find(id, scope: nil, eager_include: true, view_context: default_serialize_context)
-      find_scope = model_scope(eager_include: eager_include, view_context: view_context)
+    def find(id, scope: nil, eager_include: true, serialize_context: new_serialize_context)
+      find_scope = model_scope(eager_include: eager_include, serialize_context: serialize_context)
       find_scope = find_scope.merge(scope) if scope
       self.new(find_scope.find(id))
     end
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
-    def load(scope: nil, eager_include: true, view_context: default_serialize_context)
-      load_scope = model_scope(eager_include: eager_include, view_context: view_context)
+    def load(scope: nil, eager_include: true, serialize_context: new_serialize_context)
+      load_scope = model_scope(eager_include: eager_include, serialize_context: serialize_context)
       load_scope = load_scope.merge(scope) if scope
       load_scope.map { |model| self.new(model) }
     end
 
-    def deserialize_from_view(subtree_hashes, references: {}, view_context: default_deserialize_context)
+    def deserialize_from_view(subtree_hashes, references: {}, deserialize_context: new_deserialize_context)
       model_class.transaction do
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
@@ -180,7 +180,7 @@ class ActiveRecordViewModel < ViewModel
         updated_viewmodels =
           UpdateContext
             .build!(subtree_hashes, references, root_type: self)
-            .run!(view_context: view_context)
+            .run!(deserialize_context: deserialize_context)
 
         if return_array
           updated_viewmodels
@@ -193,10 +193,10 @@ class ActiveRecordViewModel < ViewModel
     # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
     # specify "when type A, go on to load these, but type B go on to load
     # those?"
-    def eager_includes(view_context: default_serialize_context)
+    def eager_includes(serialize_context: new_serialize_context)
       # When serializing, we need to (recursively) include all intrinsic
-      # associations and also those optional associations specified in the
-      # serialize_context.
+      # associations and also those optional (incl. shared) associations
+      # specified in the serialize_context.
 
       # when deserializing, we start with intrinsic non-shared associations. We
       # then traverse the structure of the tree to deserialize to map out which
@@ -206,19 +206,21 @@ class ActiveRecordViewModel < ViewModel
       # serialization context featuring the same associations.)
 
       _associations.each_with_object({}) do |(assoc_name, association_data), h|
+        next if association_data.optional? && !serialize_context.includes_association?(assoc_name)
+
         if association_data.polymorphic?
           # The regular AR preloader doesn't support child includes that are
           # conditional on type.  If we want to go through polymorphic includes,
           # we'd need to manually specify the viewmodel spec so that the
           # possible target classes are know, and also use our own preloader
           # instead of AR.
-          children = nil
+          children = {}
         else
           # if we have a known non-polymorphic association class, we can find
           # child viewmodels and recurse.
           viewmodel = association_data.viewmodel_class
 
-          children = viewmodel.eager_includes(view_context: view_context)
+          children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
         end
 
         h[assoc_name] = children
@@ -237,10 +239,10 @@ class ActiveRecordViewModel < ViewModel
       @model_class
     end
 
-    def model_scope(eager_include: true, view_context: default_serialize_context)
+    def model_scope(eager_include: true, serialize_context: new_serialize_context)
       scope = self.model_class.all
       if eager_include
-        scope = scope.includes(self.eager_includes(view_context: view_context))
+        scope = scope.includes(self.eager_includes(serialize_context: serialize_context))
       end
       scope
     end
@@ -285,28 +287,28 @@ class ActiveRecordViewModel < ViewModel
     super(model)
   end
 
-  def serialize_view(json, view_context: default_serialise_context)
+  def serialize_view(json, serialize_context: self.class.new_serialize_context)
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
 
     self.class._members.each do |member_name, member_type|
-      member_context = view_context
+      member_context = serialize_context
 
       if member_type == :association
         member_context = member_context.for_association(member_name)
         association_data = self.class._association_data(member_name)
-        next if association_data.optional && !view_context.includes_association?(member_name)
+        next if association_data.optional? && !serialize_context.includes_association?(member_name)
       end
 
       json.set! member_name do
-        self.public_send("serialize_#{member_name}", json, view_context: member_context)
+        self.public_send("serialize_#{member_name}", json, serialize_context: member_context)
       end
     end
   end
 
-  def destroy!(view_context: default_deserialize_context)
+  def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(view_context: view_context)
+      editable!(deserialize_context: deserialize_context)
       model.destroy!
     end
   end
@@ -320,21 +322,21 @@ class ActiveRecordViewModel < ViewModel
     self.public_send(association_name)
   end
 
-  def find_associated(association_name, id, eager_include: true, view_context: default_serialize_context)
+  def find_associated(association_name, id, eager_include: true, serialize_context: self.class.new_serialize_context)
     association_data = self.class._association_data(association_name)
     associated_viewmodel = association_data.viewmodel_class
     association_scope = self.model.association(association_name).association_scope
-    associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include, view_context: view_context)
+    associated_viewmodel.find(id, scope: association_scope, eager_include: eager_include, serialize_context: serialize_context)
   end
 
   # Create or update a single member of an associated collection. For an ordered
   # collection, the new item is added at the end appended.
-  def append_associated(association_name, subtree_hashes, references: {}, view_context: default_deserialize_context)
+  def append_associated(association_name, subtree_hashes, references: {}, deserialize_context: self.class.new_deserialize_context)
     return_array = subtree_hashes.is_a?(Array)
     subtree_hashes = Array.wrap(subtree_hashes)
 
     model_class.transaction do
-      editable!(view_context: view_context)
+      editable!(deserialize_context: deserialize_context)
 
       association_data = self.class._association_data(association_name)
 
@@ -358,7 +360,7 @@ class ActiveRecordViewModel < ViewModel
         update_context.root_updates.each_with_index { |update, index| update.reposition_to = base_position + index }
       end
 
-      updated_viewmodels = update_context.run!(view_context: view_context)
+      updated_viewmodels = update_context.run!(deserialize_context: deserialize_context)
 
       if return_array
         updated_viewmodels
@@ -372,9 +374,9 @@ class ActiveRecordViewModel < ViewModel
   # the provided associated viewmodel. The associated model will be
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
-  def delete_associated(association_name, associated, view_context: default_deserialize_context)
+  def delete_associated(association_name, associated, deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(view_context: view_context)
+      editable!(deserialize_context: deserialize_context)
 
       association_data = self.class._association_data(association_name)
 
@@ -384,7 +386,7 @@ class ActiveRecordViewModel < ViewModel
       else
         # Delete using `deserialize_association` of nil to ensure that belongs_to
         # garbage collection is performed.
-        deserialize_association(assocation_name, nil, view_context: view_context)
+        deserialize_association(assocation_name, nil, deserialize_context: deserialize_context)
       end
     end
   end

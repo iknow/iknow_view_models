@@ -53,7 +53,7 @@ class ActiveRecordViewModel
     end
 
     # Evaluate a built update tree, applying and saving changes to the models.
-    def run!(view_context:)
+    def run!(deserialize_context:)
       raise "Not yet built!" unless built? # TODO
 
       case @run_state
@@ -92,7 +92,7 @@ class ActiveRecordViewModel
         end
 
         attributes.each do |attr_name, serialized_value|
-          viewmodel.public_send("deserialize_#{attr_name}", serialized_value, view_context: view_context)
+          viewmodel.public_send("deserialize_#{attr_name}", serialized_value, deserialize_context: deserialize_context)
         end
 
         # Update points-to associations before save
@@ -101,7 +101,7 @@ class ActiveRecordViewModel
 
           association = model.association(association_data.name)
           child_model = if child_operation
-                          child_operation.run!(view_context: view_context).model
+                          child_operation.run!(deserialize_context: deserialize_context).model
                         else
                           nil
                         end
@@ -114,7 +114,7 @@ class ActiveRecordViewModel
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
         if model.changed? || association_changed?
-          viewmodel.editable!(view_context: view_context)
+          viewmodel.editable!(deserialize_context: deserialize_context)
         end
 
         debug "-> #{debug_name}: Saving"
@@ -133,9 +133,9 @@ class ActiveRecordViewModel
             when nil
               nil
             when ActiveRecordViewModel::UpdateOperation
-              child_operation.run!(view_context: view_context).model
+              child_operation.run!(deserialize_context: deserialize_context).model
             when Array
-              viewmodels = child_operation.map { |op| op.run!(view_context: view_context) }
+              viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context) }
               viewmodels.map(&:model)
             end
 

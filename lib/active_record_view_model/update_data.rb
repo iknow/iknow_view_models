@@ -89,6 +89,40 @@ class ActiveRecordViewModel
       self.new(viewmodel.class, viewmodel.id, {}, [])
     end
 
+    def association_dependencies(referenced_updates)
+      deps = {}
+
+      associations.each do |assoc_name, assoc_update|
+        association_data = self.viewmodel_class._association_data(assoc_name)
+
+        assoc_deps =
+          case
+          when assoc_update.nil?
+            {}
+          when association_data.polymorphic?
+            # AR preloader doesn't allow us to specify different nested includes
+            # per polymorphic type. This means we can't continue eager-loading
+            # (in the same step) beyond a polymorphic association. For now, just
+            # stop and go lazy.
+            {}
+          when association_data.collection?
+            assoc_update.map { |upd| upd.association_dependencies(referenced_updates) }
+                        .inject({}) { |acc, dep| acc.deep_merge(dep) }
+          else
+            assoc_update.association_dependencies(referenced_updates)
+          end
+
+        deps[assoc_name] = assoc_deps
+      end
+
+      referenced_associations.each do |assoc_name, reference|
+        assoc_update = referenced_updates[reference]
+        deps[assoc_name] = assoc_update.association_dependencies(referenced_updates)
+      end
+
+      deps
+    end
+
     private
 
     def parse(hash_data, valid_reference_keys)
@@ -103,7 +137,7 @@ class ActiveRecordViewModel
           when value.nil?
             associations[name] = nil
 
-          when association_data.shared
+          when association_data.shared?
             # Extract and check reference
             ref = UpdateData.extract_reference_metadata(value)
 

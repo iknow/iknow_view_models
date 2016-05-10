@@ -156,30 +156,30 @@ end
 # Trampoline access checks back to the context so we can have a scoped record of
 # all access checks in a (de)serailize operation.
 module TestAccessLogging
-  def visible!(view_context:)
-    view_context.log_visible_check(self)
+  def visible!(context:)
+    context.log_visible_check(self)
     super
   end
 
-  def editable!(view_context:)
-    view_context.log_edit_check(self)
+  def editable!(deserialize_context:)
+    deserialize_context.log_edit_check(self)
     super
   end
 end
 
 
 module TrivialAccessControl
-  def visible?(view_context:)
-    view_context.can_view
+  def visible?(context:)
+    context.can_view
   end
 
-  def editable?(view_context:)
-    view_context.can_edit
+  def editable?(deserialize_context:)
+    deserialize_context.can_edit
   end
 end
 
 module Views
-  class ApplicationView < ActiveRecordViewModel
+  class ApplicationBase < ActiveRecordViewModel
     module ContextAccessLogging
       def edit_checks
         # Create is expressed as edit checking a new model. Since checks are
@@ -207,8 +207,8 @@ module Views
       include ContextAccessLogging
       attr_accessor :can_edit
 
-      def initialize(can_edit: true)
-        super()
+      def initialize(can_edit: true, **rest)
+        super(**rest)
         self.can_edit = can_edit
       end
     end
@@ -217,8 +217,8 @@ module Views
       include ContextAccessLogging
       attr_accessor :can_view
 
-      def initialize(can_view: true)
-        super()
+      def initialize(can_view: true, **rest)
+        super(**rest)
         self.can_view = can_view
       end
     end
@@ -236,36 +236,36 @@ module Views
     end
   end
 
-  class Label < ApplicationView
+  class Label < ApplicationBase
     self.model_class_name = :label
     attributes :text
   end
 
-  class Child < ApplicationView
+  class Child < ApplicationBase
     attributes :name, :age
     acts_as_list :position
 
     include TrivialAccessControl
   end
 
-  class Target < ApplicationView
+  class Target < ApplicationBase
     attributes :text
     association :label
   end
 
-  class PolyOne < ApplicationView
+  class PolyOne < ApplicationBase
     attributes :number
   end
 
-  class PolyTwo < ApplicationView
+  class PolyTwo < ApplicationBase
     attributes :text
   end
 
-  class Category < ApplicationView
+  class Category < ApplicationBase
     attributes :name
   end
 
-  class Parent < ApplicationView
+  class Parent < ApplicationBase
     attributes :name
     associations :children, :label, :target
     association :poly, viewmodels: [PolyOne, PolyTwo]
@@ -274,11 +274,11 @@ module Views
     include TrivialAccessControl
   end
 
-  class Owner < ApplicationView
+  class Owner < ApplicationBase
     associations :deleted, :ignored
   end
 
-  class GrandParent < ApplicationView
+  class GrandParent < ApplicationBase
     association :parents
   end
 end

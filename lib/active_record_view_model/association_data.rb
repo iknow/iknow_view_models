@@ -1,5 +1,5 @@
 class ActiveRecordViewModel::AssociationData
-  attr_accessor :reflection, :viewmodel_classes, :shared, :optional
+  attr_reader :reflection, :viewmodel_classes
   delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
 
   def initialize(reflection, viewmodel_classes, shared, optional)
@@ -13,10 +13,10 @@ class ActiveRecordViewModel::AssociationData
       viewmodel_classes = [viewmodel_class]
     end
 
-    self.reflection        = reflection
-    self.viewmodel_classes = Array.wrap(viewmodel_classes)
-    self.shared            = shared
-    self.optional          = optional
+    @reflection        = reflection
+    @viewmodel_classes = Array.wrap(viewmodel_classes)
+    @shared            = shared
+    @optional          = optional
 
     @model_to_viewmodel = viewmodel_classes.each_with_object({}) do |vm, h|
       h[vm.model_class] = vm
@@ -25,6 +25,14 @@ class ActiveRecordViewModel::AssociationData
     @name_to_viewmodel = viewmodel_classes.each_with_object({}) do |vm, h|
       h[vm.view_name] = vm
     end
+  end
+
+  def shared?
+    @shared
+  end
+
+  def optional?
+    @optional
   end
 
   def pointer_location # TODO name
