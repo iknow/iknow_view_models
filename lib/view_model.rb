@@ -45,9 +45,25 @@ class ViewModel
     delegate :add_reference, :has_references?, to: :@references
     attr_accessor :include
 
+    def stringify_includes(includes)
+      case includes
+      when Array
+        includes.map(&:to_s)
+      when Hash
+        hash.each_with_object({}) do |(k,v), new_includes|
+          new_includes[k.to_s] = stringify_includes(v)
+        end
+      when nil
+        nil
+      else
+        includes.to_s
+      end
+    end
+
     def initialize(include: nil)
       @references = References.new
-      self.include = include
+
+      self.include = stringify_includes(include)
     end
 
     def for_association(association_name)
