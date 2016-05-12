@@ -114,9 +114,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_create_invalid_type
      build_viewmodel(:Invalid) do
-      define_schema(){ |t| }
-      define_model(){}
-      define_viewmodel(){}
+      define_schema { |t| }
+      define_model {}
+      define_viewmodel {}
     end
 
     ex = assert_raises(ViewModel::DeserializationError) do

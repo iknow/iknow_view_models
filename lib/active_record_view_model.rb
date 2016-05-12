@@ -120,8 +120,19 @@ class ActiveRecordViewModel < ViewModel
     # Specifies an association from the model to be recursively serialized using
     # another viewmodel. If the target viewmodel is not specified, attempt to
     # locate a default viewmodel based on the name of the associated model.
-    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared)
-      reflection = model_class.reflect_on_association(association_name)
+    # TODO document harder
+    # - +through+ names an ActiveRecord association that will be used like an
+    #   ActiveRecord +has_many:through:+
+    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared, through: nil)
+      if through
+        model_association_name = through
+        through_to             = association_name
+      else
+        model_association_name = association_name
+        through_to             = nil
+      end
+
+      reflection = model_class.reflect_on_association(model_association_name)
 
       if reflection.nil?
         raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
@@ -129,8 +140,10 @@ class ActiveRecordViewModel < ViewModel
 
       viewmodel_spec = viewmodel || viewmodels
 
-      _members[association_name.to_s] = :association
-      _associations[association_name.to_s] = AssociationData.new(reflection, viewmodel_spec, shared, optional)
+      association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to)
+
+      _members[association_name.to_s]      = :association
+      _associations[association_name.to_s] = association_data
 
       @generated_accessor_module.module_eval do
         define_method association_name do
@@ -140,9 +153,15 @@ class ActiveRecordViewModel < ViewModel
         define_method :"serialize_#{association_name}" do |json, serialize_context: self.class.new_serialize_context|
           associated = self.public_send(association_name)
 
-          if associated.nil?
+          case
+          when associated.nil?
             json.null!
-          elsif shared
+          when association_data.through?
+            json.array!(associated) do |through_target|
+              ref = serialize_context.add_reference(through_target)
+              json.set!(REFERENCE_ATTRIBUTE, ref)
+            end
+          when shared
             reference = serialize_context.add_reference(associated)
             json.set!(ActiveRecordViewModel::REFERENCE_ATTRIBUTE, reference)
           else
@@ -390,18 +409,32 @@ class ActiveRecordViewModel < ViewModel
   end
 
   def read_association(association_name)
-    associated = model.public_send(association_name)
-    return nil if associated.nil?
-
     association_data = self.class._association_data(association_name)
 
-    if association_data.collection?
+    associated = model.public_send(association_data.name)
+    return nil if associated.nil?
+
+    case
+    when association_data.through?
+      # associated here are join_table models; we need to get the far side out
+      associated_viewmodel_class = association_data.viewmodel_class
+      associated_viewmodels = associated.map do |through_model|
+        model = through_model.public_send(association_data.source_reflection.name)
+        associated_viewmodel_class.new(model)
+      end
+      if associated_viewmodel_class._list_member?
+        associated_viewmodels.sort_by!(&:_list_attribute)
+      end
+      associated_viewmodels
+
+    when association_data.collection?
       associated_viewmodel_class = association_data.viewmodel_class
       associated_viewmodels = associated.map { |x| associated_viewmodel_class.new(x) }
       if associated_viewmodel_class._list_member?
         associated_viewmodels.sort_by!(&:_list_attribute)
       end
       associated_viewmodels
+
     else
       associated_viewmodel_class = association_data.viewmodel_class_for_model(associated.class)
       associated_viewmodel_class.new(associated)

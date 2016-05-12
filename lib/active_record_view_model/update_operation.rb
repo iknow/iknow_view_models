@@ -124,10 +124,11 @@ class ActiveRecordViewModel
         # Update association cache of pointed-from associations after save: the
         # child update will have saved the pointer.
         pointed_to.each do |association_data, child_operation|
+          association_name = association_data.name
+
           debug "-> #{debug_name}: Updating pointed-to association '#{association_data.name}'"
 
-          association = model.association(association_data.name)
-
+          association = model.association(association_name)
           new_target =
             case child_operation
             when nil
@@ -171,10 +172,12 @@ class ActiveRecordViewModel
       update_data.referenced_associations.each do |association_name, reference_string|
         association_data = self.viewmodel.class._association_data(association_name)
 
-        update =
-          build_update_for_single_referenced_association(association_data, reference_string, update_context)
-
-        add_update(association_data, update)
+          if association_data.through?
+            build_and_add_update_for_has_many_through(association_data, reference_string, update_context)
+          else
+            update = build_update_for_single_referenced_association(association_data, reference_string, update_context)
+            add_update(association_data, update)
+          end
       end
 
       @built = true
@@ -195,6 +198,8 @@ class ActiveRecordViewModel
 
     def build_update_for_single_referenced_association(association_data, reference_string, update_context)
       # TODO intern loads for shared items so we only load them once
+
+      puts "consuming ref #{reference_string} for association #{association_data.name}"
 
       if reference_string.nil?
         nil
@@ -388,6 +393,61 @@ class ActiveRecordViewModel
       end
 
       child_updates
+    end
+
+    # TODO name isn't generic like all others; why not _collection_referenced_?
+    def build_and_add_update_for_has_many_through(association_data, reference_strings, update_context)
+      model = self.viewmodel.model
+
+      through_reflection = association_data.reflection
+      source_reflection  = association_data.source_reflection
+
+      # we want to set position => we need to reimplement the through handling
+      previous_through_children = model
+                                    .public_send(association_data.name)
+                                    .group_by(&source_reflection.foreign_key.to_sym)
+      # TODO group_by and take one, not index_by
+
+      new_through_updates = reference_strings.map do |ref|
+        target_reference = update_context.resolve_reference(ref).viewmodel_reference
+
+        existing_through_record =
+          (previous_through_children[target_reference.model_id].try(:pop) if target_reference)
+
+        if existing_through_record
+          # If we have a binding record, try to use it
+
+          viewmodel = association_data.through_viewmodel.new(existing_through_record)
+          update_data = UpdateData.empty_update_for(viewmodel)
+          update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
+
+          # No need for reparent, since the parent is necessarily correct.
+          update_context.new_update(viewmodel, update_data).build!(update_context)
+        else
+          # new through record
+          viewmodel = association_data.through_viewmodel.new
+
+          update_data = UpdateData.empty_update_for(viewmodel)
+          update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
+
+          # TODO position if list
+
+          parent_data = ParentData.new(through_reflection.inverse_of, self.viewmodel)
+          update_context.new_update(viewmodel, update_data, reparent_to: parent_data).build!(update_context)
+        end
+      end
+
+      # TODO the through association data doesn't actually exist here, ruh-roh?
+      add_update(association_data, new_through_updates)
+
+      # Anything left in the list of previous_children is now garbage, and
+      # should be released. We assert it's never going to be reclaimed.
+
+      previous_through_children.each do |_, children|
+        children.each do |child|
+          update_context.release_viewmodel(association_data.through_viewmodel.new(child), association_data)
+        end
+      end
     end
 
     def clear_association_cache(model, reflection)

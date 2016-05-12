@@ -116,8 +116,17 @@ class ActiveRecordViewModel
       end
 
       referenced_associations.each do |assoc_name, reference|
-        assoc_update = referenced_updates[reference]
-        deps[assoc_name] = assoc_update.association_dependencies(referenced_updates)
+        association_data = self.viewmodel_class._association_data(assoc_name)
+
+        case
+        when reference.nil?
+          {}
+        when association_data.collection?
+          reference.map { |ref| referenced_updates[ref].association_dependencies(referenced_updates) }
+                   .inject({}) { |acc, dep| acc.deep_merge(dep) }
+        else
+          deps[assoc_name] = referenced_updates[reference].association_dependencies(referenced_updates)
+        end
       end
 
       deps
@@ -137,6 +146,15 @@ class ActiveRecordViewModel
           when value.nil?
             associations[name] = nil
 
+          when association_data.through?
+            referenced_associations[name] = value.map do |ref_value|
+              ref = UpdateData.extract_reference_metadata(ref_value)
+              unless valid_reference_keys.include?(ref)
+                raise ViewModel::DeserializationError.new("Could not parse unresolvable reference '#{ref}'")
+              end
+              ref
+            end
+
           when association_data.shared?
             # Extract and check reference
             ref = UpdateData.extract_reference_metadata(value)
@@ -145,7 +163,7 @@ class ActiveRecordViewModel
               raise ViewModel::DeserializationError.new("Could not parse unresolvable reference '#{ref}'")
             end
 
-            referenced_associations[name] = ref # currently can only be singular (don't support has-many-through yet).
+            referenced_associations[name] = ref
 
           else
             # Recurse into child

@@ -1,0 +1,93 @@
+require_relative "../../helpers/arvm_test_utilities.rb"
+require_relative "../../helpers/arvm_test_models.rb"
+
+require "minitest/autorun"
+
+require "active_record_view_model"
+
+class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
+  include ARVMTestUtilities
+
+  def setup
+    super
+
+    build_viewmodel(:Parent) do
+      define_schema do |t|
+        t.string :name
+      end
+
+      define_model do
+        has_many :parents_tags, dependent: :destroy, inverse_of: :parent
+      end
+
+      define_viewmodel do
+        attributes :name
+        association :tags, shared: true, through: :parents_tags
+        include TrivialAccessControl
+      end
+    end
+
+    build_viewmodel(:Tag) do
+      define_schema do |t|
+        t.string :name
+
+      end
+
+      define_model do
+        has_many :parents_tag, dependent: :destroy, inverse_of: :tag
+      end
+
+      define_viewmodel do
+        attributes :name
+
+        include TrivialAccessControl
+      end
+    end
+
+
+    build_viewmodel(:ParentsTag) do
+      define_schema do |t|
+        t.references :parent, foreign_key: true
+        t.references :tag,    foreign_key: true
+        t.float      :position
+      end
+
+      define_model do
+        belongs_to :parent
+        belongs_to :tag
+        # TODO list membership?
+      end
+
+      no_viewmodel
+    end
+
+    @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
+
+    @parent1 = Parent.create(name: "p1",
+                             parents_tags: [ParentsTag.new(tag: @tag1, position: 1.0),
+                                            ParentsTag.new(tag: @tag2, position: 2.0)])
+    @parent1 = Parent.create(name: "p1",
+                             parents_tags: [ParentsTag.new(tag: @tag2, position: 1.0),
+                                            ParentsTag.new(tag: @tag3, position: 2.0)])
+  end
+
+
+  def test_create_has_many_through
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      refs.delete_if { |_, ref_hash| ref_hash['_type'] == 'Tag' }
+      refs['t1'] = { '_type' => 'Tag', 'name' => 'new tag1' }
+      refs['t2'] = { '_type' => 'Tag', 'name' => 'new tag2' }
+      view['tags'] = [{ '_ref' => 't1' }, { '_ref' => 't2' }]
+    end
+
+    new_tag1, new_tag2 = Tag.where(name: ['new tag1', 'new tag2'])
+
+    refute_nil(new_tag1, 'new tag 1 created')
+    refute_nil(new_tag2, 'new tag 2 created')
+
+    assert_equal([new_tag1, new_tag2], @parent1.parents_tags.map(&:tag),
+                 'database state updated')
+  end
+
+
+end

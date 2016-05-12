@@ -118,13 +118,13 @@ class ARVMBuilder
     instance_eval(&block)
     raise "Model not created in ARVMBuilder"     unless model
     raise "Schema not created in ARVMBuilder"    unless model.table_exists?
-    raise "ViewModel not created in ARVMBuilder" unless viewmodel
+    raise "ViewModel not created in ARVMBuilder" unless (viewmodel || @no_viewmodel)
   end
 
   def teardown
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{name.underscore.pluralize} CASCADE")
     Object.send(:remove_const, name)
-    Views.send(:remove_const, name)
+    Views.send(:remove_const, name) if viewmodel
     # prevent cached old class from being used to resolve associations
     ActiveSupport::Dependencies::Reference.clear!
   end
@@ -157,6 +157,10 @@ class ARVMBuilder
       class_eval(&block)
     end
     @viewmodel
+  end
+
+  def no_viewmodel
+    @no_viewmodel = true
   end
 end
 

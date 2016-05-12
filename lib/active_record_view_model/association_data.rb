@@ -1,13 +1,21 @@
+# TODO consider rephrase scope for consistency
 class ActiveRecordViewModel::AssociationData
-  attr_reader :reflection, :viewmodel_classes
+  attr_reader :reflection, :viewmodel_classes, :through_viewmodel, :source_reflection
   delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
 
-  def initialize(reflection, viewmodel_classes, shared, optional)
+  def initialize(reflection, viewmodel_classes, shared, optional, through_to)
     @reflection        = reflection
     @shared            = shared
     @optional          = optional
+    @through_to        = through_to
+
     if viewmodel_classes
       @viewmodel_classes = Array.wrap(viewmodel_classes)
+    end
+
+    if through?
+      # TODO exception type
+      raise "through associations must be has_many" unless reflection.macro == :has_many
     end
   end
 
@@ -16,9 +24,15 @@ class ActiveRecordViewModel::AssociationData
     # names. This should work unless the association is polymorphic.
     @viewmodel_classes ||=
       begin
+        reflection = if through?
+                       @source_reflection
+                     else
+                       @reflection
+                     end
+
         model_class = reflection.klass
         if model_class.nil?
-          raise ViewModel::DeserializationError.new("Couldn't derive target class for polymorphic association `#{reflection.name}`")
+          raise "Couldn't derivce target class for association '#{reflection.name}"
         end
         viewmodel_class = ActiveRecordViewModel.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
         [viewmodel_class]
@@ -79,5 +93,41 @@ class ActiveRecordViewModel::AssociationData
       raise ArgumentError.new("More than one possible class for association '#{reflection.name}'")
     end
     viewmodel_classes.first
+  end
+
+  def through?
+    @through_to.present?
+  end
+
+  def through_viewmodel
+    @through_viewmodel ||= begin
+      raise 'not a through association' unless through?
+
+      # Join table viewmodel class
+
+      # For A has_many B through T; where this association is defined on A
+
+      # Copy into scope for new class block
+      viewmodel_class   = self.viewmodel_class    # B
+      reflection        = self.reflection         # A -> T
+      source_reflection = self.source_reflection  # T -> B
+
+      Class.new(ActiveRecordViewModel) do
+        self.model_class = reflection.klass
+        association source_reflection.name
+        if viewmodel_class._list_member?
+          attribute viewmodel_class._list_attribute_name
+        end
+      end
+    end
+  end
+
+  def source_reflection
+    @source_reflection ||=
+      reflection.klass.reflect_on_association(ActiveSupport::Inflector.singularize(@through_to))
+  end
+
+  def source_association_data
+    self.through_viewmodel._association_data(@source_reflection.name)
   end
 end
