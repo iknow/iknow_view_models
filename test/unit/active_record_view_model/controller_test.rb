@@ -3,7 +3,7 @@
 require "bundler/setup"
 Bundler.require
 
-require_relative "../../helpers/test_models.rb"
+require_relative "../../helpers/controller_test_helpers.rb"
 
 require 'byebug'
 
@@ -11,20 +11,19 @@ require "minitest/autorun"
 require 'minitest/unit'
 
 class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
+  include ARVMTestUtilities
+  include ControllerTestModels
+  include ControllerTestControllers
+
   def setup
+    super
     @parent = Parent.create(name: 'p',
                             children: [Child.new(name: 'c1', position: 1.0),
                                        Child.new(name: 'c2', position: 2.0)],
                             label: Label.new,
                             target: Target.new)
-
-    # Enable logging for the test
-    ActiveRecord::Base.logger = Logger.new(STDOUT)
   end
 
-  def teardown
-    ActiveRecord::Base.logger = nil
-  end
 
   def test_show
     parentcontroller = ParentController.new(id: @parent.id)
@@ -252,8 +251,6 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_nested_create_bad_data
-    skip('unimplemented')
-
     data = [{ "name" => "nc" }]
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 

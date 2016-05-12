@@ -380,14 +380,12 @@ class ActiveRecordViewModel < ViewModel
 
       association_data = self.class._association_data(association_name)
 
-      if association_data.collection?
-        association = model.association(association_name)
-        association.delete(associated.model)
-      else
-        # Delete using `deserialize_association` of nil to ensure that belongs_to
-        # garbage collection is performed.
-        deserialize_association(assocation_name, nil, deserialize_context: deserialize_context)
+      unless association_data.collection?
+        raise ViewModel::DeserializationError.new("Cannot remove element from single association '#{association_name}'")
       end
+
+      association = model.association(association_name)
+      association.delete(associated.model)
     end
   end
 
