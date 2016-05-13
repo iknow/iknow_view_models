@@ -13,7 +13,7 @@ module ActiveRecordViewModel::Controller
   include ActiveRecordViewModel::ControllerBase
 
   included do
-    delegate :viewmodel, to: :class
+    delegate :viewmodel, to: 'self.class'
   end
 
   def show(scope: nil)
@@ -91,7 +91,7 @@ module ActiveRecordViewModel::Controller
     end
   end
 
-  class_methods do
+  module ClassMethods
 
     def viewmodel
       unless instance_variable_defined?(:@viewmodel)

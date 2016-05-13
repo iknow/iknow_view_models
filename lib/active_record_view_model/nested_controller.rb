@@ -81,10 +81,10 @@ module ActiveRecordViewModel::NestedController
   end
 
   included do
-    delegate :owner_viewmodel, :association_name, to: :class
+    delegate :owner_viewmodel, :association_name, to: 'self.class'
   end
 
-  class_methods do
+  module ClassMethods
     attr_accessor :owner_viewmodel, :association_name
   end
 end

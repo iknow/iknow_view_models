@@ -295,7 +295,7 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  delegate :model_class, to: :class
+  delegate :model_class, to: 'self.class'
   delegate :id, to: :model
 
   def initialize(model = model_class.new)

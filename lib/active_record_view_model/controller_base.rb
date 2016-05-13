@@ -20,7 +20,7 @@ module ActiveRecordViewModel::ControllerBase
 
   included do
     CeregoViewModels.renderable!(self)
-    delegate :viewmodel, to: :class
+    delegate :viewmodel, to: 'self.class'
 
     rescue_from StandardError,                               with: :render_error
     rescue_from RenderError,                                 with: ->(ex){ render_error(ex, ex.code) }
