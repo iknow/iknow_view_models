@@ -9,7 +9,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   module WithLabel
-    def setup
+    def before_all
       build_viewmodel(:Label) do
         define_schema do |t|
           t.string :text
@@ -30,7 +30,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   end
 
   module WithParent
-    def setup
+    def before_all
       build_viewmodel(:Parent) do
         define_schema do |t|
           t.string :name
@@ -53,7 +53,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   end
 
   module WithOwner
-    def setup
+    def before_all
       build_viewmodel(:Owner) do
         define_schema do |t|
           t.integer :deleted_id
@@ -79,7 +79,6 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   include WithLabel
 
   def setup
-    super
     # TODO make a `has_list?` that allows a parent to set all children as an array
     @parent1 = Parent.new(name: "p1",
                           label: Label.new(text: "p1l"))
@@ -89,6 +88,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
                           label: Label.new(text: "p2l"))
 
     @parent2.save!
+
+    super
   end
 
   def test_serialize_view

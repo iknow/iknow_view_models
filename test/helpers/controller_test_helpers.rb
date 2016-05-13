@@ -9,7 +9,9 @@ require "acts_as_manual_list"
 
 # models for ARVM controller test
 module ControllerTestModels
-  def setup
+  def before_all
+    super
+
     build_viewmodel(:Label) do
       define_schema do |t|
         t.string :text
@@ -119,8 +121,6 @@ module ControllerTestModels
         association :label
       end
     end
-
-    super
   end
 end
 
@@ -194,7 +194,7 @@ class Rails
 end
 
 module ControllerTestControllers
-  def setup
+  def before_all
     super
 
     Class.new(DummyController) do |c|
@@ -221,11 +221,11 @@ module ControllerTestControllers
     end
   end
 
-  def teardown
-    super
+  def after_all
     [:ParentController, :ChildController, :LabelController, :TargetController].each do |name|
       Object.send(:remove_const, name)
     end
     ActiveSupport::Dependencies::Reference.clear!
+    super
   end
 end

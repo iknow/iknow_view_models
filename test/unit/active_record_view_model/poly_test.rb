@@ -9,7 +9,9 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   module WithPoly
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:PolyOne) do
         define_schema do |t|
           t.integer :number
@@ -39,13 +41,13 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
   module WithParent
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:Parent) do
         define_schema do |t|
           t.string :name
@@ -63,20 +65,19 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
-  include WithParent
   include WithPoly
+  include WithParent
 
   def setup
-    super
     @parent1 = Parent.create(name: "p1",
                              poly: PolyOne.new(number: 1))
 
     @parent2 = Parent.create(name: "p2")
+
+    super
   end
 
   def test_create_from_view

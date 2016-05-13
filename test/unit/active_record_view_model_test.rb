@@ -11,7 +11,9 @@ require "active_record_view_model"
 class ActiveRecordViewModelTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def setup
+  def before_all
+    super
+
     build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
@@ -27,7 +29,9 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
+  def setup
     @parent1 = Parent.create(name: "p1")
     @parent2 = Parent.create(name: "p2")
 

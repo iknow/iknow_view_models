@@ -1,20 +1,30 @@
+require 'active_support'
+require 'minitest/hooks'
+
+ActiveSupport::TestCase.include(Minitest::Hooks)
+
 module ARVMTestUtilities
   def initialize(*)
     @viewmodels = []
     super
   end
 
-  def setup
-    # Enable logging for the test
-    ActiveRecord::Base.logger = Logger.new(STDOUT)
+  def after_all
+    @viewmodels.each(&:teardown)
+    @viewmodels.clear
     super
+  end
+
+  def setup
+    super
+
+    # Enable logging only during the test body. The test must do any setup in
+    # their +setup+ method *before* calling +super+.
+    ActiveRecord::Base.logger = Logger.new(STDOUT)
   end
 
   def teardown
     ActiveRecord::Base.logger = nil
-    @viewmodels.each(&:teardown)
-    @viewmodels.clear
-    super
   end
 
   def build_viewmodel(name, &block)

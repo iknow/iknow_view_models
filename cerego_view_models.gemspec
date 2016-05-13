@@ -36,6 +36,8 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "byebug"
   spec.add_development_dependency "method_source"
 
+  spec.add_development_dependency "minitest-hooks"
+
   spec.add_dependency "jbuilder", "~> 2.3.0"
 
 end

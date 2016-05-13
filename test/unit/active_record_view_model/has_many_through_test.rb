@@ -8,7 +8,7 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def setup
+  def before_all
     super
 
     build_viewmodel(:Parent) do
@@ -60,7 +60,9 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
       no_viewmodel
     end
+  end
 
+  def setup
     @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
 
     @parent1 = Parent.create(name: "p1",
@@ -69,8 +71,9 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     @parent1 = Parent.create(name: "p1",
                              parents_tags: [ParentsTag.new(tag: @tag2, position: 1.0),
                                             ParentsTag.new(tag: @tag3, position: 2.0)])
-  end
 
+    super
+  end
 
   def test_create_has_many_through
     alter_by_view!(Views::Parent, @parent1) do |view, refs|

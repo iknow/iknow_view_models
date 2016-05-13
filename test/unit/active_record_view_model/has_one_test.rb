@@ -9,7 +9,9 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   module WithTarget
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:Target) do
         define_schema do |t|
           t.string :text
@@ -25,13 +27,13 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
   module WithParent
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:Parent) do
         define_schema do |t|
           t.string :name
@@ -47,16 +49,13 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
-  include WithTarget
   include WithParent
+  include WithTarget
 
   def setup
-    super
     # TODO make a `has_list?` that allows a parent to set all children as an array
     @parent1 = Parent.new(name: "p1",
                           target: Target.new(text: "p1t"))
@@ -66,6 +65,8 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
                           target: Target.new(text: "p2t"))
 
     @parent2.save!
+
+    super
   end
 
   def test_create_from_view

@@ -9,7 +9,9 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   module WithCategory
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:Category) do
         define_schema do |t|
           t.string :name
@@ -24,13 +26,13 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
   module WithParent
-    def setup
+    def before_all
+      super
+
       build_viewmodel(:Parent) do
         define_schema do |t|
           t.string :name
@@ -47,22 +49,21 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
-  include WithParent
   include WithCategory
+  include WithParent
 
   def setup
-    super
     @parent1 = Parent.create(name: "p1",
                              category: Category.new(name: "p1cat"))
 
     @parent2 = Parent.create(name: "p2")
 
     @category1 = Category.create(name: "Cat1")
+
+    super
   end
 
   def serialize_context

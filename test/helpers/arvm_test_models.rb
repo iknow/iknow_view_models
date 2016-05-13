@@ -143,6 +143,7 @@ class ARVMBuilder
   def define_model(&block)
     model_name = name
     @model = Class.new(ApplicationRecord) do |c|
+      raise "Model already defined: #{model_name}" if Object.const_defined?(model_name, false)
       Object.const_set(model_name, self)
       class_eval(&block)
       reset_column_information
@@ -153,6 +154,7 @@ class ARVMBuilder
   def define_viewmodel(&block)
     viewmodel_name = name
     @viewmodel = Class.new(Views::ApplicationBase) do |c|
+      raise "Viewmodel alreay defined: #{viewmodel_name}" if Views.const_defined?(viewmodel_name, false)
       Views.const_set(viewmodel_name, self)
       class_eval(&block)
     end

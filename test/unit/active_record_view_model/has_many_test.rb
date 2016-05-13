@@ -8,7 +8,7 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def setup
+  def before_all
     super
 
     build_viewmodel(:Parent) do
@@ -46,7 +46,9 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
+  def setup
     @parent1 = Parent.new(name: "p1",
                           children: [Child.new(name: "p1c1", position: 1),
                                      Child.new(name: "p1c2", position: 2),
@@ -58,6 +60,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
                                      Child.new(name: "p2c2").tap { |c| c.position = 2 }])
 
     @parent2.save!
+    super
   end
 
   def test_find_associated

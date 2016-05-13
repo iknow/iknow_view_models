@@ -16,12 +16,12 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
   include ControllerTestControllers
 
   def setup
-    super
     @parent = Parent.create(name: 'p',
                             children: [Child.new(name: 'c1', position: 1.0),
                                        Child.new(name: 'c2', position: 2.0)],
                             label: Label.new,
                             target: Target.new)
+    super
   end
 
 
