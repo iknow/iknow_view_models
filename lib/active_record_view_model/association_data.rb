@@ -25,7 +25,7 @@ class ActiveRecordViewModel::AssociationData
     @viewmodel_classes ||=
       begin
         reflection = if through?
-                       @source_reflection
+                       source_reflection
                      else
                        @reflection
                      end
