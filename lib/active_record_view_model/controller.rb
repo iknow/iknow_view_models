@@ -51,12 +51,12 @@ module ActiveRecordViewModel::Controller
 
   protected
 
-  def deserialize_view_context
-    viewmodel.new_deserialize_context
+  def deserialize_view_context(*args)
+    viewmodel.new_deserialize_context(*args)
   end
 
-  def serialize_view_context
-    viewmodel.new_serialize_context
+  def serialize_view_context(*args)
+    viewmodel.new_serialize_context(*args)
   end
 
   private
@@ -66,30 +66,29 @@ module ActiveRecordViewModel::Controller
   end
 
   def parse_viewmodel_updates
-    update_hash = params[:data]
-    refs = params[:references]
-
-    # Type-check incoming data
-    unless _valid_update_hash?(update_hash)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Empty or invalid data submitted')
-    end
-
-    unless _valid_references?(refs)
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid references submitted')
-    end
-
-    # Normalize
-    refs ||= {}
+    update_hash = _extract_update_data(params.fetch(:data))
+    refs        = _extract_param_hash(params.fetch(:references, {}))
 
     return update_hash, refs
   end
 
-  def _valid_update_hash?(update_hash)
-    update_hash.is_a?(Hash) || (update_hash.is_a?(Array) && update_hash.all? { |el| el.is_a?(Hash) })
+  def _extract_update_data(data)
+    if data.is_a?(Array)
+      data.map { |el| _extract_param_hash(el) }
+    else
+      _extract_param_hash(data)
+    end
   end
 
-  def _valid_references?(refs)
-    !refs.present? || refs.is_a?(Hash)
+  def _extract_param_hash(data)
+    case data
+    when Hash
+      data
+    when ActionController::Parameters
+      data.to_unsafe_h
+    else
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid data submitted, expected hash: #{data.inspect}')
+    end
   end
 
   class_methods do
