@@ -3,11 +3,12 @@ class ActiveRecordViewModel::AssociationData
   attr_reader :reflection, :viewmodel_classes, :through_viewmodel, :source_reflection
   delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
 
-  def initialize(reflection, viewmodel_classes, shared, optional, through_to)
-    @reflection        = reflection
-    @shared            = shared
-    @optional          = optional
-    @through_to        = through_to
+  def initialize(reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
+    @reflection         = reflection
+    @shared             = shared
+    @optional           = optional
+    @through_to         = through_to
+    @through_order_attr = through_order_attr
 
     if viewmodel_classes
       @viewmodel_classes = Array.wrap(viewmodel_classes)
@@ -108,16 +109,14 @@ class ActiveRecordViewModel::AssociationData
       # For A has_many B through T; where this association is defined on A
 
       # Copy into scope for new class block
-      viewmodel_class   = self.viewmodel_class    # B
-      reflection        = self.reflection         # A -> T
-      source_reflection = self.source_reflection  # T -> B
+      reflection         = self.reflection         # A -> T
+      source_reflection  = self.source_reflection  # T -> B
+      through_order_attr = @through_order_attr
 
       Class.new(ActiveRecordViewModel) do
         self.model_class = reflection.klass
         association source_reflection.name
-        if viewmodel_class._list_member?
-          attribute viewmodel_class._list_attribute_name
-        end
+        acts_as_list through_order_attr if through_order_attr
       end
     end
   end

@@ -22,7 +22,7 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-        association :tags, shared: true, through: :parents_tags
+        association :tags, shared: true, through: :parents_tags, through_order_attr: :position
         include TrivialAccessControl
       end
     end
@@ -75,7 +75,7 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     super
   end
 
-  def test_serailize
+  def test_serialize
     serialize_context = Views::Parent.new_serialize_context(include: :tags)
     view, refs = serialize_with_references(Views::Parent.new(@parent1), serialize_context: serialize_context)
 
@@ -103,8 +103,6 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_reordering
-    skip("wip")
-
     serialize_context = Views::Parent.new_serialize_context(include: :tags)
     alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |view, refs|
       view['tags'].reverse!

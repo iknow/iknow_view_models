@@ -81,6 +81,7 @@ class ActiveRecordViewModel
 
         # update position
         if reposition_to.present?
+          debug "-> #{debug_name}: Updating position to #{reposition_to}"
           viewmodel._list_attribute = reposition_to
         end
 
@@ -198,8 +199,6 @@ class ActiveRecordViewModel
 
     def build_update_for_single_referenced_association(association_data, reference_string, update_context)
       # TODO intern loads for shared items so we only load them once
-
-      puts "consuming ref #{reference_string} for association #{association_data.name}"
 
       if reference_string.nil?
         nil
@@ -406,38 +405,43 @@ class ActiveRecordViewModel
       previous_through_children = model
                                     .public_send(association_data.name)
                                     .group_by(&source_reflection.foreign_key.to_sym)
-      # TODO group_by and take one, not index_by
 
-      new_through_updates = reference_strings.map do |ref|
+      new_through_viewmodels = reference_strings.map do |ref|
         target_reference = update_context.resolve_reference(ref).viewmodel_reference
 
         existing_through_record =
           (previous_through_children[target_reference.model_id].try(:pop) if target_reference)
 
         if existing_through_record
-          # If we have a binding record, try to use it
-
-          viewmodel = association_data.through_viewmodel.new(existing_through_record)
-          update_data = UpdateData.empty_update_for(viewmodel)
-          update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
-
-          # No need for reparent, since the parent is necessarily correct.
-          update_context.new_update(viewmodel, update_data).build!(update_context)
+          association_data.through_viewmodel.new(existing_through_record)
         else
-          # new through record
-          viewmodel = association_data.through_viewmodel.new
-
-          update_data = UpdateData.empty_update_for(viewmodel)
-          update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
-
-          # TODO position if list
-
-          parent_data = ParentData.new(through_reflection.inverse_of, self.viewmodel)
-          update_context.new_update(viewmodel, update_data, reparent_to: parent_data).build!(update_context)
+          association_data.through_viewmodel.new
         end
       end
 
-      # TODO the through association data doesn't actually exist here, ruh-roh?
+      positions = Array.new(new_through_viewmodels.length)
+      if association_data.through_viewmodel._list_member?
+        # It's always fine to use a position, since this is always owned data (no moves, so no positions to ignore.)
+        get_position = ->(index)     { new_through_viewmodels[index]._list_attribute }
+        set_position = ->(index, pos){ positions[index] = pos }
+
+        ActsAsManualList.update_positions((0...new_through_viewmodels.size).to_a, # indexes
+                                          position_getter: get_position,
+                                          position_setter: set_position)
+      end
+
+      new_through_updates = new_through_viewmodels.zip(reference_strings, positions).map do |viewmodel, ref, position|
+        update_data = UpdateData.empty_update_for(viewmodel)
+        update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
+
+        parent_data = ParentData.new(through_reflection.inverse_of, self.viewmodel)
+        update_context.new_update(viewmodel, update_data,
+                                  reparent_to: parent_data,
+                                  reposition_to: position)
+          .build!(update_context)
+      end
+
+
       add_update(association_data, new_through_updates)
 
       # Anything left in the list of previous_children is now garbage, and

@@ -122,8 +122,10 @@ class ActiveRecordViewModel < ViewModel
     # locate a default viewmodel based on the name of the associated model.
     # TODO document harder
     # - +through+ names an ActiveRecord association that will be used like an
-    #   ActiveRecord +has_many:through:+
-    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared, through: nil)
+    #   ActiveRecord +has_many:through:+.
+    # - +through_order_attr+ the through model is ordered by the given attribute
+    #   (only applies to when +through+ is set).
+    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared, through: nil, through_order_attr: nil)
       if through
         model_association_name = through
         through_to             = association_name
@@ -140,7 +142,7 @@ class ActiveRecordViewModel < ViewModel
 
       viewmodel_spec = viewmodel || viewmodels
 
-      association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to)
+      association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
 
       _members[association_name.to_s]      = :association
       _associations[association_name.to_s] = association_data
