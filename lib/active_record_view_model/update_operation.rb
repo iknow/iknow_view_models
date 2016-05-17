@@ -400,27 +400,35 @@ class ActiveRecordViewModel
 
       through_reflection = association_data.reflection
       source_reflection  = association_data.source_reflection
+      through_viewmodel  = association_data.through_viewmodel
 
       # we want to set position => we need to reimplement the through handling
-      previous_through_children = model
-                                    .public_send(association_data.name)
-                                    .group_by(&source_reflection.foreign_key.to_sym)
+      previous_through_children =
+        model
+          .public_send(association_data.name)
+          .tap { |x| x.sort_by(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
+          .group_by(&source_reflection.foreign_key.to_sym)
+
+      # To try to reduce list position churn in the case of multiple
+      # associations to a single model, we keep the previous_through_children
+      # values sorted, and take the first element from the list each time we
+      # find a reference to it in the update data.
 
       new_through_viewmodels = reference_strings.map do |ref|
         target_reference = update_context.resolve_reference(ref).viewmodel_reference
 
         existing_through_record =
-          (previous_through_children[target_reference.model_id].try(:pop) if target_reference)
+          (previous_through_children[target_reference.model_id].try(:shift) if target_reference)
 
         if existing_through_record
-          association_data.through_viewmodel.new(existing_through_record)
+          through_viewmodel.new(existing_through_record)
         else
-          association_data.through_viewmodel.new
+          through_viewmodel.new
         end
       end
 
       positions = Array.new(new_through_viewmodels.length)
-      if association_data.through_viewmodel._list_member?
+      if through_viewmodel._list_member?
         # It's always fine to use a position, since this is always owned data (no moves, so no positions to ignore.)
         get_position = ->(index)     { new_through_viewmodels[index]._list_attribute }
         set_position = ->(index, pos){ positions[index] = pos }
@@ -449,7 +457,7 @@ class ActiveRecordViewModel
 
       previous_through_children.each do |_, children|
         children.each do |child|
-          update_context.release_viewmodel(association_data.through_viewmodel.new(child), association_data)
+          update_context.release_viewmodel(through_viewmodel.new(child), association_data)
         end
       end
     end
