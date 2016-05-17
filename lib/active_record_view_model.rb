@@ -80,7 +80,9 @@ class ActiveRecordViewModel < ViewModel
 
         define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
           value = self.public_send(attr)
-          self.class.serialize(value, json, serialize_context: serialize_context)
+          json.set! attr do
+            self.class.serialize(value, json, serialize_context: serialize_context)
+          end
         end
 
         define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
@@ -97,14 +99,16 @@ class ActiveRecordViewModel < ViewModel
         @generated_accessor_module.module_eval do
           redefine_method("serialize_#{attr}") do |json, serialize_context: self.class.new_serialize_context|
             value = self.public_send(attr)
-            self.class.serialize(value.enum_constant, json, serialize_context: serialize_context)
+            json.set! attr do
+              self.class.serialize(value.enum_constant, json, serialize_context: serialize_context)
+            end
           end
         end
       end
     end
 
     # Specifies that the model backing this viewmodel is a member of an
-    # `acts_as_list` collection.
+    # `acts_as_manual_list` collection.
     def acts_as_list(attr = :position)
       @_list_attribute_name = attr
 
@@ -160,20 +164,21 @@ class ActiveRecordViewModel < ViewModel
 
         define_method :"serialize_#{association_name}" do |json, serialize_context: self.class.new_serialize_context|
           associated = self.public_send(association_name)
-
-          case
-          when associated.nil?
-            json.null!
-          when association_data.through?
-            json.array!(associated) do |through_target|
-              ref = serialize_context.add_reference(through_target)
-              json.set!(REFERENCE_ATTRIBUTE, ref)
+          json.set! association_name do
+            case
+            when associated.nil?
+              json.null!
+            when association_data.through?
+              json.array!(associated) do |through_target|
+                ref = serialize_context.add_reference(through_target)
+                json.set!(REFERENCE_ATTRIBUTE, ref)
+              end
+            when shared
+              reference = serialize_context.add_reference(associated)
+              json.set!(REFERENCE_ATTRIBUTE, reference)
+            else
+              self.class.serialize(associated, json, serialize_context: serialize_context)
             end
-          when shared
-            reference = serialize_context.add_reference(associated)
-            json.set!(ActiveRecordViewModel::REFERENCE_ATTRIBUTE, reference)
-          else
-            self.class.serialize(associated, json, serialize_context: serialize_context)
           end
         end
       end
@@ -345,9 +350,7 @@ class ActiveRecordViewModel < ViewModel
         next if association_data.optional? && !serialize_context.includes_association?(member_name)
       end
 
-      json.set! member_name do
-        self.public_send("serialize_#{member_name}", json, serialize_context: member_context)
-      end
+      self.public_send("serialize_#{member_name}", json, serialize_context: member_context)
     end
   end
 
