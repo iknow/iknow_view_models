@@ -445,7 +445,7 @@ class ActiveRecordViewModel < ViewModel
       # associated here are join_table models; we need to get the far side out
       associated_viewmodel_class = association_data.viewmodel_class
       associated_viewmodels = associated.map do |through_model|
-        model = through_model.public_send(association_data.source_reflection.name)
+        model = through_model.public_send(association_data.indirect_reflection.name)
         associated_viewmodel_class.new(model)
       end
       if associated_viewmodel_class._list_member?

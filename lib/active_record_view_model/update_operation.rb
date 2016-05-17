@@ -400,8 +400,8 @@ class ActiveRecordViewModel
     def build_and_add_update_for_has_many_through(association_data, reference_strings, update_context)
       model = self.viewmodel.model
 
-      through_reflection = association_data.reflection
-      source_reflection  = association_data.source_reflection
+      direct_reflection = association_data.direct_reflection
+      indirect_reflection  = association_data.indirect_reflection
       through_viewmodel  = association_data.through_viewmodel
 
       # we want to set position => we need to reimplement the through handling
@@ -409,7 +409,7 @@ class ActiveRecordViewModel
         model
           .public_send(association_data.name)
           .tap { |x| x.sort_by(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
-          .group_by(&source_reflection.foreign_key.to_sym)
+          .group_by(&indirect_reflection.foreign_key.to_sym)
 
       # To try to reduce list position churn in the case of multiple
       # associations to a single model, we keep the previous_through_children
@@ -442,9 +442,9 @@ class ActiveRecordViewModel
 
       new_through_updates = new_through_viewmodels.zip(reference_strings, positions).map do |viewmodel, ref, position|
         update_data = UpdateData.empty_update_for(viewmodel)
-        update_data.referenced_associations[source_reflection.name] = ref # TODO layering violation
+        update_data.referenced_associations[indirect_reflection.name] = ref # TODO layering violation
 
-        parent_data = ParentData.new(through_reflection.inverse_of, self.viewmodel)
+        parent_data = ParentData.new(direct_reflection.inverse_of, self.viewmodel)
         update_context.new_update(viewmodel, update_data,
                                   reparent_to: parent_data,
                                   reposition_to: position)

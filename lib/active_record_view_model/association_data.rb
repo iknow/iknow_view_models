@@ -1,10 +1,11 @@
 # TODO consider rephrase scope for consistency
 class ActiveRecordViewModel::AssociationData
-  attr_reader :reflection
-  delegate :polymorphic?, :klass, :name, to: :reflection
+  attr_reader :direct_reflection
+  delegate :polymorphic?, :klass, :name, to: :direct_reflection
+  alias reflection direct_reflection
 
-  def initialize(reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
-    @reflection         = reflection
+  def initialize(direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
+    @direct_reflection  = direct_reflection
     @shared             = shared
     @optional           = optional
     @through_to         = through_to
@@ -16,7 +17,7 @@ class ActiveRecordViewModel::AssociationData
 
     if through?
       # TODO exception type
-      raise "through associations must be has_many" unless reflection.macro == :has_many
+      raise "through associations must be has_many" unless direct_reflection.macro == :has_many
     end
   end
 
@@ -26,9 +27,9 @@ class ActiveRecordViewModel::AssociationData
     @viewmodel_classes ||=
       begin
         reflection = if through?
-                       source_reflection
+                       indirect_reflection
                      else
-                       @reflection
+                       @direct_reflection
                      end
 
         model_class = reflection.klass
@@ -103,25 +104,21 @@ class ActiveRecordViewModel::AssociationData
       # For A has_many B through T; where this association is defined on A
 
       # Copy into scope for new class block
-      reflection         = self.reflection         # A -> T
-      source_reflection  = self.source_reflection  # T -> B
-      through_order_attr = @through_order_attr
+      direct_reflection   = self.direct_reflection    # A -> T
+      indirect_reflection = self.indirect_reflection  # T -> B
+      through_order_attr  = @through_order_attr
 
       Class.new(ActiveRecordViewModel) do
-        self.model_class = reflection.klass
-        association source_reflection.name, shared: true, optional: false
+        self.model_class = direct_reflection.klass
+        association indirect_reflection.name, shared: true, optional: false
         acts_as_list through_order_attr if through_order_attr
       end
     end
   end
 
-  def source_reflection
-    @source_reflection ||=
+  def indirect_reflection
+    @indirect_reflection ||=
       reflection.klass.reflect_on_association(ActiveSupport::Inflector.singularize(@through_to))
-  end
-
-  def source_association_data
-    self.through_viewmodel._association_data(@source_reflection.name)
   end
 
   def collection?
