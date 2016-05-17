@@ -1,7 +1,7 @@
 # TODO consider rephrase scope for consistency
 class ActiveRecordViewModel::AssociationData
   attr_reader :reflection
-  delegate :polymorphic?, :collection?, :klass, :name, to: :reflection
+  delegate :polymorphic?, :klass, :name, to: :reflection
 
   def initialize(reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
     @reflection         = reflection
@@ -109,7 +109,7 @@ class ActiveRecordViewModel::AssociationData
 
       Class.new(ActiveRecordViewModel) do
         self.model_class = reflection.klass
-        association source_reflection.name
+        association source_reflection.name, shared: true, optional: false
         acts_as_list through_order_attr if through_order_attr
       end
     end
@@ -122,5 +122,9 @@ class ActiveRecordViewModel::AssociationData
 
   def source_association_data
     self.through_viewmodel._association_data(@source_reflection.name)
+  end
+
+  def collection?
+    through? || reflection.collection?
   end
 end

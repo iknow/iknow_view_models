@@ -132,21 +132,25 @@ class ActiveRecordViewModel
             assoc_update.association_dependencies(referenced_updates)
           end
 
-        deps[assoc_name] = assoc_deps
+        deps[association_data.name.to_s] = assoc_deps
       end
 
       referenced_associations.each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
-        case
-        when reference.nil?
-          {}
-        when association_data.collection?
-          reference.map { |ref| referenced_updates[ref].association_dependencies(referenced_updates) }
-                   .inject({}) { |acc, dep| acc.deep_merge(dep) }
-        else
-          deps[assoc_name] = referenced_updates[reference].association_dependencies(referenced_updates)
-        end
+        referenced_deps =
+          case
+          when reference.nil?
+            {}
+          when association_data.collection?
+            reference
+              .map { |ref| referenced_updates[ref].association_dependencies(referenced_updates) }
+              .inject({}) { |acc, dep| acc.deep_merge(dep) }
+          else
+            referenced_updates[reference].association_dependencies(referenced_updates)
+          end
+
+        deps[association_data.name.to_s] = referenced_deps
       end
 
       deps

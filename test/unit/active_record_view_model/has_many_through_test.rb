@@ -62,22 +62,65 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     end
   end
 
+  private def context_with(*args)
+    Views::Parent.new_serialize_context(include: args)
+  end
+
   def setup
     @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
 
-    @parent1 = Parent.create(name: "p1",
+    @parent1 = Parent.create(name: 'p1',
                              parents_tags: [ParentsTag.new(tag: @tag1, position: 1.0),
                                             ParentsTag.new(tag: @tag2, position: 2.0)])
-    @parent2 = Parent.create(name: "p1",
-                             parents_tags: [ParentsTag.new(tag: @tag2, position: 1.0),
-                                            ParentsTag.new(tag: @tag3, position: 2.0)])
+
+    @parent2 = Parent.create(name: 'p2',
+                             parents_tags: [ParentsTag.new(tag: @tag3, position: 1.0),
+                                            ParentsTag.new(tag: @tag3, position: 2.0),
+                                            ParentsTag.new(tag: @tag3, position: 3.0)])
 
     super
   end
 
+  def test_eager_includes
+    includes = Views::Parent.eager_includes(serialize_context: context_with(:tags))
+    assert_equal({ 'parents_tags' => { 'tag' => {} } }, includes)
+  end
+
+  def test_association_dependencies
+    skip("wip")
+    # TODO not part of ARVM; but depends on the particular context from #before_all
+    # If we refactor out the contexts from their tests, this should go in another test file.
+
+     root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{'_type' => 'Parent'}])
+     assert_equal({},
+                  root_updates.first.association_dependencies(ref_updates),
+                  'nothing loaded by default')
+
+    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{'_type' => 'Parent',
+                                                                                 'tags' => [{'_ref' => 'r1'}]}],
+                                                                               {'r1' => {'_type' => 'Tag'}})
+    puts "#{root_updates.inspect}"
+
+    assert_equal({ 'parents_tags' => { 'tag' => {} } },
+                 root_updates.first.association_dependencies(ref_updates),
+                 'mentioning tags causes tag loading via through associaton')
+  end
+
+  def test_roundtrip
+    # Objects are serialized to a view and deserialized, and should not be different when complete.
+
+    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) {}
+    assert_equal('p1', @parent1.name)
+    assert_equal([@tag1, @tag2], @parent1.parents_tags.order(:position).map(&:tag))
+
+    alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) {}
+    assert_equal('p2', @parent2.name)
+    assert_equal([@tag3, @tag3, @tag3], @parent2.parents_tags.order(:position).map(&:tag))
+  end
+
   def test_serialize
-    serialize_context = Views::Parent.new_serialize_context(include: :tags)
-    view, refs = serialize_with_references(Views::Parent.new(@parent1), serialize_context: serialize_context)
+    view, refs = serialize_with_references(Views::Parent.new(@parent1),
+                                           serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
     assert_equal([{ 'id' => @tag1.id, '_type' => 'Tag', 'name' => 'tag1' },
@@ -102,12 +145,28 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
                  'database state updated')
   end
 
+  def test_delete
+    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      refs.clear
+      view['tags'] = []
+    end
+    assert_equal([], @parent1.parents_tags)
+  end
+
   def test_reordering
-    serialize_context = Views::Parent.new_serialize_context(include: :tags)
-    alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |view, refs|
+    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       view['tags'].reverse!
     end
     assert_equal([@tag2, @tag1],
                  @parent1.parents_tags.order(:position).map(&:tag))
+  end
+
+
+  def test_reordering_multi
+    alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) do |view, refs|
+      view['tags'].reverse!
+    end
+    assert_equal([@tag3, @tag3, @tag3],
+                 @parent2.parents_tags.order(:position).map(&:tag))
   end
 end

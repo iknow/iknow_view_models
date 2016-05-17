@@ -235,13 +235,19 @@ class ActiveRecordViewModel < ViewModel
       _associations.each_with_object({}) do |(assoc_name, association_data), h|
         next if association_data.optional? && !serialize_context.includes_association?(assoc_name)
 
-        if association_data.polymorphic?
+        case
+        when association_data.polymorphic?
           # The regular AR preloader doesn't support child includes that are
           # conditional on type.  If we want to go through polymorphic includes,
           # we'd need to manually specify the viewmodel spec so that the
           # possible target classes are know, and also use our own preloader
           # instead of AR.
           children = {}
+
+        when association_data.through?
+          viewmodel = association_data.through_viewmodel
+          children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
+
         else
           # if we have a known non-polymorphic association class, we can find
           # child viewmodels and recurse.
@@ -250,7 +256,7 @@ class ActiveRecordViewModel < ViewModel
           children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
         end
 
-        h[assoc_name] = children
+        h[association_data.name.to_s] = children
       end
     end
 
