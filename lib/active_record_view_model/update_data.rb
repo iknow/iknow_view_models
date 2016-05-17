@@ -2,6 +2,26 @@ class ActiveRecordViewModel
   class UpdateData
     attr_accessor :viewmodel_class, :id, :attributes, :associations, :referenced_associations
 
+    def [](name)
+      case name
+      when :id
+        id
+      when :_type
+        viewmodel_class.view_name
+      else
+        attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) }}
+      end
+    end
+
+    def has_key?(name)
+      case name
+      when :id, :_type
+        true
+      else
+        attributes.has_key?(name) || associations.has_key?(name) || referenced_associations.has_key?(name)
+      end
+    end
+
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
       valid_reference_keys = referenced_subtree_hashes.keys.to_set
 
@@ -135,7 +155,11 @@ class ActiveRecordViewModel
     private
 
     def parse(hash_data, valid_reference_keys)
+      hash_data = self.viewmodel_class.pre_parse(hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
+
       hash_data.each do |name, value|
+        value = self.viewmodel_class.public_send("pre_parse_#{name}", value) if self.viewmodel_class.respond_to?(:"pre_parse_#{name}")
+
         case self.viewmodel_class._members[name]
         when :attribute
           attributes[name] = value

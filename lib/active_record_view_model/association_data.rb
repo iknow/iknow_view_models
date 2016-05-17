@@ -46,12 +46,6 @@ class ActiveRecordViewModel::AssociationData
     end
   end
 
-  private def name_to_viewmodel
-    @name_to_viewmodel ||= viewmodel_classes.each_with_object({}) do |vm, h|
-      h[vm.view_name] = vm
-    end
-  end
-
   def shared?
     @shared
   end
@@ -77,10 +71,10 @@ class ActiveRecordViewModel::AssociationData
     vm_class
   end
 
-  def viewmodel_class_for_name(name)
-    vm_class = name_to_viewmodel[name]
+  def viewmodel_class_for_name(type_name)
+    vm_class = viewmodel_classes.detect { |vm| vm.can_deserialize_type?(type_name) }
     if vm_class.nil?
-      raise ArgumentError.new("Can't find corresponding viewmodel with name '#{name}' for association '#{reflection.name}'")
+      raise ArgumentError.new("Can't find corresponding viewmodel accepting type '#{type_name}' for association '#{reflection.name}'")
     end
     vm_class
   end

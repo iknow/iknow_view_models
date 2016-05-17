@@ -213,17 +213,56 @@ class ActiveRecordViewModel
       end
     end
 
+    # Resolve or construct viewmodels for incoming update data. Where a child
+    # hash references an existing model not currently attached to this parent,
+    # it must be found before recursing into that child. If the model is
+    # available in released models we can take it and recurse, otherwise we must
+    # return a ViewModelReference to be added to the worklist for deferred
+    # resolution.
+    def resolve_child_viewmodels(association_data, update_datas, previous_child_viewmodels, update_context)
+      if self.viewmodel.respond_to?(:"resolve_#{association_data.name}")
+        return self.viewmodel.public_send(:"resolve_#{association_data.name}", update_datas, previous_child_viewmodels)
+      end
+
+      was_singular = !update_datas.is_a?(Array)
+      update_datas = Array.wrap(update_datas)
+      previous_child_viewmodels = Array.wrap(previous_child_viewmodels)
+
+      previous_by_key = previous_child_viewmodels.index_by do |vm|
+        ViewModelReference.from_viewmodel(vm)
+      end
+
+      resolved_viewmodels =
+        update_datas.map do |update_data|
+        id  = update_data.id
+        child_viewmodel_class = update_data.viewmodel_class
+        key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
+
+        case
+        when id.nil?
+          child_viewmodel_class.new
+        when existing_child = previous_by_key[key]
+          existing_child
+        when taken_child = update_context.try_take_released_viewmodel(key)
+          taken_child
+        else
+          # Refers to child that hasn't yet been seen: create a deferred update.
+          key
+        end
+      end
+
+      was_singular ? resolved_viewmodels.first : resolved_viewmodels
+    end
 
     def build_update_for_single_association(association_data, association_update_data, update_context)
       model = self.viewmodel.model
 
-      previous_child_model = model.public_send(association_data.name)
+      previous_child_viewmodel = model.public_send(association_data.name).try do |previous_child_model|
+        vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
+        vm_class.new(previous_child_model)
+      end
 
-      if previous_child_model.present?
-        previous_child_viewmodel_class = association_data.viewmodel_class_for_model(previous_child_model.class)
-        previous_child_viewmodel = previous_child_viewmodel_class.new(previous_child_model)
-        previous_child_key = ActiveRecordViewModel::ViewModelReference.from_viewmodel(previous_child_viewmodel)
-
+      if previous_child_viewmodel.present?
         # Clear the cached association so that AR's save behaviour doesn't
         # conflict with our explicit parent updates.  If we still have a child
         # after the update, we'll either call `Association#replace` or manually
@@ -233,30 +272,43 @@ class ActiveRecordViewModel
         clear_association_cache(model, association_data.reflection)
       end
 
-      child_update = nil
-      if association_update_data.present?
-        id = association_update_data.id
-        child_viewmodel_class = association_update_data.viewmodel_class
+      child_viewmodel =
+        if association_update_data.present?
+          resolve_child_viewmodels(association_data, association_update_data, previous_child_viewmodel, update_context)
+        end
 
-        child_viewmodel =
-          if id.nil?
-            self.association_changed!
-            child_viewmodel_class.new
-          else
-            key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
-            case
-            when taken_child = update_context.try_take_released_viewmodel(key)
-              self.association_changed!
-              taken_child
-            when key == previous_child_key
-              previous_child_viewmodel.tap { previous_child_viewmodel = nil }
-            else
-              # not-yet-seen child: create a deferred update
-              self.association_changed!
-              key
+      if previous_child_viewmodel != child_viewmodel
+        self.association_changed!
+        # free previous child if present
+        if previous_child_viewmodel.present?
+          if association_data.pointer_location == :local
+            # When we free a child that's pointed to from its old parent, we need to
+            # clear the cached association to that old parent. If we don't do this,
+            # then if the child gets claimed by a new parent and `save!`ed, AR will
+            # re-establish the link from the old parent in the cache.
+
+            # Ideally we want
+            # model.association(...).inverse_reflection_for(previous_child_model), but
+            # that's private.
+
+            inverse_reflection =
+              if association_data.reflection.polymorphic?
+                association_data.reflection.polymorphic_inverse_of(previous_child_viewmodel.model.class)
+              else
+                association_data.reflection.inverse_of
+              end
+
+            if inverse_reflection.present?
+              clear_association_cache(previous_child_viewmodel.model, inverse_reflection)
             end
           end
 
+          update_context.release_viewmodel(previous_child_viewmodel, association_data)
+        end
+      end
+
+      # Construct and return update for new child viewmodel
+      if child_viewmodel.present?
         # If the association's pointer is in the child, need to provide it with a
         # ParentData to update
         parent_data =
@@ -266,51 +318,18 @@ class ActiveRecordViewModel
             nil
           end
 
-        child_update =
-          case child_viewmodel
-          when ActiveRecordViewModel::ViewModelReference # deferred
-            vm_ref = child_viewmodel
-            update_context.new_deferred_update(vm_ref, association_update_data, reparent_to: parent_data)
-          else
-            update_context.new_update(child_viewmodel, association_update_data, reparent_to: parent_data).build!(update_context)
-          end
-      end
-
-      # Release the previous child if not reclaimed
-      if previous_child_viewmodel.present?
-        self.association_changed!
-        if association_data.pointer_location == :local
-          # When we free a child that's pointed to from its old parent, we need to
-          # clear the cached association to that old parent. If we don't do this,
-          # then if the child gets claimed by a new parent and `save!`ed, AR will
-          # re-establish the link from the old parent in the cache.
-
-          # Ideally we want
-          # model.association(...).inverse_reflection_for(previous_child_model), but
-          # that's private.
-
-          inverse_reflection =
-            if association_data.reflection.polymorphic?
-              association_data.reflection.polymorphic_inverse_of(previous_child_model.class)
-            else
-              association_data.reflection.inverse_of
-            end
-
-          if inverse_reflection.present?
-            clear_association_cache(previous_child_viewmodel.model, inverse_reflection)
-          end
+        case child_viewmodel
+        when ActiveRecordViewModel::ViewModelReference # deferred
+          vm_ref = child_viewmodel
+          update_context.new_deferred_update(vm_ref, association_update_data, reparent_to: parent_data)
+        else
+          update_context.new_update(child_viewmodel, association_update_data, reparent_to: parent_data).build!(update_context)
         end
-
-        update_context.release_viewmodel(previous_child_viewmodel, association_data)
       end
-
-      child_update
     end
 
     def build_updates_for_collection_association(association_data, association_update_datas, update_context)
       model = self.viewmodel.model
-
-      child_viewmodel_class = association_data.viewmodel_class
 
       # reference back to this model, so we can set the link while updating the children
       parent_data = ParentData.new(association_data.reflection.inverse_of, viewmodel)
@@ -320,9 +339,12 @@ class ActiveRecordViewModel
       end
 
       # load children already attached to this model
-      previous_children = model.public_send(association_data.name).index_by(&:id)
+      previous_child_viewmodels = model.public_send(association_data.name).map do |previous_child_model|
+        vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
+        vm_class.new(previous_child_model)
+      end
 
-      if previous_children.present?
+      if previous_child_viewmodels.present?
         # Clear the cached association so that AR's save behaviour doesn't
         # conflict with our explicit parent updates. If we still have children
         # after the update, we'll reset the target cache after recursing in
@@ -332,43 +354,23 @@ class ActiveRecordViewModel
         clear_association_cache(model, association_data.reflection)
       end
 
-      # Construct viewmodels for incoming hash data. Where a child hash references
-      # an existing model not currently attached to this parent, it must be found
-      # before recursing into that child. If the model is available in released
-      # models we can recurse into them, otherwise we must attach a stub
-      # UpdateOperation (and add it to the worklist to process later)
-      child_viewmodels = association_update_datas.map do |association_update_data|
-        id  = association_update_data.id
-        key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
+      child_viewmodels = resolve_child_viewmodels(association_data, association_update_datas, previous_child_viewmodels, update_context)
 
-        case
-        when id.nil?
-          self.association_changed!
-          child_viewmodel_class.new
-        when existing_child = previous_children.delete(id)
-          child_viewmodel_class.new(existing_child)
-        when taken_child = update_context.try_take_released_viewmodel(key)
-          self.association_changed!
-          taken_child
-        else
-          # Refers to child that hasn't yet been seen: create a deferred update.
-          self.association_changed!
-          key
-        end
-      end
-
-      # release previously attached children that are no longer referred to
-      previous_children.each_value do |child_model|
+      # if the new children differ, mark that one of our associations has
+      # changed and release any no-longer-attached children
+      if child_viewmodels != previous_child_viewmodels
         self.association_changed!
-        update_context.release_viewmodel(
-          child_viewmodel_class.new(child_model), association_data)
+        released_child_viewmodels = previous_child_viewmodels - child_viewmodels
+        released_child_viewmodels.each do |vm|
+          update_context.release_viewmodel(vm, association_data)
+        end
       end
 
       # Calculate new positions for children if in a list. Ignore previous
       # positions for unresolved references: they'll always need to be updated
       # anyway since their parent pointer will change.
       positions = Array.new(child_viewmodels.length)
-      if child_viewmodel_class._list_member?
+      if association_data.viewmodel_class._list_member?
         set_position = ->(index, pos){ positions[index] = pos }
         get_previous_position = ->(index) do
           vm = child_viewmodels[index]
