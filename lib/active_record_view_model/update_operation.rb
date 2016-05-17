@@ -400,16 +400,24 @@ class ActiveRecordViewModel
     def build_and_add_update_for_has_many_through(association_data, reference_strings, update_context)
       model = self.viewmodel.model
 
-      direct_reflection = association_data.direct_reflection
-      indirect_reflection  = association_data.indirect_reflection
-      through_viewmodel  = association_data.through_viewmodel
+      direct_reflection         = association_data.direct_reflection
+      indirect_reflection       = association_data.indirect_reflection
+      through_viewmodel         = association_data.through_viewmodel
+      indirect_association_data = association_data.indirect_association_data
+
+      viewmodel_reference_for_indirect_model = ->(through_model) do
+        model_class     = through_model.association(indirect_reflection.name).klass
+        model_id        = through_model.public_send(indirect_reflection.foreign_key)
+        viewmodel_class = indirect_association_data.viewmodel_class_for_model(model_class)
+        ViewModelReference.new(viewmodel_class, model_id)
+      end
 
       # we want to set position => we need to reimplement the through handling
       previous_through_children =
         model
           .public_send(association_data.name)
           .tap { |x| x.sort_by(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
-          .group_by(&indirect_reflection.foreign_key.to_sym)
+          .group_by(&viewmodel_reference_for_indirect_model)
 
       # To try to reduce list position churn in the case of multiple
       # associations to a single model, we keep the previous_through_children
@@ -420,7 +428,7 @@ class ActiveRecordViewModel
         target_reference = update_context.resolve_reference(ref).viewmodel_reference
 
         existing_through_record =
-          (previous_through_children[target_reference.model_id].try(:shift) if target_reference)
+          (previous_through_children[target_reference].try(:shift) if target_reference)
 
         if existing_through_record
           through_viewmodel.new(existing_through_record)

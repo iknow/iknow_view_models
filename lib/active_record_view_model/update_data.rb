@@ -132,7 +132,7 @@ class ActiveRecordViewModel
             assoc_update.association_dependencies(referenced_updates)
           end
 
-        deps[association_data.name.to_s] = assoc_deps
+        deps[association_data.direct_reflection.name.to_s] = assoc_deps
       end
 
       referenced_associations.each do |assoc_name, reference|
@@ -150,7 +150,7 @@ class ActiveRecordViewModel
             referenced_updates[reference].association_dependencies(referenced_updates)
           end
 
-        deps[association_data.name.to_s] = referenced_deps
+        deps[association_data.direct_reflection.name.to_s] = referenced_deps
       end
 
       deps

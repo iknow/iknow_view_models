@@ -5,32 +5,33 @@ require "minitest/autorun"
 
 require "active_record_view_model"
 
-class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
+class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def before_all
     super
 
-    build_viewmodel(:Parent) do
+    build_viewmodel(:TagA) do
       define_schema do |t|
         t.string :name
+        t.string :tag_b_desc
       end
 
       define_model do
-        has_many :parents_tags, dependent: :destroy, inverse_of: :parent
+        has_many :parents_tag, dependent: :destroy, inverse_of: :tag
       end
 
       define_viewmodel do
         attributes :name
-        association :tags, shared: true, through: :parents_tags, through_order_attr: :position
+
         include TrivialAccessControl
       end
     end
 
-    build_viewmodel(:Tag) do
+    build_viewmodel(:TagB) do
       define_schema do |t|
         t.string :name
-
+        t.string :tag_b_desc
       end
 
       define_model do
@@ -45,17 +46,34 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     end
 
 
+    build_viewmodel(:Parent) do
+      define_schema do |t|
+        t.string :name
+      end
+
+      define_model do
+        has_many :parents_tags, dependent: :destroy, inverse_of: :parent
+      end
+
+      define_viewmodel do
+        attributes :name
+        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels:[Views::TagA, Views::TagB]
+        include TrivialAccessControl
+      end
+    end
+
+
     build_viewmodel(:ParentsTag) do
       define_schema do |t|
         t.references :parent, foreign_key: true
-        t.references :tag,    foreign_key: true
+        t.references :tag
+        t.string     :tag_type
         t.float      :position
       end
 
       define_model do
         belongs_to :parent
-        belongs_to :tag
-        # TODO list membership?
+        belongs_to :tag, polymorphic: true
       end
 
       no_viewmodel
@@ -67,16 +85,17 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def setup
-    @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
+    @tag_a = TagA.create(name: "tag A")
+    @tag_b = TagB.create(name: "tag B")
 
     @parent1 = Parent.create(name: 'p1',
-                             parents_tags: [ParentsTag.new(tag: @tag1, position: 1.0),
-                                            ParentsTag.new(tag: @tag2, position: 2.0)])
+                             parents_tags: [ParentsTag.new(tag: @tag_a, position: 1.0),
+                                            ParentsTag.new(tag: @tag_b, position: 2.0)])
 
     @parent2 = Parent.create(name: 'p2',
-                             parents_tags: [ParentsTag.new(tag: @tag3, position: 1.0),
-                                            ParentsTag.new(tag: @tag3, position: 2.0),
-                                            ParentsTag.new(tag: @tag3, position: 3.0)])
+                             parents_tags: [ParentsTag.new(tag: @tag_a, position: 1.0),
+                                            ParentsTag.new(tag: @tag_b, position: 2.0),
+                                            ParentsTag.new(tag: @tag_b, position: 3.0)])
 
     super
   end
@@ -86,11 +105,11 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
     alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) {}
     assert_equal('p1', @parent1.name)
-    assert_equal([@tag1, @tag2], @parent1.parents_tags.order(:position).map(&:tag))
+    assert_equal([@tag_a, @tag_b], @parent1.parents_tags.order(:position).map(&:tag))
 
     alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) {}
     assert_equal('p2', @parent2.name)
-    assert_equal([@tag3, @tag3, @tag3], @parent2.parents_tags.order(:position).map(&:tag))
+    assert_equal([@tag_a, @tag_b, @tag_b], @parent2.parents_tags.order(:position).map(&:tag))
   end
 
   def test_eager_includes
@@ -109,37 +128,39 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
     root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent',
                                                                                   'tags' => [{ '_ref' => 'r1' }] }],
-                                                                               { 'r1' => { '_type' => 'Tag' } })
+                                                                               { 'r1' => { '_type' => 'TagB' } })
 
     assert_equal({ 'parents_tags' => {} },
                  root_updates.first.association_dependencies(ref_updates),
                  'mentioning tags causes through association loading')
   end
 
+
   def test_serialize
     view, refs = serialize_with_references(Views::Parent.new(@parent1),
                                            serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
-    assert_equal([{ 'id' => @tag1.id, '_type' => 'Tag', 'name' => 'tag1' },
-                  { 'id' => @tag2.id, '_type' => 'Tag', 'name' => 'tag2' }],
+    assert_equal([{ 'id' => @tag_a.id, '_type' => 'TagA', 'name' => 'tag A' },
+                  { 'id' => @tag_b.id, '_type' => 'TagB', 'name' => 'tag B' }],
                  tag_data)
   end
 
   def test_create_has_many_through
     alter_by_view!(Views::Parent, @parent1) do |view, refs|
       refs.delete_if { |_, ref_hash| ref_hash['_type'] == 'Tag' }
-      refs['t1'] = { '_type' => 'Tag', 'name' => 'new tag1' }
-      refs['t2'] = { '_type' => 'Tag', 'name' => 'new tag2' }
+      refs['t1'] = { '_type' => 'TagA', 'name' => 'new tagA' }
+      refs['t2'] = { '_type' => 'TagB', 'name' => 'new tagB' }
       view['tags'] = [{ '_ref' => 't1' }, { '_ref' => 't2' }]
     end
 
-    new_tag1, new_tag2 = Tag.where(name: ['new tag1', 'new tag2'])
+    new_tag_a = TagA.find_by_name('new tagA')
+    new_tag_b = TagB.find_by_name('new tagB')
 
-    refute_nil(new_tag1, 'new tag 1 created')
-    refute_nil(new_tag2, 'new tag 2 created')
+    refute_nil(new_tag_a, 'new tag A created')
+    refute_nil(new_tag_b, 'new tag B created')
 
-    assert_equal([new_tag1, new_tag2], @parent1.parents_tags.order(:position).map(&:tag),
+    assert_equal([new_tag_a, new_tag_b], @parent1.parents_tags.order(:position).map(&:tag),
                  'database state updated')
   end
 
@@ -155,16 +176,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       view['tags'].reverse!
     end
-    assert_equal([@tag2, @tag1],
+    assert_equal([@tag_b, @tag_a],
                  @parent1.parents_tags.order(:position).map(&:tag))
   end
 
-
-  def test_reordering_multi
-    alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) do |view, refs|
-      view['tags'].reverse!
-    end
-    assert_equal([@tag3, @tag3, @tag3],
-                 @parent2.parents_tags.order(:position).map(&:tag))
-  end
 end

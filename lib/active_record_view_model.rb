@@ -261,7 +261,7 @@ class ActiveRecordViewModel < ViewModel
           children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
         end
 
-        h[association_data.name.to_s] = children
+        h[association_data.direct_reflection.name.to_s] = children
       end
     end
 
@@ -446,15 +446,14 @@ class ActiveRecordViewModel < ViewModel
     case
     when association_data.through?
       # associated here are join_table models; we need to get the far side out
-      associated_viewmodel_class = association_data.viewmodel_class
-      associated_viewmodels = associated.map do |through_model|
+      if association_data.through_viewmodel._list_member?
+        associated.order(association_data.through_viewmodel._list_attribute_name)
+      end
+
+      associated.map do |through_model|
         model = through_model.public_send(association_data.indirect_reflection.name)
-        associated_viewmodel_class.new(model)
+        association_data.viewmodel_class_for_model(model.class).new(model)
       end
-      if associated_viewmodel_class._list_member?
-        associated_viewmodels.sort_by!(&:_list_attribute)
-      end
-      associated_viewmodels
 
     when association_data.collection?
       associated_viewmodel_class = association_data.viewmodel_class

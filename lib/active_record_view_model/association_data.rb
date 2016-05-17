@@ -34,7 +34,7 @@ class ActiveRecordViewModel::AssociationData
 
         model_class = reflection.klass
         if model_class.nil?
-          raise "Couldn't derivce target class for association '#{reflection.name}"
+          raise "Couldn't derive target class for association '#{reflection.name}"
         end
         viewmodel_class = ActiveRecordViewModel.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
         [viewmodel_class]
@@ -107,10 +107,11 @@ class ActiveRecordViewModel::AssociationData
       direct_reflection   = self.direct_reflection    # A -> T
       indirect_reflection = self.indirect_reflection  # T -> B
       through_order_attr  = @through_order_attr
+      viewmodel_classes   = self.viewmodel_classes
 
       Class.new(ActiveRecordViewModel) do
         self.model_class = direct_reflection.klass
-        association indirect_reflection.name, shared: true, optional: false
+        association indirect_reflection.name, shared: true, optional: false, viewmodels: viewmodel_classes
         acts_as_list through_order_attr if through_order_attr
       end
     end
@@ -123,5 +124,9 @@ class ActiveRecordViewModel::AssociationData
 
   def collection?
     through? || reflection.collection?
+  end
+
+  def indirect_association_data
+    through_viewmodel._association_data(indirect_reflection.name)
   end
 end
