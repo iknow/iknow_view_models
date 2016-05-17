@@ -120,6 +120,18 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
     assert_equal({ 'category' => {} }, extra_includes)
   end
 
+  def test_shared_serialize_interning
+    @parent2.update(category: @parent1.category)
+    view, refs = serialize_with_references([Views::Parent.new(@parent1),
+                                            Views::Parent.new(@parent2)],
+                                           serialize_context: Views::Parent.new_serialize_context(include: :category))
+
+    category_ref = view.first['category']['_ref']
+
+    assert_equal([category_ref], refs.keys,
+                 'category referenced twice generates a single reference')
+  end
+
   def test_shared_add_reference
     alter_by_view!(Views::Parent, @parent2, serialize_context: serialize_context) do |p2view, refs|
       p2view['category'] = { '_ref' => 'myref' }

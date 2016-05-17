@@ -308,6 +308,18 @@ class ActiveRecordViewModel < ViewModel
     super(model)
   end
 
+  # Use ActiveRecord style identity for viewmodels. This allows serialization to
+  # generate a references section by keying on the viewmodel itself.
+  def hash
+    [self.class, self.model].hash
+  end
+
+  def ==(other)
+    self.class == other.class && self.model == other.model
+  end
+
+  alias eql? ==
+
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
