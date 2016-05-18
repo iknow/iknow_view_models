@@ -10,10 +10,10 @@ end
 
 desc "Open an IRB console with the test helpers"
 task :test_console do
-  ruby %q{-Ilib  -e 'load "test/helpers/test_models.rb"' -r irb -e 'IRB.start(__FILE__)'}
+  ruby %{-r bundler/setup -Ilib -e 'load "test/helpers/arvm_test_models.rb"' -r irb -e 'IRB.start(__FILE__)'}
 end
 
 desc "Open a Pry console with the test helpers"
 task 'test_console:pry' do
-  ruby %q{-Ilib  -e 'load "test/helpers/test_models.rb"' -r pry -e 'Pry.start'}
+  ruby %{-r bundler/setup -Ilib  -e 'load "test/helpers/arvm_test_models.rb"' -r pry -e 'Pry.start'}
 end
