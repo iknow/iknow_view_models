@@ -38,7 +38,7 @@ module ARVMTestUtilities
   end
 
   def serialize(serializable, serialize_context: Views::ApplicationBase.new_serialize_context)
-    data, _ = serialize_with_references(serializable)
+    data, _ = serialize_with_references(serializable, serialize_context: serialize_context)
     data
   end
 
