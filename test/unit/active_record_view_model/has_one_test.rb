@@ -69,6 +69,14 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     super
   end
 
+  def test_loading_batching
+    log_queries do
+      serialize(Views::Parent.load)
+    end
+    assert_equal(['Parent Load', 'Target Load'],
+                 logged_load_queries)
+  end
+
   def test_create_from_view
     view = {
       "_type"    => "Parent",

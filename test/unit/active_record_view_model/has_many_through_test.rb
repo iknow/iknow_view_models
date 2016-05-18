@@ -81,6 +81,17 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     super
   end
 
+  def test_loading_batching
+    context = context_with(:tags)
+    log_queries do
+      parent_views = Views::Parent.load(serialize_context: context)
+      puts serialize(parent_views, serialize_context: context)
+    end
+
+    assert_equal(['Parent Load', 'ParentsTag Load', 'Tag Load'],
+                 logged_load_queries)
+  end
+
   def test_roundtrip
     # Objects are serialized to a view and deserialized, and should not be different when complete.
 

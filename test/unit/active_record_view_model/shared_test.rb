@@ -70,6 +70,17 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
     Views::Parent.new_serialize_context(include: :category)
   end
 
+  def test_loading_batching
+    Parent.create(category: Category.new)
+
+    log_queries do
+      serialize(Views::Parent.load(serialize_context: serialize_context),
+                serialize_context: serialize_context)
+    end
+    assert_equal(['Parent Load', 'Category Load'],
+                 logged_load_queries)
+  end
+
   def test_create_from_view
     view = {
       "_type"    => "Parent",

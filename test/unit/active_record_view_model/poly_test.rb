@@ -80,6 +80,17 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
     super
   end
 
+  def test_loading_batching
+    Parent.create(name: "with PolyOne", poly: PolyOne.new)
+    Parent.create(name: "with PolyTwo", poly: PolyTwo.new)
+
+    log_queries do
+      serialize(Views::Parent.load)
+    end
+    assert_equal(['Parent Load', 'PolyOne Load', 'PolyTwo Load'],
+                 logged_load_queries.sort)
+  end
+
   def test_create_from_view
     view = {
       "_type"    => "Parent",

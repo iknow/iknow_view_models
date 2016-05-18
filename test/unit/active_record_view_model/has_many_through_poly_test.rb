@@ -116,6 +116,17 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
                  @parent2.parents_tags.order(:position).map(&:tag))
   end
 
+  def test_loading_batching
+    context = context_with(:tags)
+    log_queries do
+      parent_views = Views::Parent.load(serialize_context: context)
+      puts serialize(parent_views, serialize_context: context)
+    end
+
+    assert_equal(['Parent Load', 'ParentsTag Load', 'TagA Load', 'TagB Load'],
+                 logged_load_queries)
+  end
+
   def test_eager_includes
     includes = Views::Parent.eager_includes(serialize_context: context_with(:tags))
     assert_equal({ 'parents_tags' => { 'tag' => {} } }, includes)

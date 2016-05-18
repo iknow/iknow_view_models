@@ -1,9 +1,15 @@
 require 'active_support'
 require 'minitest/hooks'
 
+require_relative 'query_logging.rb'
+
 ActiveSupport::TestCase.include(Minitest::Hooks)
 
 module ARVMTestUtilities
+  def self.included(klass)
+    klass.include(QueryLogging)
+  end
+
   def initialize(*)
     @viewmodels = []
     super
