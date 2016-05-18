@@ -85,17 +85,19 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def setup
-    @tag_a = TagA.create(name: "tag A")
-    @tag_b = TagB.create(name: "tag B")
+    @tag_a1, @tag_a2 = (1..2).map { |x| TagA.create(name: "tag A#{x}") }
+    @tag_b1, @tag_b2 = (1..2).map { |x| TagB.create(name: "tag B#{x}") }
 
     @parent1 = Parent.create(name: 'p1',
-                             parents_tags: [ParentsTag.new(tag: @tag_a, position: 1.0),
-                                            ParentsTag.new(tag: @tag_b, position: 2.0)])
+                             parents_tags: [ParentsTag.new(tag: @tag_a1, position: 1.0),
+                                            ParentsTag.new(tag: @tag_a2, position: 2.0),
+                                            ParentsTag.new(tag: @tag_b1, position: 3.0),
+                                            ParentsTag.new(tag: @tag_b2, position: 4.0)])
 
     @parent2 = Parent.create(name: 'p2',
-                             parents_tags: [ParentsTag.new(tag: @tag_a, position: 1.0),
-                                            ParentsTag.new(tag: @tag_b, position: 2.0),
-                                            ParentsTag.new(tag: @tag_b, position: 3.0)])
+                             parents_tags: [ParentsTag.new(tag: @tag_a1, position: 1.0),
+                                            ParentsTag.new(tag: @tag_b1, position: 2.0),
+                                            ParentsTag.new(tag: @tag_a1, position: 3.0)])
 
     super
   end
@@ -105,11 +107,13 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
 
     alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) {}
     assert_equal('p1', @parent1.name)
-    assert_equal([@tag_a, @tag_b], @parent1.parents_tags.order(:position).map(&:tag))
+    assert_equal([@tag_a1, @tag_a2, @tag_b1, @tag_b2],
+                 @parent1.parents_tags.order(:position).map(&:tag))
 
     alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) {}
     assert_equal('p2', @parent2.name)
-    assert_equal([@tag_a, @tag_b, @tag_b], @parent2.parents_tags.order(:position).map(&:tag))
+    assert_equal([@tag_a1, @tag_b1, @tag_a1],
+                 @parent2.parents_tags.order(:position).map(&:tag))
   end
 
   def test_eager_includes
@@ -141,8 +145,10 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
                                            serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
-    assert_equal([{ 'id' => @tag_a.id, '_type' => 'TagA', 'name' => 'tag A' },
-                  { 'id' => @tag_b.id, '_type' => 'TagB', 'name' => 'tag B' }],
+    assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', 'name' => 'tag A1' },
+                  { 'id' => @tag_a2.id, '_type' => 'TagA', 'name' => 'tag A2' },
+                  { 'id' => @tag_b1.id, '_type' => 'TagB', 'name' => 'tag B1' },
+                  { 'id' => @tag_b2.id, '_type' => 'TagB', 'name' => 'tag B2' }],
                  tag_data)
   end
 
@@ -160,8 +166,17 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     refute_nil(new_tag_a, 'new tag A created')
     refute_nil(new_tag_b, 'new tag B created')
 
-    assert_equal([new_tag_a, new_tag_b], @parent1.parents_tags.order(:position).map(&:tag),
-                 'database state updated')
+    assert_equal([new_tag_a, new_tag_b],
+                 @parent1.parents_tags.order(:position).map(&:tag))
+  end
+
+  def test_reordering_swap_type
+    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+      t1, t2, t3, t4 = view['tags']
+      view['tags'] = [t3, t2, t1, t4]
+    end
+    assert_equal([@tag_b1, @tag_a2, @tag_a1, @tag_b2],
+                 @parent1.parents_tags.order(:position).map(&:tag))
   end
 
   def test_delete
@@ -170,14 +185,6 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
       view['tags'] = []
     end
     assert_equal([], @parent1.parents_tags)
-  end
-
-  def test_reordering
-    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) do |view, refs|
-      view['tags'].reverse!
-    end
-    assert_equal([@tag_b, @tag_a],
-                 @parent1.parents_tags.order(:position).map(&:tag))
   end
 
 end
