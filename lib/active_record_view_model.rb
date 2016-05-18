@@ -37,12 +37,6 @@ class ActiveRecordViewModel < ViewModel
       self.name[prefix.length..-1]
     end
 
-    # Returns true if this viewmodel can deserialize a view with the given name.
-    # Can be overridden to help support inheritance polymorphism.
-    def can_deserialize_type?(view_name)
-      view_name == self.view_name
-    end
-
     def for_view_name(name)
       raise ViewModel::DeserializationError.new("view name cannot be nil") if name.nil?
 
@@ -341,6 +335,10 @@ class ActiveRecordViewModel < ViewModel
     json.set!(ID_ATTRIBUTE, model.id)
     json.set!(TYPE_ATTRIBUTE, self.class.view_name)
 
+    serialize_members(json, serialize_context: serialize_context)
+  end
+
+  def serialize_members(json, serialize_context: self.class.new_serialize_context)
     self.class._members.each do |member_name, member_type|
       member_context = serialize_context
 
