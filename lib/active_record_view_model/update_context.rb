@@ -77,7 +77,7 @@ class ActiveRecordViewModel
         existing_models =
           if model_ids.present?
             #TODO: using model scope without providing the context means we'll potentially over-eager-load
-            viewmodel_class.model_scope.includes(dependencies).find_all!(model_ids).index_by(&:id)
+            viewmodel_class.model_class.includes(dependencies).find_all!(model_ids).index_by(&:id)
           else
             {}
           end
