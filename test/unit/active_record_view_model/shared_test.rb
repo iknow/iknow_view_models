@@ -56,6 +56,8 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   include WithParent
 
   def setup
+    super
+
     @parent1 = Parent.create(name: "p1",
                              category: Category.new(name: "p1cat"))
 
@@ -63,7 +65,7 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
 
     @category1 = Category.create(name: "Cat1")
 
-    super
+    enable_logging!
   end
 
   def serialize_context

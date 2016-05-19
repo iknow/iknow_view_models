@@ -67,6 +67,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def setup
+    super
+
     @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
 
     @parent1 = Parent.create(name: 'p1',
@@ -78,7 +80,7 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
                                             ParentsTag.new(tag: @tag3, position: 2.0),
                                             ParentsTag.new(tag: @tag3, position: 3.0)])
 
-    super
+    enable_logging!
   end
 
   def test_loading_batching

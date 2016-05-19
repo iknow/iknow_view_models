@@ -69,6 +69,8 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
   end
 
   def setup
+    super
+
     @text1 = Text.create(text: "dog",
                     translations: [Translation.new(language: "ja", translation: "犬"),
                                    Translation.new(language: "fr", translation: "chien")])
@@ -82,6 +84,8 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
         "fr" => "chien"
       }
     }
+
+    enable_logging!
   end
 
   def test_serialize

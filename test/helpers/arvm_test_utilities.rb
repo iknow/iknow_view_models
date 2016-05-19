@@ -21,14 +21,6 @@ module ARVMTestUtilities
     super
   end
 
-  def setup
-    super
-
-    # Enable logging only during the test body. The test must do any setup in
-    # their +setup+ method *before* calling +super+.
-    ActiveRecord::Base.logger = Logger.new(STDOUT)
-  end
-
   def teardown
     ActiveRecord::Base.logger = nil
   end
@@ -112,6 +104,10 @@ module ARVMTestUtilities
     enum.each_with_object(Hash.new(0)) do |x, counts|
       counts[x] += 1
     end
+  end
+
+  def enable_logging!
+    ActiveRecord::Base.logger = Logger.new(STDOUT)
   end
 
 end

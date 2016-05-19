@@ -79,6 +79,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   include WithLabel
 
   def setup
+    super
+
     # TODO make a `has_list?` that allows a parent to set all children as an array
     @parent1 = Parent.new(name: "p1",
                           label: Label.new(text: "p1l"))
@@ -89,7 +91,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
 
     @parent2.save!
 
-    super
+    enable_logging!
   end
 
   def test_serialize_view

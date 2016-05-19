@@ -56,6 +56,8 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   include WithTarget
 
   def setup
+    super
+
     # TODO make a `has_list?` that allows a parent to set all children as an array
     @parent1 = Parent.new(name: "p1",
                           target: Target.new(text: "p1t"))
@@ -66,7 +68,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
 
     @parent2.save!
 
-    super
+    enable_logging!
   end
 
   def test_loading_batching

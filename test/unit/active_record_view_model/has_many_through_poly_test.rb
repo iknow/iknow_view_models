@@ -85,6 +85,8 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def setup
+    super
+
     @tag_a1, @tag_a2 = (1..2).map { |x| TagA.create(name: "tag A#{x}") }
     @tag_b1, @tag_b2 = (1..2).map { |x| TagB.create(name: "tag B#{x}") }
 
@@ -99,7 +101,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
                                             ParentsTag.new(tag: @tag_b1, position: 2.0),
                                             ParentsTag.new(tag: @tag_a1, position: 3.0)])
 
-    super
+    enable_logging!
   end
 
   def test_roundtrip

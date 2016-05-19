@@ -49,6 +49,8 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
   end
 
   def setup
+    super
+
     @parent1 = Parent.new(name: "p1",
                           children: [Child.new(name: "p1c1", position: 1),
                                      Child.new(name: "p1c2", position: 2),
@@ -60,7 +62,8 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
                                      Child.new(name: "p2c2").tap { |c| c.position = 2 }])
 
     @parent2.save!
-    super
+
+    enable_logging!
   end
 
   def test_find_associated

@@ -72,12 +72,14 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
   include WithParent
 
   def setup
+    super
+
     @parent1 = Parent.create(name: "p1",
                              poly: PolyOne.new(number: 1))
 
     @parent2 = Parent.create(name: "p2")
 
-    super
+    enable_logging!
   end
 
   def test_loading_batching
