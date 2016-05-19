@@ -23,6 +23,7 @@ module ARVMTestUtilities
 
   def teardown
     ActiveRecord::Base.logger = nil
+    super
   end
 
   def build_viewmodel(name, &block)
