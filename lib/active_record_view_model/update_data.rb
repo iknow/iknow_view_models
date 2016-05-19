@@ -41,11 +41,12 @@ class ActiveRecordViewModel
       check_duplicates(root_updates, type: "root") { |upd| [upd.viewmodel_class, upd.id] if upd.id }
 
       # Construct reference UpdateData
-      referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
+      referenced_updates = referenced_subtree_hashes.each_with_object({}) do |(ref, subtree_hash), new_hash|
         viewmodel_name, id = extract_viewmodel_metadata(subtree_hash)
         viewmodel_class    = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
-        UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
+        new_hash[ref] =
+          UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
       end
 
       check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
