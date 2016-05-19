@@ -83,6 +83,8 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
   end
 
   def test_loading_batching
+    skip('Missing query logging') unless have_query_logging?
+
     Parent.create(name: "with PolyOne", poly: PolyOne.new)
     Parent.create(name: "with PolyTwo", poly: PolyTwo.new)
 

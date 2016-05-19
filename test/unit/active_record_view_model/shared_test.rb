@@ -73,6 +73,8 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_loading_batching
+    skip('Missing query logging') unless have_query_logging?
+
     Parent.create(category: Category.new)
 
     log_queries do

@@ -84,6 +84,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_loading_batching
+    skip('Missing query logging') unless have_query_logging?
+
     context = context_with(:tags)
     log_queries do
       parent_views = Views::Parent.load(serialize_context: context)

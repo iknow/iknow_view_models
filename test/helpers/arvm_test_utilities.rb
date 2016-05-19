@@ -1,9 +1,33 @@
 require 'active_support'
-require 'minitest/hooks'
+
+if ActiveSupport::VERSION::MAJOR >= 4
+  require 'minitest/hooks'
+  ActiveSupport::TestCase.include(Minitest::Hooks)
+else
+  module RunHooksPerTest
+    def setup
+      before_all
+      super
+    end
+    def teardown
+      super
+      after_all
+    end
+
+    # Default implementations; allows `super`
+    def before_all
+    end
+    def after_all
+    end
+  end
+
+  puts "adding stub"
+  ActiveSupport::TestCase.include(RunHooksPerTest)
+end
+
 
 require_relative 'query_logging.rb'
 
-ActiveSupport::TestCase.include(Minitest::Hooks)
 
 module ARVMTestUtilities
   def self.included(klass)

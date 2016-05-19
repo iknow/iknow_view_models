@@ -108,6 +108,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   end
 
   def test_loading_batching
+    skip('Missing query logging') unless have_query_logging?
+
     log_queries do
       serialize(Views::Parent.load)
     end
