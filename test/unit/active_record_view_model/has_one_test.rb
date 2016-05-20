@@ -8,52 +8,49 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  module WithTarget
-    def before_all
-      super
+  def self.build_target(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Target) do
+      define_schema do |t|
+        t.string :text
+        t.references :parent, foreign_key: true
+      end
 
-      build_viewmodel(:Target) do
-        define_schema do |t|
-          t.string :text
-          t.references :parent, foreign_key: true
-        end
+      define_model do
+        belongs_to :parent, inverse_of: :target
+      end
 
-        define_model do
-          belongs_to :parent, inverse_of: :target
-        end
-
-        define_viewmodel do
-          attributes :text
-          include TrivialAccessControl
-        end
+      define_viewmodel do
+        attributes :text
+        include TrivialAccessControl
       end
     end
   end
 
-  module WithParent
-    def before_all
-      super
 
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-        end
+  def self.build_parent(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Parent) do
+      define_schema do |t|
+        t.string :name
+      end
 
-        define_model do
-          has_one    :target, dependent: :destroy, inverse_of: :parent
-        end
+      define_model do
+        has_one    :target, dependent: :destroy, inverse_of: :parent
+      end
 
-        define_viewmodel do
-          attributes   :name
-          associations :target
-          include TrivialAccessControl
-        end
+      define_viewmodel do
+        attributes   :name
+        associations :target
+        include TrivialAccessControl
       end
     end
   end
 
-  include WithParent
-  include WithTarget
+  def before_all
+    super
+
+    self.class.build_parent(self)
+    self.class.build_target(self)
+  end
 
   def setup
     super
@@ -206,4 +203,50 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     assert_match(/not a hash/, ex.message)
   end
 
+
+  class RenameTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+        end
+
+        define_model do
+          has_one    :target, dependent: :destroy, inverse_of: :parent
+        end
+
+        define_viewmodel do
+          attributes   :name
+          association :target, as: :something_else
+          include TrivialAccessControl
+        end
+      end
+
+      ActiveRecordViewModel::HasOneTest.build_target(self)
+    end
+
+    def setup
+      super
+
+      @parent = Parent.create(target: Target.new(text: 'target text'))
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      alter_by_view!(Views::Parent, @parent) do |view, refs|
+        assert_equal({'id' => @parent.target.id,
+                     '_type' => 'Target',
+                     'text' => 'target text'},
+                     view['something_else'])
+        view['something_else']['text'] = 'target new text'
+      end
+
+      assert_equal('target new text',  @parent.target.text)
+    end
+  end
 end

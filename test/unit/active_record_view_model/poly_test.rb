@@ -8,68 +8,64 @@ require "active_record_view_model"
 class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  module WithPoly
-    def before_all
-      super
-
-      build_viewmodel(:PolyOne) do
-        define_schema do |t|
-          t.integer :number
-        end
-
-        define_model do
-          has_one :parent, as: :poly
-        end
-
-        define_viewmodel do
-          attributes :number
-          include TrivialAccessControl
-        end
+  def self.build_poly(arvm_test_case)
+    arvm_test_case.build_viewmodel(:PolyOne) do
+      define_schema do |t|
+        t.integer :number
       end
 
-      build_viewmodel(:PolyTwo) do
-        define_schema do |t|
-          t.string :text
-        end
+      define_model do
+        has_one :parent, as: :poly
+      end
 
-        define_model do
-          has_one :parent, as: :poly
-        end
+      define_viewmodel do
+        attributes :number
+        include TrivialAccessControl
+      end
+    end
 
-        define_viewmodel do
-          attributes :text
-          include TrivialAccessControl
-        end
+    arvm_test_case.build_viewmodel(:PolyTwo) do
+      define_schema do |t|
+        t.string :text
+      end
+
+      define_model do
+        has_one :parent, as: :poly
+      end
+
+      define_viewmodel do
+        attributes :text
+        include TrivialAccessControl
       end
     end
   end
 
-  module WithParent
-    def before_all
-      super
+  def self.build_parent(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Parent) do
+      define_schema do |t|
+        t.string :name
+        t.string :poly_type
+        t.integer :poly_id
+      end
 
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-          t.string :poly_type
-          t.integer :poly_id
-        end
+      define_model do
+        belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
+      end
 
-        define_model do
-          belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
-        end
-
-        define_viewmodel do
-          attributes   :name
-          association :poly, viewmodels: [Views::PolyOne, Views::PolyTwo]
-          include TrivialAccessControl
-        end
+      define_viewmodel do
+        attributes   :name
+        association :poly, viewmodels: [Views::PolyOne, Views::PolyTwo]
+        include TrivialAccessControl
       end
     end
   end
 
-  include WithPoly
-  include WithParent
+  def before_all
+    super
+
+    self.class.build_poly(self)
+    self.class.build_parent(self)
+  end
 
   def setup
     super
@@ -136,6 +132,54 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
 
     assert_instance_of(PolyTwo, @parent1.poly)
     assert_equal(false, PolyOne.exists?(old_poly.id))
+  end
+
+  class RenameTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      ActiveRecordViewModel::PolyTest.build_poly(self)
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+          t.string :poly_type
+          t.integer :poly_id
+        end
+
+        define_model do
+          belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
+        end
+
+        define_viewmodel do
+          attributes :name
+          association :poly, viewmodels: [Views::PolyOne, Views::PolyTwo], as: :something_else
+          include TrivialAccessControl
+        end
+      end
+    end
+
+    def setup
+      super
+
+      @parent = Parent.create(poly: PolyOne.create(number: 42))
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      alter_by_view!(Views::Parent, @parent) do |view, refs|
+        assert_equal({ 'id'     => @parent.id,
+                       '_type'  => 'PolyOne',
+                       'number' => 42 },
+                     view['something_else'])
+        view['something_else'] = {'_type' => 'PolyTwo', 'text' => 'hi'}
+      end
+
+      assert_equal('hi', @parent.poly.text)
+    end
   end
 
 end

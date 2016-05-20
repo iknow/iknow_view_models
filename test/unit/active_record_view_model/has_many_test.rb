@@ -8,10 +8,8 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def before_all
-    super
-
-    build_viewmodel(:Parent) do
+  def self.build_parent(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
       end
@@ -26,8 +24,10 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-    build_viewmodel(:Child) do
+  def self.build_child(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Child) do
       define_schema do |t|
         t.references :parent, null: false, foreign_key: true
         t.string :name
@@ -46,6 +46,12 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+
+  end
+
+  def before_all
+    self.class.build_parent(self)
+    self.class.build_child(self)
   end
 
   def setup
@@ -491,5 +497,51 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
 
     assert_equal(old_child, nc3)
     assert_equal("changed", nc3.name)
+  end
+
+  class RenamedTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+        end
+
+        define_model do
+          has_many :children, dependent: :destroy, inverse_of: :parent
+        end
+
+        define_viewmodel do
+          attributes :name
+          association :children, as: :something_else
+          include TrivialAccessControl
+        end
+      end
+
+      ActiveRecordViewModel::HasManyTest.build_child(self)
+    end
+
+    def setup
+      super
+
+      @parent = Parent.create(name: 'p1', children: [Child.new(name: 'c1')])
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      alter_by_view!(Views::Parent, @parent) do |view, refs|
+        assert_equal([{'id'   => @parent.children.first.id,
+                      '_type' => 'Child',
+                      'name'  => 'c1'}],
+                     view['something_else'])
+        view['something_else'][0]['name'] = 'new c1 name'
+      end
+
+      assert_equal('new c1 name', @parent.children.first.name)
+    end
   end
 end

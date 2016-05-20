@@ -8,10 +8,8 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def before_all
-    super
-
-    build_viewmodel(:TagA) do
+  def self.build_tag_a(arvm_test_case)
+    arvm_test_case.build_viewmodel(:TagA) do
       define_schema do |t|
         t.string :name
         t.string :tag_b_desc
@@ -27,8 +25,10 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-    build_viewmodel(:TagB) do
+  def self.build_tag_b(arvm_test_case)
+    arvm_test_case.build_viewmodel(:TagB) do
       define_schema do |t|
         t.string :name
         t.string :tag_b_desc
@@ -44,9 +44,10 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-
-    build_viewmodel(:Parent) do
+  def self.build_parent(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
       end
@@ -61,9 +62,10 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-
-    build_viewmodel(:ParentsTag) do
+  def self.build_parent_tag_join_model(arvm_test_case)
+    arvm_test_case.build_viewmodel(:ParentsTag) do
       define_schema do |t|
         t.references :parent, foreign_key: true
         t.references :tag
@@ -78,6 +80,15 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       no_viewmodel
     end
+  end
+
+  def before_all
+    super
+
+    self.class.build_tag_a(self)
+    self.class.build_tag_b(self)
+    self.class.build_parent(self)
+    self.class.build_parent_tag_join_model(self)
   end
 
   private def context_with(*args)
@@ -200,4 +211,57 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     assert_equal([], @parent1.parents_tags)
   end
 
+  class RenameTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      ActiveRecordViewModel::HasManyThroughPolyTest.build_tag_a(self)
+      ActiveRecordViewModel::HasManyThroughPolyTest.build_tag_b(self)
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+        end
+
+        define_model do
+          has_many :parents_tags, dependent: :destroy, inverse_of: :parent
+        end
+
+        define_viewmodel do
+          attributes :name
+          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [Views::TagA, Views::TagB], as: :something_else
+          include TrivialAccessControl
+        end
+      end
+
+      ActiveRecordViewModel::HasManyThroughPolyTest.build_parent_tag_join_model(self)
+    end
+
+    def setup
+      super
+
+      @parent = Parent.create(parents_tags: [ParentsTag.new(tag: TagA.new(name: 'tag A name'))])
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      context = Views::Parent.new_serialize_context(include: :something_else)
+      alter_by_view!(Views::Parent, @parent, serialize_context: context) do |view, refs|
+        assert_equal({refs.keys.first => {'id' => @parent.parents_tags.first.tag.id,
+                                          '_type' => 'TagA',
+                                          'name' => 'tag A name'}}, refs)
+        assert_equal([{ '_ref' => refs.keys.first }],
+                     view['something_else'])
+
+        refs.clear
+        refs['new'] = {'_type' => 'TagB', 'name' => 'tag B name'}
+        view['something_else'] = [{'_ref' => 'new'}]
+      end
+
+      assert_equal('tag B name', @parent.parents_tags.first.tag.name)
+    end
+  end
 end

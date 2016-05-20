@@ -8,10 +8,8 @@ require "active_record_view_model"
 class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def before_all
-    super
-
-    build_viewmodel(:Parent) do
+  def self.build_parent(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
       end
@@ -26,8 +24,10 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-    build_viewmodel(:Tag) do
+  def self.build_tag(arvm_test_case)
+    arvm_test_case.build_viewmodel(:Tag) do
       define_schema do |t|
         t.string :name
 
@@ -43,9 +43,10 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
         include TrivialAccessControl
       end
     end
+  end
 
-
-    build_viewmodel(:ParentsTag) do
+  def self.build_join_table_model(arvm_test_case)
+    arvm_test_case.build_viewmodel(:ParentsTag) do
       define_schema do |t|
         t.references :parent, foreign_key: true
         t.references :tag,    foreign_key: true
@@ -60,6 +61,14 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
       no_viewmodel
     end
+  end
+
+  def before_all
+    super
+
+    self.class.build_parent(self)
+    self.class.build_tag(self)
+    self.class.build_join_table_model(self)
   end
 
   private def context_with(*args)
@@ -179,5 +188,59 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     end
     assert_equal([@tag3, @tag3, @tag3],
                  @parent2.parents_tags.order(:position).map(&:tag))
+  end
+
+  class RenamingTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      ActiveRecordViewModel::HasManyThroughTest.build_tag(self)
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+        end
+
+        define_model do
+          has_many :parents_tags, dependent: :destroy, inverse_of: :parent
+        end
+
+        define_viewmodel do
+          attributes :name
+          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, as: :something_else
+          include TrivialAccessControl
+        end
+      end
+
+      ActiveRecordViewModel::HasManyThroughTest.build_join_table_model(self)
+    end
+
+
+    def setup
+      super
+
+      @parent = Parent.create(parents_tags: [ParentsTag.new(tag: Tag.new(name: 'tag name'))])
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      context = Views::Parent.new_serialize_context(include: :something_else)
+      alter_by_view!(Views::Parent, @parent, serialize_context: context) do |view, refs|
+        assert_equal({refs.keys.first => {'id'    => @parent.parents_tags.first.tag.id,
+                                          '_type' => 'Tag',
+                                          'name'  => 'tag name'}}, refs)
+        assert_equal([{ '_ref' => refs.keys.first }],
+                     view['something_else'])
+
+        refs.clear
+        refs['new'] = {'_type' => 'Tag', 'name' => 'tag new name'}
+        view['something_else'] = [{'_ref' => 'new'}]
+      end
+
+      assert_equal('tag new name', @parent.parents_tags.first.tag.name)
+    end
   end
 end

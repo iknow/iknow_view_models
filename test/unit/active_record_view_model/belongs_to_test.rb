@@ -266,8 +266,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
 
   class GCTests < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include WithOwner
     include WithLabel
+    include WithOwner
 
     # test belongs_to garbage collection - dependent: delete_all
     def test_gc_dependent_delete_all
@@ -293,6 +293,51 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
       assert_equal('two', owner.ignored.text)
       refute_equal(old_label, owner.ignored)
       assert_equal(1, Label.where(id: old_label.id).count)
+    end
+  end
+
+  class RenamedTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+    include WithLabel
+
+    def before_all
+      super
+
+      build_viewmodel(:Parent) do
+        define_schema do |t|
+          t.string :name
+          t.references :label, foreign_key: true
+        end
+
+        define_model do
+          belongs_to :label, inverse_of: :parent, dependent: :destroy
+        end
+
+        define_viewmodel do
+          attributes :name
+          association :label, as: :something_else
+          include TrivialAccessControl
+        end
+      end
+    end
+
+    def setup
+      super
+
+      @parent = Parent.create(name: 'p1', label: Label.new(text: 'l1'))
+
+      enable_logging!
+    end
+
+    def test_renamed_roundtrip
+      alter_by_view!(Views::Parent, @parent) do |view, refs|
+        assert_equal({ 'id'    => @parent.label.id,
+                       '_type' => 'Label',
+                       'text'  => 'l1'},
+                     view['something_else'])
+        view['something_else']['text'] = 'new l1 text'
+      end
+      assert_equal('new l1 text', @parent.label.text)
     end
   end
 
