@@ -96,7 +96,7 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     context = context_with(:tags)
     log_queries do
       parent_views = Views::Parent.load(serialize_context: context)
-      puts serialize(parent_views, serialize_context: context)
+      serialize(parent_views, serialize_context: context)
     end
 
     assert_equal(['Parent Load', 'ParentsTag Load', 'Tag Load'],
