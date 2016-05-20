@@ -3,8 +3,13 @@
 require 'jbuilder'
 
 class ViewModel
-  class DeserializationError < StandardError; end
-  class SerializationError < StandardError; end
+  class DeserializationError < StandardError
+    class Permissions < DeserializationError; end
+  end
+
+  class SerializationError < StandardError
+    class Permissions < SerializationError; end
+  end
 
   # A bucket for configuration, used for serializing and deserializing.
   class References
@@ -242,7 +247,7 @@ class ViewModel
 
   def visible!(context: self.class.new_serialize_context)
     unless visible?(context: context)
-      raise SerializationError.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
+      raise SerializationError::Permissions.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
     end
   end
 
@@ -252,7 +257,7 @@ class ViewModel
 
   def editable!(deserialize_context: self.class.new_deserialize_context)
     unless editable?(deserialize_context: deserialize_context)
-      raise DeserializationError.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
+      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
     end
   end
 
