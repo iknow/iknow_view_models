@@ -129,7 +129,15 @@ class ActiveRecordViewModel < ViewModel
     #   ActiveRecord +has_many:through:+.
     # - +through_order_attr+ the through model is ordered by the given attribute
     #   (only applies to when +through+ is set).
-    def association(association_name, viewmodel: nil, viewmodels: nil, shared: false, optional: shared, through: nil, through_order_attr: nil)
+    def association(association_name,
+                    viewmodel: nil,
+                    viewmodels: nil,
+                    shared: false,
+                    optional: shared,
+                    through: nil,
+                    through_order_attr: nil,
+                    as: nil)
+
       if through
         model_association_name = through
         through_to             = association_name
@@ -138,27 +146,29 @@ class ActiveRecordViewModel < ViewModel
         through_to             = nil
       end
 
+      vm_association_name    = as || association_name
+
       reflection = model_class.reflect_on_association(model_association_name)
 
       if reflection.nil?
-        raise ArgumentError.new("Association #{association_name} not found in #{model_class.name} model")
+        raise ArgumentError.new("Association #{model_association_name} not found in #{model_class.name} model")
       end
 
       viewmodel_spec = viewmodel || viewmodels
 
       association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
 
-      _members[association_name.to_s]      = :association
-      _associations[association_name.to_s] = association_data
+      _members[vm_association_name.to_s]      = :association
+      _associations[vm_association_name.to_s] = association_data
 
       @generated_accessor_module.module_eval do
-        define_method association_name do
-          read_association(association_name)
+        define_method vm_association_name do
+          read_association(vm_association_name)
         end
 
-        define_method :"serialize_#{association_name}" do |json, serialize_context: self.class.new_serialize_context|
-          associated = self.public_send(association_name)
-          json.set! association_name do
+        define_method :"serialize_#{vm_association_name}" do |json, serialize_context: self.class.new_serialize_context|
+          associated = self.public_send(vm_association_name)
+          json.set! vm_association_name do
             case
             when associated.nil?
               json.null!
@@ -438,7 +448,7 @@ class ActiveRecordViewModel < ViewModel
   def read_association(association_name)
     association_data = self.class._association_data(association_name)
 
-    associated = model.public_send(association_data.name)
+    associated = model.public_send(association_data.direct_reflection.name)
     return nil if associated.nil?
 
     case

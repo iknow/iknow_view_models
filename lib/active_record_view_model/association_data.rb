@@ -1,7 +1,7 @@
 # TODO consider rephrase scope for consistency
 class ActiveRecordViewModel::AssociationData
   attr_reader :direct_reflection
-  delegate :polymorphic?, :klass, :name, to: :direct_reflection
+  delegate :polymorphic?, :klass, to: :direct_reflection
   alias reflection direct_reflection
 
   def initialize(direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)

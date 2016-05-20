@@ -98,16 +98,17 @@ class ActiveRecordViewModel
 
         # Update points-to associations before save
         points_to.each do |association_data, child_operation|
-          debug "-> #{debug_name}: Updating points-to association '#{association_data.name}'"
+          reflection = association_data.direct_reflection
+          debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
-          association = model.association(association_data.name)
+          association = model.association(reflection.name)
           child_model = if child_operation
                           child_operation.run!(deserialize_context: deserialize_context).model
                         else
                           nil
                         end
           association.replace(child_model)
-          debug "<- #{debug_name}: Updated points-to association '#{association_data.name}'"
+          debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
         end
 
         # Placing the edit check here allows it to consider the previous and
@@ -125,11 +126,11 @@ class ActiveRecordViewModel
         # Update association cache of pointed-from associations after save: the
         # child update will have saved the pointer.
         pointed_to.each do |association_data, child_operation|
-          association_name = association_data.name
+          reflection = association_data.direct_reflection
 
-          debug "-> #{debug_name}: Updating pointed-to association '#{association_data.name}'"
+          debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
 
-          association = model.association(association_name)
+          association = model.association(reflection.name)
           new_target =
             case child_operation
             when nil
@@ -143,7 +144,7 @@ class ActiveRecordViewModel
 
           association.target = new_target
 
-          debug "<- #{debug_name}: Updated pointed-to association '#{association_data.name}'"
+          debug "<- #{debug_name}: Updated pointed-to association '#{reflection.name}'"
         end
       end
 
@@ -220,8 +221,8 @@ class ActiveRecordViewModel
     # return a ViewModelReference to be added to the worklist for deferred
     # resolution.
     def resolve_child_viewmodels(association_data, update_datas, previous_child_viewmodels, update_context)
-      if self.viewmodel.respond_to?(:"resolve_#{association_data.name}")
-        return self.viewmodel.public_send(:"resolve_#{association_data.name}", update_datas, previous_child_viewmodels)
+      if self.viewmodel.respond_to?(:"resolve_#{association_data.direct_reflection.name}")
+        return self.viewmodel.public_send(:"resolve_#{association_data.direct_reflection.name}", update_datas, previous_child_viewmodels)
       end
 
       was_singular = !update_datas.is_a?(Array)
@@ -257,7 +258,7 @@ class ActiveRecordViewModel
     def build_update_for_single_association(association_data, association_update_data, update_context)
       model = self.viewmodel.model
 
-      previous_child_viewmodel = model.public_send(association_data.name).try do |previous_child_model|
+      previous_child_viewmodel = model.public_send(association_data.direct_reflection.name).try do |previous_child_model|
         vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
         vm_class.new(previous_child_model)
       end
@@ -339,7 +340,7 @@ class ActiveRecordViewModel
       end
 
       # load children already attached to this model
-      previous_child_viewmodels = model.public_send(association_data.name).map do |previous_child_model|
+      previous_child_viewmodels = model.public_send(association_data.direct_reflection.name).map do |previous_child_model|
         vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
         vm_class.new(previous_child_model)
       end
@@ -415,7 +416,7 @@ class ActiveRecordViewModel
       # we want to set position => we need to reimplement the through handling
       previous_through_children =
         model
-          .public_send(association_data.name)
+          .public_send(direct_reflection.name)
           .tap { |x| x.sort_by(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
           .group_by(&viewmodel_reference_for_indirect_model)
 
