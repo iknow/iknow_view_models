@@ -94,7 +94,7 @@ class ActiveRecordViewModel < ViewModel
           redefine_method("serialize_#{attr}") do |json, serialize_context: self.class.new_serialize_context|
             value = self.public_send(attr)
             json.set! attr do
-              self.class.serialize(value.enum_constant, json, serialize_context: serialize_context)
+              self.class.serialize(value.try(:enum_constant), json, serialize_context: serialize_context)
             end
           end
         end
