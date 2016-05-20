@@ -10,6 +10,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
 
   module WithLabel
     def before_all
+      super
+
       build_viewmodel(:Label) do
         define_schema do |t|
           t.string :text
@@ -24,13 +26,13 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
   module WithParent
     def before_all
+      super
+
       build_viewmodel(:Parent) do
         define_schema do |t|
           t.string :name
@@ -47,13 +49,13 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
   module WithOwner
     def before_all
+      super
+
       build_viewmodel(:Owner) do
         define_schema do |t|
           t.integer :deleted_id
@@ -70,13 +72,11 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
           include TrivialAccessControl
         end
       end
-
-      super
     end
   end
 
-  include WithParent
   include WithLabel
+  include WithParent
 
   def setup
     super
