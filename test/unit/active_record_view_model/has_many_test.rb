@@ -197,7 +197,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
 
   def test_remove_has_many
     old_children = @parent1.children
-    context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    model, context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
       view['children'] = []
     end
 
@@ -210,7 +210,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
 
   def test_edit_has_many
     c1, c2, c3 = @parent1.children.order(:position).to_a
-    context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    view, context = alter_by_view!(Views::Parent, @parent1) do |view, refs|
       view['children'].shift
       view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
     end

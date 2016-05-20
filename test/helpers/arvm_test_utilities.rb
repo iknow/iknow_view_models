@@ -65,10 +65,16 @@ module ARVMTestUtilities
     end
 
     begin
-      viewmodel_class.deserialize_from_view(
+      result = viewmodel_class.deserialize_from_view(
         data, references: refs, deserialize_context: deserialize_context)
 
-      deserialize_context
+      result.each do |vm|
+        assert_model_represents_database(vm.model)
+      end
+
+      result = result.first unless model.is_a?(Array)
+
+      return result, deserialize_context
     ensure
       models.each { |m| m.reload }
     end
@@ -109,6 +115,37 @@ module ARVMTestUtilities
 
   def enable_logging!
     ActiveRecord::Base.logger = Logger.new(STDOUT)
+  end
+
+  def assert_model_represents_database(model, been_there: Set.new)
+    return if been_there.include?(model)
+    been_there << model
+
+    refute(model.new_record?, 'model represents database entity')
+    refute(model.changed?, 'model is fully persisted')
+
+    database_model = model.class.find(model.id)
+
+    assert_equal(database_model.attributes,
+                 model.attributes)
+
+    model.class.reflections.each do |_, reflection|
+      association = model.association(reflection.name)
+
+      next unless association.loaded?
+
+      case
+      when association.target == nil
+        assert_nil(database_model.association(reflection.name).target)
+      when reflection.collection?
+        association.target.each do |associated_model|
+          assert_model_represents_database(associated_model, been_there: been_there)
+        end
+      else
+        assert_model_represents_database(association.target, been_there: been_there)
+      end
+
+    end
   end
 
 end

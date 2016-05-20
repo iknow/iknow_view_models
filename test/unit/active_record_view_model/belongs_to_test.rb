@@ -268,6 +268,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     include ARVMTestUtilities
     include WithLabel
     include WithOwner
+    include WithParent
 
     # test belongs_to garbage collection - dependent: delete_all
     def test_gc_dependent_delete_all
