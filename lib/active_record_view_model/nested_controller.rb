@@ -25,6 +25,7 @@ module ActiveRecordViewModel::NestedController
   # Deserialize an item of the associated type and associate it with the owner.
   # For a collection association, this appends to the collection.
   def create
+    ser_context = serialize_view_context
     owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
@@ -35,7 +36,8 @@ module ActiveRecordViewModel::NestedController
                                                 references: refs,
                                                 deserialize_context: deserialize_view_context)
 
-      render_viewmodel(assoc_view, serialize_context: serialize_view_context)
+      ViewModel.preload_for_serialization(assoc_view, serialize_context: ser_context)
+      render_viewmodel(assoc_view, serialize_context: ser_context)
     end
   end
 
@@ -56,6 +58,7 @@ module ActiveRecordViewModel::NestedController
   private
 
   def update_association(update_hash, refs)
+    ser_context = serialize_view_context
     owner_viewmodel.transaction do
       owner_update_hash = { ActiveRecordViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
                             ActiveRecordViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
@@ -66,7 +69,9 @@ module ActiveRecordViewModel::NestedController
                                                                  deserialize_context: deserialize_view_context)
 
       association_view = updated_owner_view.read_association(association_name)
-      render_viewmodel(association_view, serialize_context: serialize_view_context)
+
+      ViewModel.preload_for_serialization(association_view, serialize_context: ser_context)
+      render_viewmodel(association_view, serialize_context: ser_context)
     end
   end
 

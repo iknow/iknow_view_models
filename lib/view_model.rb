@@ -200,6 +200,14 @@ class ViewModel
     def new_deserialize_context(*args)
       deserialize_context_class.new(*args)
     end
+
+
+    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context)
+      Array.wrap(viewmodels).group_by(&:class).each do |type, views|
+        ActiveRecord::Associations::Preloader.new.preload(views.map(&:model),
+                                                          type.eager_includes(serialize_context: serialize_context))
+      end
+    end
   end
 
   def initialize(*args)
@@ -236,9 +244,8 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
-  def preload_model(serialize_context: self.class.new_serialize_context)
-    ActiveRecord::Associations::Preloader.new(Array.wrap(self.model),
-                                              self.class.eager_includes(serialize_context: serialize_context)).run
+  def preload_for_serialization(serialize_context: self.class.new_serialize_context)
+    ViewModel.preload_for_serialization([self], serialize_context: serialize_context)
   end
 
   def visible?(context: self.class.new_serialize_context)

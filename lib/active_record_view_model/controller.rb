@@ -35,9 +35,11 @@ module ActiveRecordViewModel::Controller
   def create
     update_hash, refs = parse_viewmodel_updates
 
+    ser_context = serialize_view_context
     viewmodel.transaction do
       view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_view_context)
-      render_viewmodel(view, serialize_context: serialize_view_context)
+      ViewModel.preload_for_serialization(view, serialize_context: ser_context)
+      render_viewmodel(view, serialize_context: ser_context)
     end
   end
 
