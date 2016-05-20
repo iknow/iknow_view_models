@@ -218,7 +218,7 @@ class ActiveRecordViewModel
             end
           end
         else
-          raise "Could not parse unknown attribute/association #{name} in viewmodel #{viewmodel_class.view_name}"
+          raise "Could not parse unknown attribute/association #{name.inspect} in viewmodel '#{viewmodel_class.view_name}'"
         end
       end
     end
