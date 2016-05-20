@@ -61,6 +61,10 @@ class ActiveRecordViewModel::AssociationData
     @optional
   end
 
+  def polymorphic?
+    direct_reflection.options[:polymorphic]
+  end
+
   def pointer_location # TODO name
     case reflection.macro
     when :belongs_to

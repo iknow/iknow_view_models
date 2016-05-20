@@ -292,7 +292,7 @@ class ActiveRecordViewModel
             # that's private.
 
             inverse_reflection =
-              if association_data.reflection.polymorphic?
+              if association_data.polymorphic?
                 association_data.reflection.polymorphic_inverse_of(previous_child_viewmodel.model.class)
               else
                 association_data.reflection.inverse_of
