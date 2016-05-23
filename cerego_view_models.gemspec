@@ -34,7 +34,9 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "pg"
 
   spec.add_development_dependency "byebug"
+  spec.add_development_dependency "pry"
   spec.add_development_dependency "method_source"
+  spec.add_development_dependency "appraisal"
 
   spec.add_development_dependency "minitest-hooks"
 
