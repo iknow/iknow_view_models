@@ -127,7 +127,8 @@ module ARVMTestUtilities
     database_model = model.class.find(model.id)
 
     assert_equal(database_model.attributes,
-                 model.attributes)
+                 model.attributes,
+                 'in memory attributes match database attributes')
 
     model.class.reflections.each do |_, reflection|
       association = model.association(reflection.name)
@@ -136,7 +137,8 @@ module ARVMTestUtilities
 
       case
       when association.target == nil
-        assert_nil(database_model.association(reflection.name).target)
+        assert_nil(database_model.association(reflection.name).target,
+                   'in memory nil association matches database')
       when reflection.collection?
         association.target.each do |associated_model|
           assert_model_represents_database(associated_model, been_there: been_there)
