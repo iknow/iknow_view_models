@@ -205,52 +205,6 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
   end
 
-  def test_belongs_to_build_new_association
-    skip("unimplemented")
-
-    old_label = @parent1.label
-
-    Views::Parent.new(@parent1).deserialize_associated(:label, { "text" => "l2" })
-
-    @parent1.reload
-
-    assert(Label.where(id: old_label.id).blank?)
-    assert_equal("l2", @parent1.label.text)
-  end
-
-  def test_belongs_to_update_existing_association
-    skip("unimplemented")
-
-    label = @parent1.label
-    lv = Views::Label.new(label).to_hash
-    lv["text"] = "renamed"
-
-    Views::Parent.new(@parent1).deserialize_associated(:label, lv)
-
-    @parent1.reload
-
-    assert_equal(label, @parent1.label)
-    assert_equal("renamed", @parent1.label.text)
-  end
-
-  def test_belongs_to_move_existing_association
-    skip("unimplemented")
-
-    old_p1_label = @parent1.label
-    old_p2_label = @parent2.label
-
-    Views::Parent.new(@parent2).deserialize_associated("label", { "id" => old_p1_label.id })
-
-    @parent1.reload
-    @parent2.reload
-
-    assert(@parent1.label.blank?)
-    assert(Label.where(id: old_p2_label.id).blank?)
-
-    assert_equal(old_p1_label, @parent2.label)
-    assert_equal("p1l", @parent2.label.text)
-  end
-
   def test_implicit_release_invalid_belongs_to
     taken_label_ref = update_hash_for(Views::Label, @parent1.label)
     ex = assert_raises(ViewModel::DeserializationError) do
