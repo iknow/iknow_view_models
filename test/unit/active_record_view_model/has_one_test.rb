@@ -192,6 +192,52 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     assert(Target.where(id: old_parent2_target).blank?)
   end
 
+  def test_has_one_cannot_duplicate_from_outside_tree
+    # p2 shouldn't be able to copy p1's target, because attempting to take t1
+    # from outside the tree will create an new update operation for it, which
+    # will conflict with the one already present in p1.
+    ex = assert_raises(ViewModel::DeserializationError) do
+      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+        p2['target'] = p1['target'].dup
+      end
+    end
+    assert_match(/Not a valid type transition: explicit -> explicit/, ex.message)
+  end
+
+  def test_has_one_cannot_duplicate_implicitly_from_outside_tree
+    # p2 shouldn't be able to copy p1's target even when p1 doesn't explicitly
+    # specify it, because attempting to take t1 from outside the tree will
+    # create an new update operation for its old parent (p1), which will
+    # conflict with the p1 update.
+    ex = assert_raises(ViewModel::DeserializationError) do
+      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+        p2['target'] = p1['target']
+        p1.delete('target')
+      end
+    end
+    assert_match(/Not a valid type transition: explicit -> implicit/, ex.message)
+  end
+
+  def test_has_one_cannot_take_twice_from_outside_tree
+    t3 = Parent.create(target: Target.new(text: 'hi')).target
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+        p1['target'] = update_hash_for(Views::Target, t3)
+        p2['target'] = update_hash_for(Views::Target, t3)
+      end
+    end
+    assert_match(/Not a valid type transition: explicit -> explicit/, ex.message)
+  end
+
+  def test_has_one_take_unparented_from_outside_tree
+    t3 = Target.create(text: 'hi') # no parent
+
+    alter_by_view!(Views::Parent, @parent1) do |p1, refs|
+      p1['target'] = update_hash_for(Views::Target, t3)
+    end
+  end
+
   def test_bad_single_association
     view = {
       "_type" => "Parent",

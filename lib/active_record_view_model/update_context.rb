@@ -125,7 +125,6 @@ class ActiveRecordViewModel
 
       while @worklist.present?
         key = @worklist.keys.detect { |k| @released_viewmodels.has_key?(k) }
-
         if key.nil?
           # All worklist viewmodels are unresolvable from roots. We need to
           # manually load unresolvable VMs, and additionally add their previous
@@ -205,6 +204,8 @@ class ActiveRecordViewModel
 
       parent_model_id = child_viewmodel.model.send(
         child_viewmodel.model.association(parent_association_name).reflection.foreign_key)
+
+      return if parent_model_id.nil?
 
       ref = ActiveRecordViewModel::ViewModelReference.new(
         parent_viewmodel_class, parent_model_id)
