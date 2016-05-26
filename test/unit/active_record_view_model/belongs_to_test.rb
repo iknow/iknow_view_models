@@ -296,4 +296,66 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     end
   end
 
+  class FreedChildrenTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      build_viewmodel(:Aye) do
+        define_schema do |t|
+          t.references :bee
+        end
+        define_model do
+          belongs_to :bee, inverse_of: :aye, dependent: :destroy
+        end
+        define_viewmodel do
+          association :bee
+        end
+      end
+
+      build_viewmodel(:Bee) do
+        define_schema do |t|
+          t.references :cee
+        end
+        define_model do
+          has_one :aye, inverse_of: :bee
+          belongs_to :cee, inverse_of: :bee, dependent: :destroy
+        end
+        define_viewmodel do
+          association :cee
+        end
+      end
+
+      build_viewmodel(:Cee) do
+        define_schema do |t|
+        end
+        define_model do
+          has_one :bee, inverse_of: :cee
+        end
+        define_viewmodel do
+        end
+      end
+    end
+
+
+    # Do we support replacing a node in the tree and reparenting its children
+    # back to it? In theory we want to, but currently we don't: the child node
+    # is unresolvable.
+
+    # To support it we could maintain a list of child elements that will be
+    # implicitly freed by each freelist entry. Then worklist entries could
+    # resolve themselves from these children, and nil out the association target
+    # in the freelist to prevent them from being deleted when the freelist is
+    # cleaned. If the freelist entry is subsequently reclaimed, double update
+    # protection should prevent the child from being reused, but that will need
+    # testing.
+    def test_move
+      model = Aye.create(bee: Bee.new(cee: Cee.new))
+      ex = assert_raises(ViewModel::DeserializationError) do
+        alter_by_view!(Views::Aye, model) do |view, refs|
+          view['bee'].delete("id")
+        end
+      end
+      assert_match(/Cannot resolve previous parents for the following referenced viewmodels/, ex.message)
+    end
+  end
 end

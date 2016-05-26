@@ -295,4 +295,58 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
       assert_equal('target new text',  @parent.target.text)
     end
   end
+
+  class FreedChildrenTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      build_viewmodel(:Aye) do
+        define_schema do |t|
+          t.references :bee
+        end
+        define_model do
+          belongs_to :bee, inverse_of: :aye, dependent: :destroy
+        end
+        define_viewmodel do
+          association :bee
+        end
+      end
+
+      build_viewmodel(:Bee) do
+        define_schema do |t|
+        end
+        define_model do
+          has_one :aye, inverse_of: :bee
+          has_one :cee, inverse_of: :bee, dependent: :destroy
+        end
+        define_viewmodel do
+          association :cee
+        end
+      end
+
+      build_viewmodel(:Cee) do
+        define_schema do |t|
+          t.references :bee
+        end
+        define_model do
+          belongs_to :bee, inverse_of: :cee
+        end
+        define_viewmodel do
+        end
+      end
+    end
+
+
+    def test_move
+      model = Aye.create(bee: Bee.new(cee: Cee.new))
+
+      # This test currently fails because we allow the new to Bee to resolve the
+      # Cee directly from the database when its old parent Bee (in the previous
+      # tree) has been put on the release pool and is about to delete it.
+      alter_by_view!(Views::Aye, model) do |view, refs|
+        view['bee'].delete("id")
+      end
+    end
+  end
+
 end
