@@ -121,7 +121,7 @@ module ActionDispatch
             instance_eval(&block) if block_given?
 
             if shallow_nesting_depth > 1
-              # Nested controllers also get :append and :disassociate
+              # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
                 put    '', action: :append           unless except.include?(:append)
                 delete '', action: :disassociate_all unless except.include?(:disassociate_all)
@@ -130,6 +130,11 @@ module ActionDispatch
               scope shallow: false do
                 delete '', action: :disassociate     unless except.include?(:disassociate)
               end
+
+              member do
+                post '', action: :create unless except.include?(:create)
+              end
+
             end
           end
         end
@@ -137,8 +142,19 @@ module ActionDispatch
         def arvm_resource(resource_name, options = {}, &block)
           except = options[:except] || []
           only_routes = [:show, :destroy, :create] - except
+          is_shallow = false
           resource resource_name, shallow: true, only: only_routes do
+            is_shallow = shallow_nesting_depth > 1
             instance_eval(&block) if block_given?
+          end
+
+          # nested singular resources provide collection accessors at the top level
+          if is_shallow
+            resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
+              member do
+                post '', action: :create unless except.include?(:create)
+              end
+            end
           end
         end
       end

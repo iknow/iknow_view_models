@@ -6,7 +6,7 @@ require 'active_record_view_model/nested_controller_base'
 # POST   /parents/:parent_id/children            #create  -- deserialize (possibly existing) children, replacing existing collection
 # GET    /parents/:parent_id/children            #index   -- list collection
 # DELETE /parents/:parent_id/children/:child_id  #disassociate -- delete relationship between parent/child (possibly garbage-collecting child)
-# DELETE /parents/:parent_id/children            #disassociate_all
+# DELETE /parents/:parent_id/children            #disassociate_all -- delete relationship from parent to all children
 
 ## Inherits the following routes to manipulate children directly:
 # POST   /children      #create -- create or update without parent
