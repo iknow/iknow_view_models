@@ -14,7 +14,6 @@ require 'active_record_view_model/nested_controller_base'
 # DELETE /children/:id  #destroy
 module ActiveRecordViewModel::CollectionNestedController
   extend ActiveSupport::Concern
-  include ActiveRecordViewModel::Controller # inherits controller routes
   include ActiveRecordViewModel::NestedControllerBase
 
   # List items associated with the owner

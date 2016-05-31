@@ -204,19 +204,19 @@ module ControllerTestControllers
 
     Class.new(DummyController) do |c|
       Object.const_set(:ChildController, self)
-      include ActiveRecordViewModel::CollectionNestedController
+      include ActiveRecordViewModel::Controller
       nested_in :parent, as: :children
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:LabelController, self)
-      include ActiveRecordViewModel::SingularNestedController
+      include ActiveRecordViewModel::Controller
       nested_in :parent, as: :label
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:TargetController, self)
-      include ActiveRecordViewModel::SingularNestedController
+      include ActiveRecordViewModel::Controller
       nested_in :parent, as: :target
     end
   end

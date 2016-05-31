@@ -50,6 +50,20 @@ module ActiveRecordViewModel::Controller
     end
   end
 
+  class_methods do
+    def nested_in(owner, as:)
+      if as.to_s.singularize == as.to_s
+        include ActiveRecordViewModel::SingularNestedController
+      else
+        include ActiveRecordViewModel::CollectionNestedController
+      end
+
+      self.owner_viewmodel = ActiveRecordViewModel.for_view_name(owner.to_s.camelize)
+      raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
+      self.association_name = as
+    end
+  end
+
   private
 
   def viewmodel_id

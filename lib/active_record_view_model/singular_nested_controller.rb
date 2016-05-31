@@ -13,7 +13,6 @@
 require 'active_record_view_model/nested_controller_base'
 module ActiveRecordViewModel::SingularNestedController
   extend ActiveSupport::Concern
-  include ActiveRecordViewModel::Controller
   include ActiveRecordViewModel::NestedControllerBase
 
   def index

@@ -1,13 +1,6 @@
 require 'active_record_view_model/controller_base'
 module ActiveRecordViewModel::NestedControllerBase
   extend ActiveSupport::Concern
-  class_methods do
-   def nested_in(owner, as:)
-      self.owner_viewmodel = ActiveRecordViewModel.for_view_name(owner.to_s.camelize)
-      raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
-      self.association_name = as
-   end
-  end
 
   protected
 
@@ -15,6 +8,7 @@ module ActiveRecordViewModel::NestedControllerBase
     ser_context = serialize_view_context
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: ser_context)
+      owner_view.visible!(context: ser_context)
       associated_views = owner_view.load_associated(association_name)
 
       render_viewmodel(associated_views, serialize_context: ser_context)
@@ -77,4 +71,3 @@ module ActiveRecordViewModel::NestedControllerBase
     attr_accessor :owner_viewmodel, :association_name
   end
 end
-

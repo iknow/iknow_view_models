@@ -114,10 +114,14 @@ module ActionDispatch
     class Mapper
       module Resources
         def arvm_resources(resource_name, options = {}, &block)
-          except = options[:except] || []
-          only_routes = [:index, :show, :destroy, :create] - except
+          except             = options.delete(:except){ [] }
+          add_shallow_routes = options.delete(:add_shallow_routes){ true }
 
-          resources resource_name, shallow: true, only: only_routes do
+          only_routes  = [:index, :create]
+          only_routes += [:show, :destroy] if add_shallow_routes
+          only_routes -= except
+
+          resources resource_name, shallow: true, only: only_routes, **options do
             instance_eval(&block) if block_given?
 
             if shallow_nesting_depth > 1
@@ -132,7 +136,7 @@ module ActionDispatch
               end
 
               member do
-                post '', action: :create unless except.include?(:create)
+                post '', action: :create unless except.include?(:create) || !add_shallow_routes
               end
 
             end
@@ -140,16 +144,18 @@ module ActionDispatch
         end
 
         def arvm_resource(resource_name, options = {}, &block)
-          except = options[:except] || []
+          except             = options.delete(:except){ [] }
+          add_shallow_routes = options.delete(:add_shallow_routes){ true }
+
           only_routes = [:show, :destroy, :create] - except
           is_shallow = false
-          resource resource_name, shallow: true, only: only_routes do
+          resource resource_name, shallow: true, only: only_routes, **options do
             is_shallow = shallow_nesting_depth > 1
             instance_eval(&block) if block_given?
           end
 
           # nested singular resources provide collection accessors at the top level
-          if is_shallow
+          if is_shallow && add_shallow_routes
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
               member do
                 post '', action: :create unless except.include?(:create)
