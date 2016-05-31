@@ -19,6 +19,7 @@ module ActiveRecordViewModel::Controller
     context = serialize_view_context
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: context)
+      view = yield(view) if block_given?
       render_viewmodel(view, serialize_context: context)
     end
   end
@@ -27,6 +28,7 @@ module ActiveRecordViewModel::Controller
     context = serialize_view_context
     viewmodel.transaction do
       views = viewmodel.load(scope: scope, serialize_context: context)
+      views = yield(views) if block_given?
       render_viewmodel(views, serialize_context: context)
     end
   end

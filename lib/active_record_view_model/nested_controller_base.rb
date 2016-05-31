@@ -11,6 +11,8 @@ module ActiveRecordViewModel::NestedControllerBase
       owner_view.visible!(context: ser_context)
       associated_views = owner_view.load_associated(association_name)
 
+      associated_views = yield(associated_views) if block_given?
+
       render_viewmodel(associated_views, serialize_context: ser_context)
     end
   end

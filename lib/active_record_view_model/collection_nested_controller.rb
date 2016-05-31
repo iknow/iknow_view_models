@@ -17,8 +17,8 @@ module ActiveRecordViewModel::CollectionNestedController
   include ActiveRecordViewModel::NestedControllerBase
 
   # List items associated with the owner
-  def index
-   show_association
+  def index(&block)
+    show_association(&block)
   end
 
   # Deserialize items of the associated type and associate them with the owner,

@@ -19,11 +19,11 @@ module ActiveRecordViewModel::SingularNestedController
     raise ArgumentError.new("Index unavailable for nested view")
   end
 
-  def show
+  def show(&block)
     if owner_viewmodel_id(required: false).nil?
-      super
+      super(&block)
     else
-      show_association
+      show_association(&block)
     end
   end
 
