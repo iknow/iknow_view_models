@@ -8,11 +8,17 @@ require "active_record_view_model/collection_nested_controller"
 module CeregoViewModels
 
   class ExceptionView < ViewModel
-    attributes :exception, :status
+    attributes :exception, :status, :metadata
+
     def serialize_view(json, serialize_context: nil)
       json.errors [exception] do |e|
         json.status status
         json.detail exception.message
+
+        json.metadata do
+          ViewModel.serialize(metadata, json, serialize_context: serialize_context)
+        end
+
         if Rails.env != 'production'
           json.set! :class, exception.class.name
           json.backtrace exception.backtrace
@@ -42,9 +48,9 @@ module CeregoViewModels
         end
       end
 
-      def render_error(exception, status = 500)
+      def render_error(exception, status = 500, metadata: {})
         render_jbuilder(status: status) do |json|
-          ViewModel.serialize(ExceptionView.new(exception, status), json)
+          ViewModel.serialize(ExceptionView.new(exception, status, metadata), json)
         end
       end
 
