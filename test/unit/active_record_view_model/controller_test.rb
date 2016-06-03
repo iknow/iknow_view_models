@@ -117,7 +117,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(data: data)
     parentcontroller.invoke(:create)
 
-    assert_equal({ 'errors' => [{ 'status' => 500,
+    assert_equal({ 'errors' => [{ 'status' => 400,
                                   'detail' => 'Validation failed: Age must be less than 42' }] },
                  parentcontroller.hash_response)
   end
@@ -129,7 +129,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(data: data)
     parentcontroller.invoke(:create)
 
-    assert_equal(500, parentcontroller.status)
+    assert_equal(400, parentcontroller.status)
     assert_match(%r{check constraint}i,
                  parentcontroller.hash_response["errors"].first["detail"],
                  "Database error propagated")

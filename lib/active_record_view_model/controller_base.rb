@@ -49,11 +49,11 @@ module ControllerBase
 
   protected
 
-  def deserialize_view_context(*args)
+  def new_deserialize_context(*args)
     viewmodel.new_deserialize_context(*args)
   end
 
-  def serialize_view_context(*args)
+  def new_serialize_context(*args)
     viewmodel.new_serialize_context(*args)
   end
 
@@ -95,6 +95,8 @@ module ControllerBase
     rescue_from RenderError,                                  with: ->(ex){ render_error(ex, ex.code) }
 
     rescue_from ActiveRecord::RecordNotFound,                 with: ->(ex){ render_error(ex, 404)}
+    rescue_from ActiveRecord::RecordInvalid,                  with: ->(ex){ render_error(ex, 400)}
+    rescue_from ActiveRecord::StatementInvalid,               with: ->(ex){ render_error(ex, 400)} # Catch database CHECK constraints # TODO: - write test for foreign key constraint
 
     rescue_from ViewModel::DeserializationError,              with: ->(ex){ render_error(ex, 400)}
     rescue_from ViewModel::DeserializationError::Permissions, with: ->(ex){ render_error(ex, 403)}

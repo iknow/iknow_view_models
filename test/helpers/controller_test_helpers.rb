@@ -175,13 +175,20 @@ class DummyController
   end
 
   class << self
+    def inherited(subclass)
+      subclass.initialize_rescue_blocks
+    end
+
+    def initialize_rescue_blocks
+      @rescue_blocks = {}
+    end
+
     def rescue_from(type, with:)
-      @rescue_blocks ||= {}
       @rescue_blocks[type] = with
     end
 
     def rescue_block(type)
-      @rescue_blocks.try { |bs| bs.to_a.reverse.detect { |btype, h| type <= btype }.last }
+      @rescue_blocks.to_a.reverse.detect { |btype, h| type <= btype }.try(&:last)
     end
   end
 end

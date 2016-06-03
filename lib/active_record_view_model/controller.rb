@@ -15,39 +15,36 @@ module ActiveRecordViewModel::Controller
     delegate :viewmodel, to: 'self.class'
   end
 
-  def show(scope: nil)
-    context = serialize_view_context
+  def show(scope: nil, serialize_context: new_serialize_context)
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: context)
+      view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
       view = yield(view) if block_given?
-      render_viewmodel(view, serialize_context: context)
+      render_viewmodel(view, serialize_context: serialize_context)
     end
   end
 
-  def index(scope: nil)
-    context = serialize_view_context
+  def index(scope: nil, serialize_context: new_serialize_context)
     viewmodel.transaction do
-      views = viewmodel.load(scope: scope, serialize_context: context)
+      views = viewmodel.load(scope: scope, serialize_context: serialize_context)
       views = yield(views) if block_given?
-      render_viewmodel(views, serialize_context: context)
+      render_viewmodel(views, serialize_context: serialize_context)
     end
   end
 
-  def create
+  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     update_hash, refs = parse_viewmodel_updates
 
-    ser_context = serialize_view_context
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_view_context)
-      ViewModel.preload_for_serialization(view, serialize_context: ser_context)
-      render_viewmodel(view, serialize_context: ser_context)
+      view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
+      ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
+      render_viewmodel(view, serialize_context: serialize_context)
     end
   end
 
-  def destroy
+  def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_view_context)
-      view.destroy!(deserialize_context: deserialize_view_context)
+      view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      view.destroy!(deserialize_context: deserialize_context)
       render_viewmodel(nil)
     end
   end

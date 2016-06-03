@@ -19,27 +19,27 @@ module ActiveRecordViewModel::SingularNestedController
     raise ArgumentError.new("Index unavailable for nested view")
   end
 
-  def show(&block)
+  def show(serialize_context: new_serialize_context, &block)
     if owner_viewmodel_id(required: false).nil?
-      super(&block)
+      super(serialize_context: serialize_context, &block)
     else
-      show_association(&block)
+      show_association(serialize_context: serialize_context, &block)
     end
   end
 
-  def create
+  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     if owner_viewmodel_id(required: false).nil?
-      super
+      super(serialize_context: serialize_context, deserialize_context: deserialize_context)
     else
-      write_association
+      write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
     end
   end
 
-  def destroy
+  def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     if owner_viewmodel_id(required: false).nil?
-      super
+      super(serialize_context: serialize_context, deserialize_context: deserialize_context)
     else
-      destroy_association(false)
+      destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context)
     end
   end
 end
