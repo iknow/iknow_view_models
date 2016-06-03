@@ -30,13 +30,13 @@ module ARVMTestUtilities
     @viewmodels << ARVMBuilder.new(name, &block)
   end
 
-  def serialize_with_references(serializable, serialize_context: Views::ApplicationBase.new_serialize_context)
+  def serialize_with_references(serializable, serialize_context: ViewModelBase.new_serialize_context)
     data = ViewModel.serialize_to_hash(serializable, serialize_context: serialize_context)
     references = serialize_context.serialize_references_to_hash
     return data, references
   end
 
-  def serialize(serializable, serialize_context: Views::ApplicationBase.new_serialize_context)
+  def serialize(serializable, serialize_context: ViewModelBase.new_serialize_context)
     data, _ = serialize_with_references(serializable, serialize_context: serialize_context)
     data
   end
@@ -95,10 +95,10 @@ module ARVMTestUtilities
     end
 
     begin
-      deserialize_context = Views::ApplicationBase::DeserializeContext.new
+      deserialize_context = ViewModelBase::DeserializeContext.new
 
       viewmodel_class.deserialize_from_view(
-        data, references: refs, deserialize_context: Views::ApplicationBase::DeserializeContext.new)
+        data, references: refs, deserialize_context: ViewModelBase::DeserializeContext.new)
 
       deserialize_context
     ensure

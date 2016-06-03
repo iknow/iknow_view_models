@@ -36,7 +36,7 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
         def self.resolve_translations(update_datas, previous_translation_views)
           existing = previous_translation_views.index_by { |x| [x.model.language, x.model.translation] }
           update_datas.map do |update_data|
-            existing.fetch([update_data["language"], update_data["translation"]]) { Views::Translation.new }
+            existing.fetch([update_data["language"], update_data["translation"]]) { TranslationView.new }
           end
         end
 
@@ -89,12 +89,12 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
   end
 
   def test_serialize
-    assert_equal(@text1_view, serialize(Views::Text.new(@text1)))
+    assert_equal(@text1_view, serialize(TextView.new(@text1)))
   end
 
   def test_create
     create_view = @text1_view.dup.tap {|v| v.delete('id')}
-    new_text_view = Views::Text.deserialize_from_view(create_view)
+    new_text_view = TextView.deserialize_from_view(create_view)
     new_text_model = new_text_view.model
 
     assert_equal('dog', new_text_model.text)
@@ -109,7 +109,7 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
 
   def test_noop
     original_translation_models = @text1.translations.order(:id).to_a
-    alter_by_view!(Views::Text, @text1) {}
+    alter_by_view!(TextView, @text1) {}
     assert_equal(original_translation_models, @text1.translations.order(:id).to_a)
   end
 end
@@ -147,8 +147,8 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
     # define a `renum` enumeration
     Object.enum :SectionType do
       Simple(nil)
-      Quiz(Views::QuizSection)
-      Vocab(Views::VocabSection)
+      Quiz(QuizSectionView)
+      Vocab(VocabSectionView)
 
       attr_reader :viewmodel
       def init(viewmodel)
@@ -185,7 +185,7 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-        association :section_data, viewmodels: [Views::VocabSection, Views::QuizSection]
+        association :section_data, viewmodels: [VocabSectionView, QuizSectionView]
 
         def self.pre_parse(user_data)
           section_type = SectionType.with_name(user_data["section_type"])
@@ -253,13 +253,13 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
   end
 
   def test_serialize
-    v = Views::Section.new(@simplesection)
+    v = SectionView.new(@simplesection)
     assert_equal(@simplesection_view, v.to_hash)
 
-    v = Views::Section.new(@quizsection)
+    v = SectionView.new(@quizsection)
     assert_equal(@quizsection_view, v.to_hash)
 
-    v = Views::Section.new(@vocabsection)
+    v = SectionView.new(@vocabsection)
     assert_equal(@vocabsection_view, v.to_hash)
   end
 
@@ -284,16 +284,16 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
       end
     }
 
-    v = Views::Section.deserialize_from_view(new_view_like(@simplesection_view))
+    v = SectionView.deserialize_from_view(new_view_like(@simplesection_view))
     assert_section.call(v.model, "simple1")
 
-    v = Views::Section.deserialize_from_view(new_view_like(@quizsection_view))
+    v = SectionView.deserialize_from_view(new_view_like(@quizsection_view))
     assert_section.call(v.model, "quiz1") do |m|
       assert(m.is_a?(QuizSection))
       assert_equal("qq", m.quiz_name)
     end
 
-    v = Views::Section.deserialize_from_view(new_view_like(@vocabsection_view))
+    v = SectionView.deserialize_from_view(new_view_like(@vocabsection_view))
     assert_section.call(v.model, "vocab1") do |m|
       assert(m.is_a?(VocabSection))
       assert_equal("dog", m.vocab_word)
@@ -304,11 +304,11 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
     # Simple sections have no stability worth checking
 
     old_quizsection_data = @quizsection.section_data
-    alter_by_view!(Views::Section, @quizsection) {}
+    alter_by_view!(SectionView, @quizsection) {}
     assert_equal(old_quizsection_data, @quizsection.section_data)
 
     old_vocabsection_data = @vocabsection.section_data
-    alter_by_view!(Views::Section, @vocabsection) {}
+    alter_by_view!(SectionView, @vocabsection) {}
     assert_equal(old_vocabsection_data, @vocabsection.section_data)
   end
 end

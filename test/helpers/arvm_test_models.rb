@@ -53,7 +53,9 @@ module TrivialAccessControl
 end
 
 # base class for viewmodels
-class Views::ApplicationBase < ActiveRecordViewModel
+class ViewModelBase < ActiveRecordViewModel
+  self.abstract_class = true
+
   module ContextAccessLogging
     def edit_checks
       # Create is expressed as edit checking a new model. Since checks are
@@ -124,12 +126,16 @@ class ARVMBuilder
   def teardown
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{name.underscore.pluralize} CASCADE")
     Object.send(:remove_const, name)
-    Views.send(:remove_const, name) if viewmodel
+    Object.send(:remove_const, viewmodel_name) if viewmodel
     # prevent cached old class from being used to resolve associations
     ActiveSupport::Dependencies::Reference.clear!
   end
 
   private
+
+  def viewmodel_name
+    self.name + "View"
+  end
 
   def define_schema(&block)
     table_name = name.underscore.pluralize
@@ -152,44 +158,17 @@ class ARVMBuilder
   end
 
   def define_viewmodel(&block)
-    viewmodel_name = name
-    @viewmodel = Class.new(Views::ApplicationBase) do |c|
-      raise "Viewmodel alreay defined: #{viewmodel_name}" if Views.const_defined?(viewmodel_name, false)
-      Views.const_set(viewmodel_name, self)
+    vm_name = viewmodel_name
+    @viewmodel = Class.new(ViewModelBase) do |c|
+      raise "Viewmodel alreay defined: #{vm_name}" if Object.const_defined?(vm_name, false)
+      Object.const_set(vm_name, self)
       class_eval(&block)
     end
+    raise "help help" if @viewmodel.name.nil?
     @viewmodel
   end
 
   def no_viewmodel
     @no_viewmodel = true
-  end
-end
-
-class ARVMTestModels
-  def self.define_viewmodel(name, schema_def, model_def, viewmodel_def)
-    @count = (@count || 0) + 1
-    typename = "#{name.to_s.camelize}#{@count}"
-
-    ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{tablename} CASCADE")
-    ActiveRecord::Schema.define do
-      # self.verbose = false
-      create_table(tablename, &schema_def)
-    end
-
-    model = Class.new(ApplicationRecord, &model_def)
-    Object.const_set(typename, model)
-
-    viewmodel = Class.new(Views::ApplicationBase) do |c|
-      self.model_class = model
-      class_eval(&viewmodel_def)
-    end
-    Views.const_set(typename, viewmodel)
-
-    return model, viewmodel
-  end
-
-  def self.undefine_viewmodel(model, viewmodel)
-    
   end
 end

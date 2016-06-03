@@ -12,7 +12,16 @@ class ActiveRecordViewModel::AssociationData
     @through_order_attr = through_order_attr
 
     if viewmodel_classes
-      @viewmodel_classes = Array.wrap(viewmodel_classes)
+      @viewmodel_classes = Array.wrap(viewmodel_classes).map! do |v|
+        case v
+        when String, Symbol
+          ActiveRecordViewModel.for_view_name(v.to_s)
+        when Class
+          v
+        else
+          raise ArgumentError.new("Invalid viewmodel class: #{v.inspect}")
+        end
+      end
     end
 
     if through?
@@ -116,6 +125,7 @@ class ActiveRecordViewModel::AssociationData
       viewmodel_classes   = self.viewmodel_classes
 
       Class.new(ActiveRecordViewModel) do
+        self.synthetic = true
         self.model_class = direct_reflection.klass
         association indirect_reflection.name, shared: true, optional: false, viewmodels: viewmodel_classes
         acts_as_list through_order_attr if through_order_attr

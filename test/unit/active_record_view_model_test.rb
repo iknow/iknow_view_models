@@ -41,12 +41,12 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   ## Tests
 
   def test_find
-    parentview = Views::Parent.find(@parent1.id)
+    parentview = ParentView.find(@parent1.id)
     assert_equal(@parent1, parentview.model)
   end
 
   def test_load
-    parentviews = Views::Parent.load
+    parentviews = ParentView.load
     assert_equal(2, parentviews.size)
 
     h = parentviews.index_by(&:id)
@@ -60,7 +60,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       "name"     => "p",
     }
 
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -70,38 +70,38 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   end
 
   def test_visibility_raises
-    parentview = Views::Parent.new(@parent1)
+    parentview = ParentView.new(@parent1)
 
     assert_raises(ViewModel::SerializationError) do
-      no_view_context = Views::ApplicationBase::SerializeContext.new(can_view: false)
+      no_view_context = ViewModelBase.new_serialize_context(can_view: false)
       parentview.to_hash(serialize_context: no_view_context)
     end
   end
 
   def test_editability_checks_create
-    context = Views::ApplicationBase::DeserializeContext.new
-    Views::Parent.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
+    context = ViewModelBase.new_deserialize_context
+    ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
-    assert_equal([[Views::Parent, nil]], context.edit_checks)
+    assert_equal([[ParentView, nil]], context.edit_checks)
   end
 
   def test_editability_raises
-    no_edit_context = Views::ApplicationBase::DeserializeContext.new(can_edit: false)
+    no_edit_context = ViewModelBase.new_deserialize_context(can_edit: false)
 
     assert_raises(ViewModel::DeserializationError) do
       # create
-      Views::Parent.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
+      ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # edit
-      v = Views::Parent.new(@parent1).to_hash.merge("name" => "p2")
-      Views::Parent.deserialize_from_view(v, deserialize_context: no_edit_context)
+      v = ParentView.new(@parent1).to_hash.merge("name" => "p2")
+      ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy
-      Views::Parent.new(@parent1).destroy!(deserialize_context: no_edit_context)
+      ParentView.new(@parent1).destroy!(deserialize_context: no_edit_context)
     end
   end
 
@@ -109,7 +109,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     view = [{'_type' => 'Parent', 'name' => 'newp1'},
             {'_type' => 'Parent', 'name' => 'newp2'}]
 
-    result = Views::Parent.deserialize_from_view(view)
+    result = ParentView.deserialize_from_view(view)
 
     new_parents = Parent.where(id: result.map{|x| x.model.id})
 
@@ -124,23 +124,23 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     end
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view({ "target" => [] })
+      ParentView.deserialize_from_view({ "target" => [] })
     end
     assert_match(/Missing '_type' field in update hash/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view({ "_type" => "Invalid" })
+      ParentView.deserialize_from_view({ "_type" => "Invalid" })
     end
     assert_match(/incorrect root viewmodel type/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view({ "_type" => "NotAViewmodelType" })
+      ParentView.deserialize_from_view({ "_type" => "NotAViewmodelType" })
     end
     assert_match(/ViewModel\b.*\bnot found/, ex.message)
   end
 
   def test_edit_attribute_from_view
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['name'] = 'renamed'
     end
     assert_equal('renamed', @parent1.name)
@@ -149,7 +149,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
   def test_edit_attribute_validation_failure
     old_name = @parent1.name
     assert_raises(ActiveRecord::RecordInvalid) do
-      alter_by_view!(Views::Parent, @parent1) do |view, refs|
+      alter_by_view!(ParentView, @parent1) do |view, refs|
         view['name'] = 'invalid'
       end
     end

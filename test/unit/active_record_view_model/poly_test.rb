@@ -54,7 +54,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes   :name
-        association :poly, viewmodels: [Views::PolyOne, Views::PolyTwo]
+        association :poly, viewmodels: [PolyOneView, PolyTwoView]
         include TrivialAccessControl
       end
     end
@@ -83,7 +83,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
     Parent.create(name: "with PolyTwo", poly: PolyTwo.new)
 
     log_queries do
-      serialize(Views::Parent.load)
+      serialize(ParentView.load)
     end
     assert_equal(['Parent Load', 'PolyOne Load', 'PolyTwo Load'],
                  logged_load_queries.sort)
@@ -96,7 +96,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
       "poly"     => { "_type" => "PolyTwo", "text" => "pol" }
     }
 
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -111,7 +111,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
 
 
   def test_serialize_view
-    view, _refs = serialize_with_references(Views::Parent.new(@parent1))
+    view, _refs = serialize_with_references(ParentView.new(@parent1))
 
     assert_equal({ "_type" => "Parent",
                    "id" => @parent1.id,
@@ -126,7 +126,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
   def test_change_polymorphic_type
     old_poly = @parent1.poly
 
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['poly'] = { '_type' => 'PolyTwo', 'text' => 'hi' }
     end
 
@@ -155,7 +155,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
 
         define_viewmodel do
           attributes :name
-          association :poly, viewmodels: [Views::PolyOne, Views::PolyTwo], as: :something_else
+          association :poly, viewmodels: [PolyOneView, PolyTwoView], as: :something_else
           include TrivialAccessControl
         end
       end
@@ -170,7 +170,7 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(Views::Parent, @parent) do |view, refs|
+      alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({ 'id'     => @parent.id,
                        '_type'  => 'PolyOne',
                        'number' => 42 },

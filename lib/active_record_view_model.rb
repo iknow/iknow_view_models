@@ -5,8 +5,7 @@ require "view_model"
 
 require "cerego_active_record_patches"
 require "lazily"
-
-module Views; end
+require "concurrent"
 
 class ActiveRecordViewModel < ViewModel
   require 'active_record_view_model/association_data'
@@ -22,29 +21,45 @@ class ActiveRecordViewModel < ViewModel
   # An AR ViewModel wraps a single AR model
   attribute :model
 
+  @@viewmodel_classes_by_name  = Concurrent::Map.new
+  @@deferred_viewmodel_classes = Concurrent::Array.new
+
   class << self
     attr_reader :_members, :_associations, :_list_attribute_name
+    attr_accessor :abstract_class, :synthetic
 
     delegate :transaction, to: :model_class
 
-    # The user-facing name of this viewmodel: serialized in the TYPE_ATTRIBUTE
-    # field
+    # The user-facing name of this viewmodel: serialized in the TYPE_ATTRIBUTE field
     def view_name
-      prefix = "#{Views.name}::"
-      unless name.start_with?(prefix)
-        raise "Illegal AR viewmodel: must be defined under module '#{prefix}'"
-      end
-      self.name[prefix.length..-1]
+      @view_name ||=
+        begin
+          # try to auto-detect based on class name
+          match = /(.*)View$/.match(self.name)
+          raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
+          match[1]
+        end
+    end
+
+    def view_name=(name)
+      @view_name = name
     end
 
     def for_view_name(name)
-      raise ViewModel::DeserializationError.new("view name cannot be nil") if name.nil?
+      raise ViewModel::DeserializationError.new("ViewModel name cannot be nil") if name.nil?
 
-      class_name = "#{Views.name}::#{name}"
-      viewmodel_class = class_name.safe_constantize
-      if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
-        raise ViewModel::DeserializationError.new("ViewModel class '#{class_name}' not found")
+      # Resolve names for any deferred viewmodel classes
+      until @@deferred_viewmodel_classes.empty? do
+        vm = @@deferred_viewmodel_classes.pop
+        @@viewmodel_classes_by_name[vm.view_name] = vm unless vm.abstract_class || vm.synthetic
       end
+
+      viewmodel_class = @@viewmodel_classes_by_name[name]
+
+      if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
+        raise ViewModel::DeserializationError.new("ViewModel class for view name '#{name}' not found")
+      end
+
       viewmodel_class
     end
 
@@ -53,11 +68,15 @@ class ActiveRecordViewModel < ViewModel
       subclass._attributes = self._attributes
 
       subclass.initialize_members
+
+      # Store the subclass for later view name resolution
+      @@deferred_viewmodel_classes << subclass
     end
 
     def initialize_members
       @_members = {}
       @_associations = {}
+      @abstract_class = false
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module

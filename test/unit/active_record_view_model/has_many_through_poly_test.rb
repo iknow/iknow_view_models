@@ -58,7 +58,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels:[Views::TagA, Views::TagB]
+        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels:[TagAView, TagBView]
         include TrivialAccessControl
       end
     end
@@ -92,7 +92,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   private def context_with(*args)
-    Views::Parent.new_serialize_context(include: args)
+    ParentView.new_serialize_context(include: args)
   end
 
   def setup
@@ -118,12 +118,12 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   def test_roundtrip
     # Objects are serialized to a view and deserialized, and should not be different when complete.
 
-    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) {}
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) {}
     assert_equal('p1', @parent1.name)
     assert_equal([@tag_a1, @tag_a2, @tag_b1, @tag_b2],
                  @parent1.parents_tags.order(:position).map(&:tag))
 
-    alter_by_view!(Views::Parent, @parent2, serialize_context: context_with(:tags)) {}
+    alter_by_view!(ParentView, @parent2, serialize_context: context_with(:tags)) {}
     assert_equal('p2', @parent2.name)
     assert_equal([@tag_a1, @tag_b1, @tag_a1],
                  @parent2.parents_tags.order(:position).map(&:tag))
@@ -132,7 +132,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   def test_loading_batching
     context = context_with(:tags)
     log_queries do
-      parent_views = Views::Parent.load(serialize_context: context)
+      parent_views = ParentView.load(serialize_context: context)
       serialize(parent_views, serialize_context: context)
     end
 
@@ -141,7 +141,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_eager_includes
-    includes = Views::Parent.eager_includes(serialize_context: context_with(:tags))
+    includes = ParentView.eager_includes(serialize_context: context_with(:tags))
     assert_equal({ 'parents_tags' => { 'tag' => {} } }, includes)
   end
 
@@ -165,7 +165,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
 
 
   def test_serialize
-    view, refs = serialize_with_references(Views::Parent.new(@parent1),
+    view, refs = serialize_with_references(ParentView.new(@parent1),
                                            serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
@@ -177,7 +177,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_create_has_many_through
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       refs.delete_if { |_, ref_hash| ref_hash['_type'] == 'Tag' }
       refs['t1'] = { '_type' => 'TagA', 'name' => 'new tagA' }
       refs['t2'] = { '_type' => 'TagB', 'name' => 'new tagB' }
@@ -195,7 +195,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_reordering_swap_type
-    alter_by_view!(Views::Parent, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       t1, t2, t3, t4 = view['tags']
       view['tags'] = [t3, t2, t1, t4]
     end
@@ -204,7 +204,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_delete
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       refs.clear
       view['tags'] = []
     end
@@ -231,7 +231,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
 
         define_viewmodel do
           attributes :name
-          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [Views::TagA, Views::TagB], as: :something_else
+          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView], as: :something_else
           include TrivialAccessControl
         end
       end
@@ -248,8 +248,8 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      context = Views::Parent.new_serialize_context(include: :something_else)
-      alter_by_view!(Views::Parent, @parent, serialize_context: context) do |view, refs|
+      context = ParentView.new_serialize_context(include: :something_else)
+      alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
         assert_equal({refs.keys.first => {'id' => @parent.parents_tags.first.tag.id,
                                           '_type' => 'TagA',
                                           'name' => 'tag A name'}}, refs)

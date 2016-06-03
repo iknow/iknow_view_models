@@ -95,7 +95,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   end
 
   def test_serialize_view
-    view, _refs = serialize_with_references(Views::Parent.new(@parent1))
+    view, _refs = serialize_with_references(ParentView.new(@parent1))
 
     assert_equal({ "_type" => "Parent",
                    "id" => @parent1.id,
@@ -109,7 +109,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
 
   def test_loading_batching
     log_queries do
-      serialize(Views::Parent.load)
+      serialize(ParentView.load)
     end
 
     assert_equal(['Parent Load', 'Label Load'],
@@ -123,7 +123,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
       "label"    => { "_type" => "Label", "text" => "l" },
     }
 
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -137,14 +137,14 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
 
   def test_create_belongs_to_nil
     view = { '_type' => 'Parent', 'name' => 'p', 'label' => nil }
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     assert_nil(pv.model.label)
   end
 
   def test_belongs_to_create
     @parent1.update(label: nil)
 
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
     end
 
@@ -154,7 +154,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_replace
     old_label = @parent1.label
 
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
     end
 
@@ -166,9 +166,9 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     old_p1_label = @parent1.label
     old_p2_label = @parent2.label
 
-    set_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+    set_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
       p1['label'] = nil
-      p2['label'] = update_hash_for(Views::Label, old_p1_label)
+      p2['label'] = update_hash_for(LabelView, old_p1_label)
     end
 
     assert(@parent1.label.blank?, 'l1 label reference removed')
@@ -181,8 +181,8 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     old_p2_label = @parent2.label
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      set_by_view!(Views::Parent, @parent2) do |p2, refs|
-        p2['label'] = update_hash_for(Views::Label, old_p1_label)
+      set_by_view!(ParentView, @parent2) do |p2, refs|
+        p2['label'] = update_hash_for(LabelView, old_p1_label)
       end
     end
 
@@ -196,9 +196,9 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     old_p1_label = @parent1.label
     old_p2_label = @parent2.label
 
-    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
-      p1['label'] = update_hash_for(Views::Label, old_p2_label)
-      p2['label'] = update_hash_for(Views::Label, old_p1_label)
+    alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
+      p1['label'] = update_hash_for(LabelView, old_p2_label)
+      p2['label'] = update_hash_for(LabelView, old_p1_label)
     end
 
     assert_equal(old_p2_label, @parent1.label, 'p1 has label from p2')
@@ -206,9 +206,9 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
   end
 
   def test_implicit_release_invalid_belongs_to
-    taken_label_ref = update_hash_for(Views::Label, @parent1.label)
+    taken_label_ref = update_hash_for(LabelView, @parent1.label)
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(
+      ParentView.deserialize_from_view(
         [{ '_type' => 'Parent',
            'name'  => 'newp',
            'label' => taken_label_ref }])
@@ -229,7 +229,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
       owner = Owner.create(deleted: Label.new(text: 'one'))
       old_label = owner.deleted
 
-      alter_by_view!(Views::Owner, owner) do |ov, refs|
+      alter_by_view!(OwnerView, owner) do |ov, refs|
         ov['deleted'] = { '_type' => 'Label', 'text' => 'two' }
       end
 
@@ -242,7 +242,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
       owner = Owner.create(ignored: Label.new(text: "one"))
       old_label = owner.ignored
 
-      alter_by_view!(Views::Owner, owner) do |ov, refs|
+      alter_by_view!(OwnerView, owner) do |ov, refs|
         ov['ignored'] = { '_type' => 'Label', 'text' => 'two' }
       end
       assert_equal('two', owner.ignored.text)
@@ -285,7 +285,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(Views::Parent, @parent) do |view, refs|
+      alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({ 'id'    => @parent.label.id,
                        '_type' => 'Label',
                        'text'  => 'l1'},
@@ -351,7 +351,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     def test_move
       model = Aye.create(bee: Bee.new(cee: Cee.new))
       ex = assert_raises(ViewModel::DeserializationError) do
-        alter_by_view!(Views::Aye, model) do |view, refs|
+        alter_by_view!(AyeView, model) do |view, refs|
           view['bee'].delete("id")
         end
       end

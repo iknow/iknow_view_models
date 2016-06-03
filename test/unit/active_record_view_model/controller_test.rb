@@ -30,7 +30,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(id: @parent.id)
     parentcontroller.invoke(:show)
 
-    assert_equal({ 'data' => Views::Parent.new(@parent).to_hash },
+    assert_equal({ 'data' => ParentView.new(@parent).to_hash },
                  parentcontroller.hash_response)
 
     assert_equal(200, parentcontroller.status)
@@ -45,7 +45,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, parentcontroller.status)
 
     assert_equal(parentcontroller.hash_response,
-                 { "data" => [Views::Parent.new(@parent).to_hash, Views::Parent.new(p2).to_hash] })
+                 { "data" => [ParentView.new(@parent).to_hash, ParentView.new(p2).to_hash] })
   end
 
   def test_create
@@ -66,7 +66,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     p = Parent.where(name: 'p2').first
     assert(p.present?, 'p created')
 
-    assert_equal({ 'data' => Views::Parent.new(p).to_hash },
+    assert_equal({ 'data' => ParentView.new(p).to_hash },
                  parentcontroller.hash_response)
   end
 
@@ -83,7 +83,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal('new', @parent.name)
-    assert_equal({ 'data' => Views::Parent.new(@parent).to_hash },
+    assert_equal({ 'data' => ParentView.new(@parent).to_hash },
                  parentcontroller.hash_response)
   end
 
@@ -154,7 +154,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(200, childcontroller.status)
 
-    assert_equal({ 'data' => @parent.children.map { |c| Views::Child.new(c).to_hash } },
+    assert_equal({ 'data' => @parent.children.map { |c| ChildView.new(c).to_hash } },
                  childcontroller.hash_response)
   end
 
@@ -169,7 +169,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal(%w{c1 c2 c3}, @parent.children.order(:position).pluck(:name))
-    assert_equal({ 'data' => Views::Child.new(@parent.children.last).to_hash },
+    assert_equal({ 'data' => ChildView.new(@parent.children.last).to_hash },
                  childcontroller.hash_response)
   end
 
@@ -185,7 +185,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal(%w{c1 c2 c3 c4}, @parent.children.order(:position).pluck(:name))
-    new_children_hashes = @parent.children.last(2).map{ |c| Views::Child.new(c).to_hash }
+    new_children_hashes = @parent.children.last(2).map{ |c| ChildView.new(c).to_hash }
     assert_equal({ 'data' => new_children_hashes },
                  childcontroller.hash_response)
   end
@@ -273,7 +273,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     old_child.reload
 
     assert_equal('new_name', old_child.name)
-    assert_equal({ 'data' => Views::Child.new(old_child).to_hash },
+    assert_equal({ 'data' => ChildView.new(old_child).to_hash },
                  childcontroller.hash_response)
   end
 
@@ -283,7 +283,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     childcontroller = ChildController.new(id: old_child.id)
     childcontroller.invoke(:show)
 
-    assert_equal({ 'data' => Views::Child.new(old_child).to_hash },
+    assert_equal({ 'data' => ChildView.new(old_child).to_hash },
                  childcontroller.hash_response)
 
     assert_equal(200, childcontroller.status)
@@ -320,7 +320,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
-    assert_equal({ 'data' => Views::Label.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
   end
 
@@ -351,7 +351,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     old_label.reload
 
     assert_equal('new label', old_label.text)
-    assert_equal({ 'data' => Views::Label.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
   end
 
@@ -363,7 +363,7 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
-    assert_equal({ 'data' => Views::Label.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
   end
 

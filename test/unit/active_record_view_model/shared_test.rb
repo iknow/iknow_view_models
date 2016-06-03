@@ -69,14 +69,14 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def serialize_context
-    Views::Parent.new_serialize_context(include: :category)
+    ParentView.new_serialize_context(include: :category)
   end
 
   def test_loading_batching
     Parent.create(category: Category.new)
 
     log_queries do
-      serialize(Views::Parent.load(serialize_context: serialize_context),
+      serialize(ParentView.load(serialize_context: serialize_context),
                 serialize_context: serialize_context)
     end
     assert_equal(['Parent Load', 'Category Load'],
@@ -93,7 +93,7 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
       "r1" => { "_type" => "Category", "name" => "newcat"}
     }
 
-    pv = Views::Parent.deserialize_from_view(view, references: refs)
+    pv = ParentView.deserialize_from_view(view, references: refs)
     p = pv.model
 
     assert(!p.changed?)
@@ -106,7 +106,7 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_serialize_view
-    view, refs = serialize_with_references(Views::Parent.new(@parent1), serialize_context: serialize_context)
+    view, refs = serialize_with_references(ParentView.new(@parent1), serialize_context: serialize_context)
     cat1_ref = refs.detect { |_, v| v['_type'] == 'Category' }.first
 
     assert_equal({cat1_ref => { '_type' => "Category",
@@ -122,22 +122,22 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_eager_include
-    parent_includes = Views::Parent.eager_includes
+    parent_includes = ParentView.eager_includes
 
     expected = { }
 
     assert_equal(expected, parent_includes)
 
-    extra_includes = Views::Parent.eager_includes(serialize_context: Views::Parent.new_serialize_context(include: :category))
+    extra_includes = ParentView.eager_includes(serialize_context: ParentView.new_serialize_context(include: :category))
 
     assert_equal({ 'category' => {} }, extra_includes)
   end
 
   def test_shared_serialize_interning
     @parent2.update(category: @parent1.category)
-    view, refs = serialize_with_references([Views::Parent.new(@parent1),
-                                            Views::Parent.new(@parent2)],
-                                           serialize_context: Views::Parent.new_serialize_context(include: :category))
+    view, refs = serialize_with_references([ParentView.new(@parent1),
+                                            ParentView.new(@parent2)],
+                                           serialize_context: ParentView.new_serialize_context(include: :category))
 
     category_ref = view.first['category']['_ref']
 
@@ -146,18 +146,18 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_add_reference
-    alter_by_view!(Views::Parent, @parent2, serialize_context: serialize_context) do |p2view, refs|
+    alter_by_view!(ParentView, @parent2, serialize_context: serialize_context) do |p2view, refs|
       p2view['category'] = { '_ref' => 'myref' }
-      refs['myref'] = update_hash_for(Views::Category, @category1)
+      refs['myref'] = update_hash_for(CategoryView, @category1)
     end
 
     assert_equal(@category1, @parent2.category)
   end
 
   def test_shared_add_multiple_references
-    alter_by_view!(Views::Parent, [@parent1, @parent2], serialize_context: serialize_context) do |(p1view, p2view), refs|
+    alter_by_view!(ParentView, [@parent1, @parent2], serialize_context: serialize_context) do |(p1view, p2view), refs|
       refs.delete(p1view['category']['_ref'])
-      refs['myref'] = update_hash_for(Views::Category, @category1)
+      refs['myref'] = update_hash_for(CategoryView, @category1)
 
       p1view['category'] = { '_ref' => 'myref' }
       p2view['category'] = { '_ref' => 'myref' }
@@ -169,7 +169,7 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
 
   def test_shared_requires_all_references
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, @parent2, serialize_context: serialize_context) do |p2view, refs|
+      alter_by_view!(ParentView, @parent2, serialize_context: serialize_context) do |p2view, refs|
         refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
       end
     end
@@ -178,8 +178,8 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
 
   def test_shared_requires_valid_references
     ex = assert_raises(ViewModel::DeserializationError) do
-      serialize_context = Views::Parent.new_serialize_context(include: :category)
-      alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
+      serialize_context = ParentView.new_serialize_context(include: :category)
+      alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
         refs.clear # remove the expected serialized refs
       end
     end
@@ -188,20 +188,20 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
 
   def test_shared_requires_assignable_type
     ex = assert_raises(ViewModel::DeserializationError) do
-      serialize_context = Views::Parent.new_serialize_context(include: :category)
-      alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
+      serialize_context = ParentView.new_serialize_context(include: :category)
+      alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
         p1view['category'] = { '_ref' => 'p2' }
-        refs['p2'] = update_hash_for(Views::Parent, @parent2)
+        refs['p2'] = update_hash_for(ParentView, @parent2)
       end
     end
     assert_match(/can't refer to/, ex.message)
   end
 
   def test_shared_requires_unique_references
-    serialize_context = Views::Parent.new_serialize_context(include: :category)
-    c1_ref = update_hash_for(Views::Category, @category1)
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    c1_ref = update_hash_for(CategoryView, @category1)
     ex = assert_raises(ViewModel::DeserializationError, serialize_context: serialize_context) do
-      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1view, p2view), refs|
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1view, p2view), refs|
         refs['c_a'] = c1_ref.dup
         refs['c_b'] = c1_ref.dup
         p1view['category'] = { '_ref' => 'c_a' }
@@ -212,8 +212,8 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_updates_shared_data
-    serialize_context = Views::Parent.new_serialize_context(include: :category)
-    alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
       category_ref = p1view['category']['_ref']
       refs[category_ref]['name'] = 'newcatname'
     end
@@ -221,8 +221,8 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_delete_reference
-    serialize_context = Views::Parent.new_serialize_context(include: :category)
-    alter_by_view!(Views::Parent, @parent1, serialize_context: serialize_context) do |p1view, refs|
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
       category_ref = p1view['category']['_ref']
       refs.delete(category_ref)
       p1view['category'] = nil

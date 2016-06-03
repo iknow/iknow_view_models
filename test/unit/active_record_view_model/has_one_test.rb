@@ -70,7 +70,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
 
   def test_loading_batching
     log_queries do
-      serialize(Views::Parent.load)
+      serialize(ParentView.load)
     end
     assert_equal(['Parent Load', 'Target Load'],
                  logged_load_queries)
@@ -83,7 +83,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
       "target"   => { "_type" => "Target", "text" => "t" },
     }
 
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -97,7 +97,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   end
 
   def test_serialize_view
-    view, _refs = serialize_with_references(Views::Parent.new(@parent1))
+    view, _refs = serialize_with_references(ParentView.new(@parent1))
     assert_equal({ "_type" => "Parent",
                    "id" => @parent1.id,
                    "name" => @parent1.name,
@@ -111,17 +111,17 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     @parent1.update(target: t1 = Target.new)
     @parent2.update(target: t2 = Target.new)
 
-    deserialize_context = Views::ApplicationBase::DeserializeContext.new
+    deserialize_context = ViewModelBase.new_deserialize_context
 
-    Views::Parent.deserialize_from_view(
-      [update_hash_for(Views::Parent, @parent1) { |p| p['target'] = update_hash_for(Views::Target, t2) },
-       update_hash_for(Views::Parent, @parent2) { |p| p['target'] = update_hash_for(Views::Target, t1) }],
+    ParentView.deserialize_from_view(
+      [update_hash_for(ParentView, @parent1) { |p| p['target'] = update_hash_for(TargetView, t2) },
+       update_hash_for(ParentView, @parent2) { |p| p['target'] = update_hash_for(TargetView, t1) }],
       deserialize_context: deserialize_context)
 
-    assert_equal(Set.new([[Views::Parent, @parent1.id],
-                          [Views::Parent, @parent2.id],
-                          [Views::Target, t1.id],
-                          [Views::Target, t2.id]]),
+    assert_equal(Set.new([[ParentView, @parent1.id],
+                          [ParentView, @parent2.id],
+                          [TargetView, t1.id],
+                          [TargetView, t2.id]]),
                  deserialize_context.edit_checks.to_set)
 
     @parent1.reload
@@ -133,14 +133,14 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
 
   def test_has_one_create_nil
     view = { '_type' => 'Parent', 'name' => 'p', 'target' => nil }
-    pv = Views::Parent.deserialize_from_view(view)
+    pv = ParentView.deserialize_from_view(view)
     assert_nil(pv.model.target)
   end
 
   def test_has_one_create
     @parent1.update(target: nil)
 
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['target'] = { '_type' => 'Target', 'text' => 't' }
     end
 
@@ -148,7 +148,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   end
 
   def test_has_one_update
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['target']['text'] = "hello"
     end
 
@@ -157,7 +157,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
 
   def test_has_one_destroy
     old_target = @parent1.target
-    alter_by_view!(Views::Parent, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       view['target'] = nil
     end
     assert(Target.where(id: old_target.id).blank?)
@@ -167,7 +167,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     old_parent1_target = @parent1.target
     old_parent2_target = @parent2.target
 
-    alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+    alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
       p2['target'] = p1['target']
       p1['target'] = nil
     end
@@ -181,8 +181,8 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     old_parent1_target = @parent1.target
     old_parent2_target = @parent2.target
 
-    alter_by_view!(Views::Parent, @parent2) do |p2, refs|
-      p2['target'] = update_hash_for(Views::Target, old_parent1_target)
+    alter_by_view!(ParentView, @parent2) do |p2, refs|
+      p2['target'] = update_hash_for(TargetView, old_parent1_target)
     end
 
     @parent1.reload
@@ -197,7 +197,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     # from outside the tree will create an new update operation for it, which
     # will conflict with the one already present in p1.
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
         p2['target'] = p1['target'].dup
       end
     end
@@ -210,7 +210,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     # create an new update operation for its old parent (p1), which will
     # conflict with the p1 update.
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
         p2['target'] = p1['target']
         p1.delete('target')
       end
@@ -222,9 +222,9 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     t3 = Parent.create(target: Target.new(text: 'hi')).target
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(Views::Parent, [@parent1, @parent2]) do |(p1, p2), refs|
-        p1['target'] = update_hash_for(Views::Target, t3)
-        p2['target'] = update_hash_for(Views::Target, t3)
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
+        p1['target'] = update_hash_for(TargetView, t3)
+        p2['target'] = update_hash_for(TargetView, t3)
       end
     end
     assert_match(/Not a valid type transition: explicit -> explicit/, ex.message)
@@ -233,8 +233,8 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
   def test_has_one_take_unparented_from_outside_tree
     t3 = Target.create(text: 'hi') # no parent
 
-    alter_by_view!(Views::Parent, @parent1) do |p1, refs|
-      p1['target'] = update_hash_for(Views::Target, t3)
+    alter_by_view!(ParentView, @parent1) do |p1, refs|
+      p1['target'] = update_hash_for(TargetView, t3)
     end
   end
 
@@ -244,7 +244,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
       "target" => []
     }
     ex = assert_raises(ViewModel::DeserializationError) do
-      Views::Parent.deserialize_from_view(view)
+      ParentView.deserialize_from_view(view)
     end
     assert_match(/not a hash/, ex.message)
   end
@@ -284,7 +284,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(Views::Parent, @parent) do |view, refs|
+      alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({'id' => @parent.target.id,
                      '_type' => 'Target',
                      'text' => 'target text'},
@@ -343,7 +343,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
       # This test currently fails because we allow the new to Bee to resolve the
       # Cee directly from the database when its old parent Bee (in the previous
       # tree) has been put on the release pool and is about to delete it.
-      alter_by_view!(Views::Aye, model) do |view, refs|
+      alter_by_view!(AyeView, model) do |view, refs|
         view['bee'].delete("id")
       end
     end
