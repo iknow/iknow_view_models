@@ -26,7 +26,7 @@ class ActiveRecordViewModel < ViewModel
 
   class << self
     attr_reader :_members, :_associations, :_list_attribute_name
-    attr_accessor :abstract_class, :synthetic
+    attr_accessor :abstract_class, :synthetic, :unregistered
 
     delegate :transaction, to: :model_class
 
@@ -51,7 +51,7 @@ class ActiveRecordViewModel < ViewModel
       # Resolve names for any deferred viewmodel classes
       until @@deferred_viewmodel_classes.empty? do
         vm = @@deferred_viewmodel_classes.pop
-        @@viewmodel_classes_by_name[vm.view_name] = vm unless vm.abstract_class || vm.synthetic
+        @@viewmodel_classes_by_name[vm.view_name] = vm unless vm.abstract_class || vm.synthetic || vm.unregistered
       end
 
       viewmodel_class = @@viewmodel_classes_by_name[name]
@@ -77,6 +77,7 @@ class ActiveRecordViewModel < ViewModel
       @_members = {}
       @_associations = {}
       @abstract_class = false
+      @unregistered = false
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module
