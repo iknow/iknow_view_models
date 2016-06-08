@@ -62,7 +62,7 @@ class ActiveRecordViewModel
         raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{hash.inspect}'")
       end
 
-      id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE)
+      id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE).try { |i| Integer(i) }
       type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
       return type_name, id
     end
