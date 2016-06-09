@@ -82,10 +82,12 @@ class ViewModelBase < ActiveRecordViewModel
   class DeserializeContext < ViewModel::DeserializeContext
     include ContextAccessLogging
     attr_accessor :can_edit
+    attr_accessor :can_view
 
-    def initialize(can_edit: true, **rest)
+    def initialize(can_edit: true, can_view: true, **rest)
       super(**rest)
       self.can_edit = can_edit
+      self.can_view = can_view
     end
   end
 

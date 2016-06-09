@@ -71,6 +71,8 @@ class ActiveRecordViewModel
       debug "-> #{debug_name}: Entering"
 
       model.class.transaction do
+        viewmodel.visible!(context: deserialize_context)
+
         # update parent association
         if reparent_to.present?
           debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
