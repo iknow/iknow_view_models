@@ -134,8 +134,12 @@ module ActionDispatch
                 delete '', action: :disassociate     unless except.include?(:disassociate)
               end
 
-              member do
-                post '', action: :create unless except.include?(:create) || !add_shallow_routes
+              # Add top level `create` route to manipulate existing viewmodels
+              # without providing parent context
+              shallow_scope do
+                collection do
+                  post '', action: :create unless except.include?(:create) || !add_shallow_routes
+                end
               end
 
             end
@@ -156,8 +160,10 @@ module ActionDispatch
           # nested singular resources provide collection accessors at the top level
           if is_shallow && add_shallow_routes
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
-              member do
-                post '', action: :create unless except.include?(:create)
+              shallow_scope do
+                collection do
+                  post '', action: :create unless except.include?(:create)
+                end
               end
             end
           end
