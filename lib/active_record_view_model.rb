@@ -389,11 +389,6 @@ class ActiveRecordViewModel < ViewModel
     end
   end
 
-  class UnimplementedException < Exception; end
-  def unimplemented
-    raise UnimplementedException.new
-  end
-
   def load_associated(association_name)
     self.public_send(association_name)
   end
@@ -505,20 +500,8 @@ class ActiveRecordViewModel < ViewModel
   # - Come up with a way to represent (and perform!) type-conditional eager
   #   loads for polymorphic associations
 
-  ## Support for single table inheritance (if necessary)
-
   ## Ensure that we have correct behaviour when a polymorphic relationship is
   ## changed to an entity of a different type:
   # - does the old one get correctly garbage collected?
 
-  ## Throw an error if the same entity is specified twice
-
-  ### Controllers
-
-  # - Consider better support for queries or pagination
-
-  # - Consider ways to represent `has_many:through:`, if we want to allow
-  #   skipping a view for the join. If so, how do we manage manipulation of the
-  #   association itself, do we allow attributes (such as ordering?) on the join
-  #   table?
 end
