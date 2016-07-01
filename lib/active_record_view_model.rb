@@ -13,6 +13,11 @@ class ActiveRecordViewModel < ViewModel
   TYPE_ATTRIBUTE      = "_type"
   REFERENCE_ATTRIBUTE = "_ref"
 
+  # for functional updates
+  FUNCTIONAL_UPDATE_TYPE = "_update"
+  ACTIONS_ATTRIBUTE      = "actions"
+  VALUES_ATTRIBUTE       = "values"
+
   require 'active_record_view_model/association_data'
   require 'active_record_view_model/view_model_reference'
   require 'active_record_view_model/update_data'

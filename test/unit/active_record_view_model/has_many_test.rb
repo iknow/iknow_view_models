@@ -169,7 +169,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(view)
     end
 
-    assert_match(/Invalid hash data array for multiple association/, ex.message)
+    assert_match(/Invalid collection update value 'nil'/, ex.message)
   end
 
   def test_non_array_multiple_association
@@ -181,7 +181,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(view)
     end
 
-    assert_match(/Could not parse non-array collection association/, ex.message)
+    assert_match(/Error parsing collection functional update/, ex.message)
   end
 
   def test_replace_has_many
@@ -497,6 +497,71 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
 
     assert_equal(old_child, nc3)
     assert_equal("changed", nc3.name)
+  end
+
+  def test_functional_update_append
+    children_before = @parent1.children.pluck(:id)
+    append_view     = { '_type'    => 'Parent',
+                        'id'       => @parent1.id,
+                        'children' => {
+                          '_type'   => '_update',
+                          'actions' => [{ '_type'  => 'append',
+                                          'values' => [{ '_type' => 'Child' }] }] } }
+    result          = ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    created_child = result.children.last.id
+
+    assert_equal(children_before + [created_child],
+                 @parent1.children.pluck(:id))
+  end
+
+  def test_functional_update_remove
+    c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
+    remove_view         = { '_type'    => 'Parent',
+                            'id'       => @parent1.id,
+                            'children' => {
+                              '_type'   => '_update',
+                              'actions' => [{ '_type'  => 'remove',
+                                              'values' => [{ '_type' => 'Child', 'id' => c2_id }] }] } }
+    ParentView.deserialize_from_view(remove_view)
+    @parent1.reload
+
+    assert_equal([c1_id, c3_id], @parent1.children.pluck(:id))
+  end
+
+  def test_functional_update_update_success
+    c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
+    update_view         = { '_type'    => 'Parent',
+                            'id'       => @parent1.id,
+                            'children' => {
+                              '_type'   => '_update',
+                              'actions' => [{ '_type'  => 'update',
+                                              'values' => [{ '_type' => 'Child',
+                                                             'id'    => c2_id,
+                                                             'name'  => 'Functionally Updated Child' }] }] } }
+    ParentView.deserialize_from_view(update_view)
+    @parent1.reload
+
+    assert_equal([c1_id, c2_id, c3_id], @parent1.children.pluck(:id))
+    assert_equal('Functionally Updated Child', Child.find(c2_id).name)
+  end
+
+  def test_functional_update_update_failure
+    cnew                = Child.create(parent: Parent.create).id
+    c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
+    update_view         = { '_type'    => 'Parent',
+                            'id'       => @parent1.id,
+                            'children' => {
+                              '_type'   => '_update',
+                              'actions' => [{ '_type'  => 'update',
+                                              'values' => [{ '_type' => 'Child', 'id' => cnew }] }] } }
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      ParentView.deserialize_from_view(update_view)
+    end
+
+    assert_match(/Stale update/, ex.message)
   end
 
   class RenamedTest < ActiveSupport::TestCase
