@@ -5,4 +5,8 @@ ActiveRecordViewModel::ViewModelReference = Struct.new(:viewmodel_class, :model_
       self.new(vm.class, vm.id)
     end
   end
+
+  def to_s
+    "'#{viewmodel_class.view_name}(#{model_id})'"
+  end
 end
