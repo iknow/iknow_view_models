@@ -116,6 +116,18 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(%w{newp1 newp2}, new_parents.pluck(:name).sort)
   end
 
+  def test_update_duplicate_specification
+    view = [
+      {'_type' => 'Parent', 'id' => @parent1.id},
+      {'_type' => 'Parent', 'id' => @parent1.id},
+    ]
+    ex = assert_raises(ViewModel::DeserializationError) do
+      ParentView.deserialize_from_view(view)
+    end
+
+    assert_match(/Duplicate root/, ex.message)
+  end
+
   def test_create_invalid_type
      build_viewmodel(:Invalid) do
       define_schema { |t| }

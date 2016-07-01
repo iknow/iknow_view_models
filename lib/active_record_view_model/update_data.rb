@@ -1,29 +1,80 @@
+require 'renum'
 require 'json'
 require 'json_schema'
 
 class ActiveRecordViewModel
+  using Collections
+
+  FunctionalUpdate = Struct.new(:type, :values) do
+    enum :Type, [:Append, :Remove, :Update] do
+      def self.parse!(str)
+        type = self.with_name(str.capitalize)
+        raise ArgumentError.new("No FunctionalUpdate::Type with name '#{str}'") if type.nil?
+        type
+      end
+    end
+  end
+
+  CollectionUpdate = Struct.new(:type, :values) do
+    enum :Type, [:Functional, :Replace]
+
+    def update_datas
+      case type
+      when CollectionUpdate::Type::Functional
+        values.flat_map(&:values)
+      when CollectionUpdate::Type::Replace
+        values
+      end
+    end
+  end
+
   class UpdateData
     attr_accessor :viewmodel_class, :id, :attributes, :associations, :referenced_associations
 
     module Schemas
-      REFERENCE        = JsonSchema.parse!(
+      reference =
         {
           'type'                 => 'object',
           'description'          => 'shared reference',
-          'properties'           => { ActiveRecordViewModel::REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
+          'properties'           => { REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
           'additionalProperties' => false,
-          'required'             => [ActiveRecordViewModel::REFERENCE_ATTRIBUTE],
+          'required'             => [REFERENCE_ATTRIBUTE],
         }
-      )
-      VIEWMODEL_UPDATE = JsonSchema.parse!(
+      REFERENCE = JsonSchema.parse!(reference)
+
+      viewmodel_update =
         {
           'type'        => 'object',
           'description' => 'viewmodel update',
-          'properties'  => { ActiveRecordViewModel::TYPE_ATTRIBUTE => { 'type' => 'string' },
-                             ActiveRecordViewModel::ID_ATTRIBUTE   => { 'type' => 'integer' } },
-          'required'    => [ActiveRecordViewModel::TYPE_ATTRIBUTE]
+          'properties'  => { TYPE_ATTRIBUTE => { 'type' => 'string' },
+                             ID_ATTRIBUTE   => { 'type' => 'integer' } },
+          'required'    => [TYPE_ATTRIBUTE]
         }
-      )
+      VIEWMODEL_UPDATE = JsonSchema.parse!(viewmodel_update)
+
+      collection_update_action =
+        {
+          'type'        => 'object',
+          'description' => 'collection functional update action',
+          'properties'  => {
+            TYPE_ATTRIBUTE   => { 'enum' => FunctionalUpdate::Type.map { |type| type.name.downcase } },
+            VALUES_ATTRIBUTE => { 'type'  => 'array',
+                                  'items' => viewmodel_update }
+          },
+          'required'    => [TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
+        }
+
+      collection_update =
+        {
+          'type'        => 'object',
+          'description' => 'collection functional update',
+          'properties'  => {
+            TYPE_ATTRIBUTE    => { 'enum' => [FUNCTIONAL_UPDATE_TYPE] },
+            ACTIONS_ATTRIBUTE => { 'type'  => 'array',
+                                   'items' => collection_update_action }
+          }
+        }
+      COLLECTION_UPDATE = JsonSchema.parse!(collection_update)
     end
 
     def [](name)
@@ -49,9 +100,9 @@ class ActiveRecordViewModel
     def self.verify_schema!(schema, value)
       valid, errors = schema.validate(value)
       unless valid
-        error_list = errors.map { |e| "#{e.schema.description}: #{e.message}" }.join("\n")
+        error_list = errors.map { |e| "#{e.pointer}: #{e.message}" }.join("\n")
         errors     = 'Error'.pluralize(errors.length)
-        raise ViewModel::DeserializationError.new("#{errors} parsing:\n#{error_list}")
+        raise ViewModel::DeserializationError.new("#{errors} parsing #{schema.description}:\n#{error_list}")
       end
     end
 
@@ -88,25 +139,21 @@ class ActiveRecordViewModel
 
     def self.extract_viewmodel_metadata(hash)
       verify_schema!(Schemas::VIEWMODEL_UPDATE, hash)
-      id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE).try { |i| Integer(i) }
-      type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
+      id        = hash.delete(ID_ATTRIBUTE).try { |i| Integer(i) }
+      type_name = hash.delete(TYPE_ATTRIBUTE)
       return type_name, id
     end
 
     def self.extract_reference_metadata(hash)
       verify_schema!(Schemas::REFERENCE, hash)
-      hash.delete(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
+      hash.delete(REFERENCE_ATTRIBUTE)
     end
 
-    def self.check_duplicates(arr, type:)
+    def self.check_duplicates(arr, type:, &by)
       # Ensure that no root is referred to more than once
-      ref_counts = arr.each_with_object(Hash.new(0)) do |el, counts|
-        key = yield(el)
-        counts[key] += 1 unless key.nil?
-      end.delete_if { |_, count| count == 1 }
-
-      if ref_counts.present?
-        raise ViewModel::DeserializationError.new("Duplicate #{type}(s) specified: '#{ref_counts.keys.to_h}'")
+      duplicates = arr.duplicates(&by)
+      if duplicates.present?
+        raise ViewModel::DeserializationError.new("Duplicate #{type}(s) specified: '#{duplicates.keys.to_h}'")
       end
     end
 
@@ -141,8 +188,9 @@ class ActiveRecordViewModel
             # stop and go lazy.
             {}
           when association_data.collection?
-            assoc_update.map { |upd| upd.association_dependencies(referenced_updates) }
-                        .inject({}) { |acc, dep| acc.deep_merge(dep) }
+            assoc_update.update_datas
+              .map { |values| values.association_dependencies(referenced_updates) }
+              .inject({}) { |acc, dep| acc.deep_merge(dep) }
           else
             assoc_update.association_dependencies(referenced_updates)
           end
@@ -171,7 +219,15 @@ class ActiveRecordViewModel
       deps
     end
 
+    def viewmodel_reference
+      ViewModelReference.new(viewmodel_class, id)
+    end
+
     private
+
+    def reference_only_hash?(hash)
+      hash.size == 2 && hash.has_key?(ID_ATTRIBUTE) && hash.has_key?(TYPE_ATTRIBUTE)
+    end
 
     def parse(hash_data, valid_reference_keys)
       hash_data = self.viewmodel_class.pre_parse(hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
@@ -187,6 +243,9 @@ class ActiveRecordViewModel
           association_data = self.viewmodel_class._association_data(name)
           case
           when value.nil?
+            if association_data.collection?
+              raise ViewModel::DeserializationError.new("Invalid collection update value 'nil'")
+            end
             associations[name] = nil
 
           when association_data.through?
@@ -218,11 +277,38 @@ class ActiveRecordViewModel
             end
 
             if association_data.collection?
-              unless value.is_a?(Array)
-                raise ViewModel::DeserializationError.new("Could not parse non-array collection association")
-              end
+              associations[name] =
+                case value
+                when Array
+                  children = value.map { |child_hash| parse_association.(child_hash) }
+                  CollectionUpdate.new(CollectionUpdate::Type::Replace, children)
 
-              associations[name] = value.map { |child_hash| parse_association.(child_hash) }
+                when Hash
+                  UpdateData.verify_schema!(Schemas::COLLECTION_UPDATE, value)
+                  functional_updates = value[ACTIONS_ATTRIBUTE].map do |action|
+                    type   = FunctionalUpdate::Type.parse!(action[TYPE_ATTRIBUTE])
+                    values = action[VALUES_ATTRIBUTE]
+
+                    # There's no reasonable interpretation of a remove update that includes data.
+                    # Report it as soon as we detect it.
+                    if type == FunctionalUpdate::Type::Remove
+                      invalid_entries = values.reject { |h| reference_only_hash?(h) }
+                      if invalid_entries.present?
+                        raise ViewModel::DeserializationError.new(
+                          "Removed entities must have only #{TYPE_ATTRIBUTE} and #{ID_ATTRIBUTE} fields. " \
+                          "Invalid entries: #{invalid_entries}")
+                      end
+                    end
+
+                    values = action[VALUES_ATTRIBUTE].map(&parse_association)
+                    FunctionalUpdate.new(type, values)
+                  end
+                  CollectionUpdate.new(CollectionUpdate::Type::Functional, functional_updates)
+
+                else
+                  raise ViewModel::DeserializationError.new("Could not parse non-array collection association")
+                end
+
             else
               associations[name] =
                 if value.nil?
