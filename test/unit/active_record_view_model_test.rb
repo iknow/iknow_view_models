@@ -126,7 +126,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view({ "target" => [] })
     end
-    assert_match(/Missing '_type' field in update hash/, ex.message)
+    assert_match(/"_type" wasn't supplied/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view({ "_type" => "Invalid" })

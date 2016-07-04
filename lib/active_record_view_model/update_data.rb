@@ -1,6 +1,30 @@
+require 'json'
+require 'json_schema'
+
 class ActiveRecordViewModel
   class UpdateData
     attr_accessor :viewmodel_class, :id, :attributes, :associations, :referenced_associations
+
+    module Schemas
+      REFERENCE        = JsonSchema.parse!(
+        {
+          'type'                 => 'object',
+          'description'          => 'shared reference',
+          'properties'           => { ActiveRecordViewModel::REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
+          'additionalProperties' => false,
+          'required'             => [ActiveRecordViewModel::REFERENCE_ATTRIBUTE],
+        }
+      )
+      VIEWMODEL_UPDATE = JsonSchema.parse!(
+        {
+          'type'        => 'object',
+          'description' => 'viewmodel update',
+          'properties'  => { ActiveRecordViewModel::TYPE_ATTRIBUTE => { 'type' => 'string' },
+                             ActiveRecordViewModel::ID_ATTRIBUTE   => { 'type' => 'integer' } },
+          'required'    => [ActiveRecordViewModel::TYPE_ATTRIBUTE]
+        }
+      )
+    end
 
     def [](name)
       case name
@@ -19,6 +43,15 @@ class ActiveRecordViewModel
         true
       else
         attributes.has_key?(name) || associations.has_key?(name) || referenced_associations.has_key?(name)
+      end
+    end
+
+    def self.verify_schema!(schema, value)
+      valid, errors = schema.validate(value)
+      unless valid
+        error_list = errors.map { |e| "#{e.schema.description}: #{e.message}" }.join("\n")
+        errors     = 'Error'.pluralize(errors.length)
+        raise ViewModel::DeserializationError.new("#{errors} parsing:\n#{error_list}")
       end
     end
 
@@ -54,32 +87,14 @@ class ActiveRecordViewModel
     end
 
     def self.extract_viewmodel_metadata(hash)
-      unless hash.is_a?(Hash)
-        raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{hash.inspect}'")
-      end
-
-      unless hash.has_key?(ActiveRecordViewModel::TYPE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Missing '#{ActiveRecordViewModel::TYPE_ATTRIBUTE}' field in update hash: '#{hash.inspect}'")
-      end
-
+      verify_schema!(Schemas::VIEWMODEL_UPDATE, hash)
       id        = hash.delete(ActiveRecordViewModel::ID_ATTRIBUTE).try { |i| Integer(i) }
       type_name = hash.delete(ActiveRecordViewModel::TYPE_ATTRIBUTE)
       return type_name, id
     end
 
     def self.extract_reference_metadata(hash)
-      unless hash.is_a?(Hash)
-        raise ViewModel::DeserializationError.new("Invalid data to deserialize - not a hash: '#{hash.inspect}'")
-      end
-
-      unless hash.size == 1
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - must not contain keys besides '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}': #{hash.keys.inspect}")
-      end
-
-      unless hash.has_key?(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
-        raise ViewModel::DeserializationError.new("Invalid reference hash data - '#{ActiveRecordViewModel::REFERENCE_ATTRIBUTE}' attribute missing: #{hash.inspect}")
-      end
-
+      verify_schema!(Schemas::REFERENCE, hash)
       hash.delete(ActiveRecordViewModel::REFERENCE_ATTRIBUTE)
     end
 

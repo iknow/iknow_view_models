@@ -246,7 +246,7 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
     end
-    assert_match(/not a hash/, ex.message)
+    assert_match(/not an object/, ex.message)
   end
 
 
