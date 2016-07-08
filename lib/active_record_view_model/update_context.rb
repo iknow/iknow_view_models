@@ -54,8 +54,13 @@ class ActiveRecordViewModel
       @released_viewmodels = {}
     end
 
-    # Processes root hashes and subtree hashes into @root_updates and @referenced_updates.
+    # Processes parsed (UpdateData) root updates and referenced updates into
+    # @root_update_operations and @referenced_update_operations.
     def build_root_update_operations(root_updates, referenced_updates)
+      # Store a reference to the update data for references so we can load
+      # models with appropriate preloading.
+      @referenced_update_data = referenced_updates
+
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
@@ -167,8 +172,10 @@ class ActiveRecordViewModel
 
           @worklist.delete(key)
 
-          child_model = key.viewmodel_class.model_scope.find(key.model_id)  # TODO: model scope context
-          child_viewmodel = key.viewmodel_class.new(child_model)
+          child_dependencies = deferred_update.update_data.association_dependencies(@referenced_update_data)
+          child_model        = key.viewmodel_class.model_class.includes(child_dependencies).find(key.model_id)
+          child_viewmodel    = key.viewmodel_class.new(child_model)
+
           deferred_update.viewmodel = child_viewmodel
 
           # We have progressed the item, but we must enforce the constraint that we can edit the parent.

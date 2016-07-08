@@ -214,6 +214,15 @@ class ActiveRecordViewModel < ViewModel
       assocs.each { |assoc| association(assoc) }
     end
 
+    def model_scope(eager_include: true, serialize_context: new_serialize_context)
+      scope = self.model_class.all
+      if eager_include
+        scope = scope.includes(self.eager_includes(serialize_context: serialize_context))
+      end
+      scope
+    end
+    private :model_scope
+
     ## Load an instance of the viewmodel by id
     def find(id, scope: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = model_scope(eager_include: eager_include, serialize_context: serialize_context)
@@ -302,13 +311,6 @@ class ActiveRecordViewModel < ViewModel
       @model_class
     end
 
-    def model_scope(eager_include: true, serialize_context: new_serialize_context)
-      scope = self.model_class.all
-      if eager_include
-        scope = scope.includes(self.eager_includes(serialize_context: serialize_context))
-      end
-      scope
-    end
 
     # internal
     def _association_data(association_name)
