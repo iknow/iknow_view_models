@@ -12,6 +12,7 @@ class ActiveRecordViewModel < ViewModel
   ID_ATTRIBUTE        = "id"
   TYPE_ATTRIBUTE      = "_type"
   REFERENCE_ATTRIBUTE = "_ref"
+  NEW_ATTRIBUTE       = "_new"
 
   # for functional updates
   FUNCTIONAL_UPDATE_TYPE = "_update"
@@ -347,12 +348,16 @@ class ActiveRecordViewModel < ViewModel
   delegate :model_class, to: 'self.class'
   delegate :id, to: :model
 
-  def initialize(model = model_class.new)
+  def initialize(model)
     unless model.is_a?(model_class)
       raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
     end
 
     super(model)
+  end
+
+  def self.for_new_model(id: nil)
+    self.new(model_class.new(id: id))
   end
 
   # Use ActiveRecord style identity for viewmodels. This allows serialization to

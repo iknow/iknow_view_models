@@ -237,13 +237,12 @@ class ActiveRecordViewModel
 
       resolved_viewmodels =
         update_datas.map do |update_data|
-        id  = update_data.id
         child_viewmodel_class = update_data.viewmodel_class
-        key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, id)
+        key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, update_data.id)
 
         case
-        when id.nil?
-          child_viewmodel_class.new
+        when update_data.new?
+          child_viewmodel_class.for_new_model(id: update_data.id)
         when existing_child = previous_by_key[key]
           existing_child
         when taken_child = update_context.try_take_released_viewmodel(key)
@@ -484,7 +483,7 @@ class ActiveRecordViewModel
         if existing_through_record
           through_viewmodel.new(existing_through_record)
         else
-          through_viewmodel.new
+          through_viewmodel.for_new_model
         end
       end
 

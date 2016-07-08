@@ -76,7 +76,6 @@ class ActiveRecordViewModel
 
         existing_models =
           if model_ids.present?
-            #TODO: using model scope without providing the context means we'll potentially over-eager-load
             viewmodel_class.model_class.includes(dependencies).find_all!(model_ids).index_by(&:id)
           else
             {}
@@ -84,10 +83,10 @@ class ActiveRecordViewModel
 
         updates.each do |ref, update_data|
           viewmodel =
-            if (id = update_data.id).present?
-              viewmodel_class.new(existing_models[id])
+            if update_data.new?
+              viewmodel_class.for_new_model(id: update_data.id)
             else
-              viewmodel_class.new
+              viewmodel_class.new(existing_models[update_data.id])
             end
 
           update_op = new_update(viewmodel, update_data)
