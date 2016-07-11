@@ -169,6 +169,13 @@ class ActiveRecordViewModel::PolyTest < ActiveSupport::TestCase
       enable_logging!
     end
 
+    def test_dependencies
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+      assert_equal({ 'poly' => {} }, root_updates.first.association_dependencies(ref_updates))
+      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
+    end
+
+
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({ 'id'     => @parent.id,
