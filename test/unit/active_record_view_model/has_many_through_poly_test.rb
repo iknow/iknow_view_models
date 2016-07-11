@@ -247,6 +247,14 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
       enable_logging!
     end
 
+    def test_dependencies
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      # Compare to non-polymorphic, which will also load the tags
+      assert_equal({ 'parents_tags' => {} }, root_updates.first.association_dependencies(ref_updates))
+      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
+    end
+
+
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context(include: :something_else)
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
