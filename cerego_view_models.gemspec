@@ -45,6 +45,6 @@ Gem::Specification.new do |spec|
   # Test with existing libraries
   spec.add_development_dependency "counter_culture"
 
-  spec.add_dependency "jbuilder", "~> 2.3.0"
+  spec.add_dependency "jbuilder", "~> 2.5.0"
 
 end
