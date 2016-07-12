@@ -17,9 +17,7 @@ class ActiveRecordViewModel
       end
     end
 
-    def self.build!(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
-      root_update_data, referenced_update_data = UpdateData.parse_hashes(root_subtree_hashes, referenced_subtree_hashes)
-
+    def self.build!(root_update_data, referenced_update_data, root_type: nil)
       if root_type.present? && (bad_types = root_update_data.map(&:viewmodel_class).to_set.delete(root_type)).present?
         raise ViewModel::DeserializationError.new(
                 "Cannot deserialize incorrect root viewmodel type(s) '#{bad_types.map(&:view_name)}'")

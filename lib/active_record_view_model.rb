@@ -227,6 +227,7 @@ class ActiveRecordViewModel < ViewModel
       end
       scope
     end
+
     private :model_scope
 
     ## Load an instance of the viewmodel by id
@@ -245,20 +246,28 @@ class ActiveRecordViewModel < ViewModel
     end
 
     def deserialize_from_view(subtree_hashes, references: {}, deserialize_context: new_deserialize_context)
-      model_class.transaction do
-        return_array = subtree_hashes.is_a?(Array)
-        subtree_hashes = Array.wrap(subtree_hashes)
+      return_array = subtree_hashes.is_a?(Array)
+      subtree_hashes = Array.wrap(subtree_hashes)
 
-        updated_viewmodels =
-          UpdateContext
-            .build!(subtree_hashes, references, root_type: self)
-            .run!(deserialize_context: deserialize_context)
+      root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
 
-        if return_array
-          updated_viewmodels
+      updated_viewmodels =
+        deserialize_from_update_data(root_update_data,
+                                     referenced_update_data,
+                                     deserialize_context: deserialize_context)
+
+      if return_array
+        updated_viewmodels
         else
-          updated_viewmodels.first
-        end
+        updated_viewmodels.first
+      end
+    end
+
+    def deserialize_from_update_data(root_update_data, referenced_update_data, deserialize_context: new_deserialize_context)
+      model_class.transaction do
+        UpdateContext
+          .build!(root_update_data, referenced_update_data, root_type: self)
+          .run!(deserialize_context: deserialize_context)
       end
     end
 
@@ -427,7 +436,8 @@ class ActiveRecordViewModel < ViewModel
 
       # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      update_context = UpdateContext.build!(subtree_hashes, references, root_type: viewmodel_class)
+      root_updates, referenced_updates = UpdateData.parse_hashes(subtree_hashes, references)
+      update_context = UpdateContext.build!(root_updates, referenced_updates, root_type: viewmodel_class)
 
       # Set new parent
       new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
@@ -500,7 +510,6 @@ class ActiveRecordViewModel < ViewModel
       associated_viewmodel_class.new(associated)
     end
   end
-
 
 
   ####### TODO LIST ########

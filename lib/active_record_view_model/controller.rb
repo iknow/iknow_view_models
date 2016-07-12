@@ -31,11 +31,31 @@ module ActiveRecordViewModel::Controller
     end
   end
 
-  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def create(serialize_context: nil, deserialize_context: new_deserialize_context)
     update_hash, refs = parse_viewmodel_updates
 
+    return_array = update_hash.is_a?(Array)
+    update_hash = Array.wrap(update_hash)
+
     viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
+      root_updates, referenced_updates =
+        ActiveRecordViewModel::UpdateData.parse_hashes(update_hash, refs)
+
+      serialize_context ||= begin
+        associations = root_updates
+                         .map { |upd| upd.updated_associations(referenced_updates) }
+                         .inject({}){ |acc, deps| acc.deep_merge(deps) }
+
+        new_serialize_context(include: associations)
+      end
+
+      view = viewmodel.deserialize_from_update_data(
+        root_updates, referenced_updates, deserialize_context: deserialize_context)
+
+      unless return_array
+        view = view.first
+      end
+
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
       render_viewmodel(view, serialize_context: serialize_context)
     end

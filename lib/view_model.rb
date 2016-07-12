@@ -55,7 +55,7 @@ class ViewModel
       when Array
         includes.map(&:to_s)
       when Hash
-        hash.each_with_object({}) do |(k,v), new_includes|
+        includes.each_with_object({}) do |(k,v), new_includes|
           new_includes[k.to_s] = stringify_includes(v)
         end
       when nil
