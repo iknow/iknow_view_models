@@ -4,17 +4,14 @@ require "active_record_view_model/controller"
 
 require "acts_as_manual_list"
 
-db = :pg
+db_config = YAML.load(File.open("test/config/database.yml"))
+raise "Test database configuration missing" unless db_config["test"]
+ActiveRecord::Base.establish_connection(db_config["test"])
 
-case db
-when :sqlite
-  ActiveRecord::Base.establish_connection adapter: "sqlite3", database: ":memory:"
-when :pg
-  ActiveRecord::Base.establish_connection adapter: "postgresql", database: "cerego_view_models"
-  %w[labels parents children targets poly_ones poly_twos owners
+# Remove test tables if any exist
+%w[labels parents children targets poly_ones poly_twos owners
      grand_parents categories tags parents_tags].each do |t|
-    ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
-  end
+  ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
 end
 
 # Set up transactional tests
