@@ -4,7 +4,6 @@ require_relative "../../helpers/arvm_test_models.rb"
 require "minitest/autorun"
 
 require "active_record_view_model"
-require "counter_culture"
 
 class ActiveRecordViewModel::CounterTest < ActiveSupport::TestCase
   include ARVMTestUtilities
