@@ -53,13 +53,13 @@ module ActiveRecordViewModel::NestedControllerBase
   def owner_viewmodel_id(required: true)
     id_param_name = owner_viewmodel.view_name.downcase + '_id'
     default = required ? {} : { default: nil }
-    parse_integer_param(id_param_name, **default)
+    parse_param(id_param_name, **default)
   end
 
   def associated_id(required: true)
     id_param_name = association_name.to_s.singularize + '_id'
     default = required ? {} : { default: nil }
-    parse_integer_param(id_param_name, **default)
+    parse_param(id_param_name, **default)
   end
 
   included do

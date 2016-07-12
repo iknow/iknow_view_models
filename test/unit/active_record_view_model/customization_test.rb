@@ -36,7 +36,7 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
         def self.resolve_translations(update_datas, previous_translation_views)
           existing = previous_translation_views.index_by { |x| [x.model.language, x.model.translation] }
           update_datas.map do |update_data|
-            existing.fetch([update_data["language"], update_data["translation"]]) { TranslationView.new }
+            existing.fetch([update_data["language"], update_data["translation"]]) { TranslationView.for_new_model }
           end
         end
 
@@ -202,7 +202,7 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
           if update_data.viewmodel_class == previous_translation_view.class
             previous_translation_view
           else
-            update_data.viewmodel_class.new
+            update_data.viewmodel_class.for_new_model
           end
         end
 
