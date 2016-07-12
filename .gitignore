@@ -22,6 +22,7 @@ tmp
 *.a
 mkmf.log
 *~
+test/config/database.yml
 
 # RubyMine
 .idea/
