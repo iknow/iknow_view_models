@@ -4,7 +4,8 @@ require "active_record_view_model/controller"
 
 require "acts_as_manual_list"
 
-db_config = YAML.load(File.open("test/config/database.yml"))
+db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
+db_config = YAML.load(File.open(db_config_path))
 raise "Test database configuration missing" unless db_config["test"]
 ActiveRecord::Base.establish_connection(db_config["test"])
 
