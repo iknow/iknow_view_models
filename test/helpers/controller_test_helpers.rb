@@ -1,4 +1,4 @@
-require "cerego_view_models"
+require "iknow_view_models"
 require "active_record_view_model"
 require "active_record_view_model/controller"
 

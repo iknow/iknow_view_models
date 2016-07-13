@@ -1,4 +1,4 @@
 ---
 test:
   adapter: postgresql
-  database: cerego_view_models
+  database: iknow_view_models

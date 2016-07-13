@@ -89,7 +89,7 @@ module ControllerBase
   end
 
   included do
-    CeregoViewModels.renderable!(self)
+    IknowViewModels.renderable!(self)
     delegate :viewmodel, to: 'self.class'
 
     rescue_from RenderError,                                  with: ->(ex){ render_error(ex, ex.code) }
