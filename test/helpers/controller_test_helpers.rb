@@ -78,7 +78,8 @@ module ControllerTestModels
       end
       define_viewmodel do
         attributes   :name
-        associations :children, :label, :target
+        associations :label, :target
+        association  :children, optional: true
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
         association  :category, shared: true
       end
