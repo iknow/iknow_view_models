@@ -66,7 +66,7 @@ module ActiveRecordViewModel::Controller
   private
 
   def viewmodel_id
-    parse_integer_param(:id)
+    parse_param(:id)
   end
 
 end

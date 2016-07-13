@@ -29,7 +29,7 @@ class ActiveRecordViewModel
   end
 
   class UpdateData
-    attr_accessor :viewmodel_class, :id, :attributes, :associations, :referenced_associations
+    attr_accessor :viewmodel_class, :id, :new, :attributes, :associations, :referenced_associations
 
     module Schemas
       reference =
@@ -42,12 +42,19 @@ class ActiveRecordViewModel
         }
       REFERENCE = JsonSchema.parse!(reference)
 
+      JsonSchema.configure do |c|
+        uuid_format = /\A[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\Z/
+        c.register_format('uuid', ->(value){ uuid_format.match(value) })
+      end
+
       viewmodel_update =
         {
           'type'        => 'object',
           'description' => 'viewmodel update',
           'properties'  => { TYPE_ATTRIBUTE => { 'type' => 'string' },
-                             ID_ATTRIBUTE   => { 'type' => 'integer' } },
+                             ID_ATTRIBUTE   => { "oneOf" => [{'type' => 'integer'},
+                                                             {'type' => 'string', 'format' => 'uuid' }] },
+                             NEW_ATTRIBUTE  => { 'type' => 'boolean' }},
           'required'    => [TYPE_ATTRIBUTE]
         }
       VIEWMODEL_UPDATE = JsonSchema.parse!(viewmodel_update)
@@ -97,6 +104,8 @@ class ActiveRecordViewModel
       end
     end
 
+    alias new? new
+
     def self.verify_schema!(schema, value)
       valid, errors = schema.validate(value)
       unless valid
@@ -115,10 +124,10 @@ class ActiveRecordViewModel
 
       # Construct root UpdateData
       root_updates = root_subtree_hashes.map do |subtree_hash|
-        viewmodel_name, id = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class    = ActiveRecordViewModel.for_view_name(viewmodel_name)
+        viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
-        UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
+        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
 
       # Ensure that no root is referred to more than once
@@ -126,10 +135,10 @@ class ActiveRecordViewModel
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
-        viewmodel_name, id = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class    = ActiveRecordViewModel.for_view_name(viewmodel_name)
+        viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
-        UpdateData.new(viewmodel_class, id, subtree_hash, valid_reference_keys)
+        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
 
       check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
@@ -139,9 +148,10 @@ class ActiveRecordViewModel
 
     def self.extract_viewmodel_metadata(hash)
       verify_schema!(Schemas::VIEWMODEL_UPDATE, hash)
-      id        = hash.delete(ID_ATTRIBUTE).try { |i| Integer(i) }
+      id        = hash.delete(ID_ATTRIBUTE)
       type_name = hash.delete(TYPE_ATTRIBUTE)
-      return type_name, id
+      new       = hash.delete(NEW_ATTRIBUTE) { false }
+      return type_name, id, new
     end
 
     def self.extract_reference_metadata(hash)
@@ -157,9 +167,10 @@ class ActiveRecordViewModel
       end
     end
 
-    def initialize(viewmodel_class, id, hash_data, valid_reference_keys)
+    def initialize(viewmodel_class, id, new, hash_data, valid_reference_keys)
       self.viewmodel_class = viewmodel_class
       self.id = id
+      self.new = id.nil? || new
       self.attributes = {}
       self.associations = {}
       self.referenced_associations = {}
@@ -168,7 +179,7 @@ class ActiveRecordViewModel
     end
 
     def self.empty_update_for(viewmodel)
-      self.new(viewmodel.class, viewmodel.id, {}, [])
+      self.new(viewmodel.class, viewmodel.id, false, {}, [])
     end
 
     def association_dependencies(referenced_updates)
@@ -270,10 +281,10 @@ class ActiveRecordViewModel
           else
             # Recurse into child
             parse_association = ->(child_hash) do
-              child_viewmodel_name, child_id = UpdateData.extract_viewmodel_metadata(child_hash)
-              child_viewmodel_class          = association_data.viewmodel_class_for_name(child_viewmodel_name)
+              child_viewmodel_name, child_id, child_new = UpdateData.extract_viewmodel_metadata(child_hash)
+              child_viewmodel_class = association_data.viewmodel_class_for_name(child_viewmodel_name)
 
-              UpdateData.new(child_viewmodel_class, child_id, child_hash, valid_reference_keys)
+              UpdateData.new(child_viewmodel_class, child_id, child_new, child_hash, valid_reference_keys)
             end
 
             if association_data.collection?
