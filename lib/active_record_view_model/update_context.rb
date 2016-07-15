@@ -17,6 +17,33 @@ class ActiveRecordViewModel
       end
     end
 
+    class ReleasePool
+      def initialize
+        # hash of { ViewModelReference => ReleaseEntry } for models
+        # that have been released by nodes we've already visited
+        @released_viewmodels = {}
+      end
+
+      def include?(key)
+        @released_viewmodels.has_key?(key)
+      end
+
+      def release_to_pool(viewmodel, association_data)
+        @released_viewmodels[ActiveRecordViewModel::ViewModelReference.from_viewmodel(viewmodel)] =
+          ReleaseEntry.new(viewmodel, association_data)
+      end
+
+      def claim_from_pool(key)
+        @released_viewmodels.delete(key)
+      end
+
+      def release_all!(deserialize_context)
+        @released_viewmodels.each_value do |release_entry|
+          release_entry.release!(deserialize_context: deserialize_context)
+        end
+      end
+    end
+
     def self.build!(root_subtree_hashes, referenced_subtree_hashes, root_type: nil)
       root_update_data, referenced_update_data = UpdateData.parse_hashes(root_subtree_hashes, referenced_subtree_hashes)
 
@@ -49,9 +76,7 @@ class ActiveRecordViewModel
       # for linked partially-constructed node updates
       @worklist = {}
 
-      # hash of { ViewModelReference => ReleaseEntry } for models
-      # that have been released by nodes we've already visited
-      @released_viewmodels = {}
+      @release_pool = ReleasePool.new
     end
 
     # Processes parsed (UpdateData) root updates and referenced updates into
@@ -115,9 +140,7 @@ class ActiveRecordViewModel
         root_update.run!(deserialize_context: deserialize_context)
       end
 
-      @released_viewmodels.each_value do |release_entry|
-        release_entry.release!(deserialize_context: deserialize_context)
-      end
+      @release_pool.release_all!(deserialize_context)
 
       updated_viewmodels
     end
@@ -128,7 +151,7 @@ class ActiveRecordViewModel
       end
 
       while @worklist.present?
-        key = @worklist.keys.detect { |k| @released_viewmodels.has_key?(k) }
+        key = @worklist.keys.detect { |k| @release_pool.include?(k) }
         if key.nil?
           # All worklist viewmodels are unresolvable from roots. We need to
           # manually load unresolvable VMs, and additionally add their previous
@@ -189,7 +212,7 @@ class ActiveRecordViewModel
           ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_assoc_name)
         else
           deferred_update = @worklist.delete(key)
-          deferred_update.viewmodel = @released_viewmodels.delete(key).viewmodel
+          deferred_update.viewmodel = @release_pool.claim_from_pool(key).viewmodel
         end
 
         deferred_update.build!(self)
@@ -277,13 +300,11 @@ class ActiveRecordViewModel
     end
 
     def try_take_released_viewmodel(vm_ref)
-      @released_viewmodels.delete(vm_ref).try(&:viewmodel)
+      @release_pool.claim_from_pool(vm_ref).try(&:viewmodel)
     end
 
     def release_viewmodel(viewmodel, association_data)
-      @released_viewmodels[ActiveRecordViewModel::ViewModelReference.from_viewmodel(viewmodel)] =
-        ReleaseEntry.new(viewmodel, association_data)
+      @release_pool.release_to_pool(viewmodel, association_data)
     end
-
   end
 end
