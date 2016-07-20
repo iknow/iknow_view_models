@@ -279,7 +279,7 @@ class ActiveRecordViewModel < ViewModel
       # serialization context featuring the same associations.)
 
       _associations.each_with_object({}) do |(assoc_name, association_data), h|
-        next if association_data.optional? && !serialize_context.includes_association?(assoc_name)
+        next unless serialize_context.includes_association?(assoc_name, !association_data.optional?)
 
         case
         when association_data.polymorphic?
@@ -389,7 +389,7 @@ class ActiveRecordViewModel < ViewModel
       if member_type == :association
         member_context = member_context.for_association(member_name)
         association_data = self.class._association_data(member_name)
-        next if association_data.optional? && !serialize_context.includes_association?(member_name)
+        next unless serialize_context.includes_association?(member_name, !association_data.optional?)
       end
 
       self.public_send("serialize_#{member_name}", json, serialize_context: member_context)

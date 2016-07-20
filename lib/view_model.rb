@@ -48,50 +48,50 @@ class ViewModel
 
   class SerializeContext
     delegate :add_reference, :has_references?, to: :@references
-    attr_accessor :include
+    attr_accessor :include, :prune
 
-    def stringify_includes(includes)
+    def normalize_includes(includes)
       case includes
       when Array
-        includes.map(&:to_s)
+        includes.each_with_object({}) do |v, new_includes|
+          new_includes[v.to_s] = nil
+        end
       when Hash
         includes.each_with_object({}) do |(k,v), new_includes|
-          new_includes[k.to_s] = stringify_includes(v)
+          new_includes[k.to_s] = normalize_includes(v)
         end
       when nil
         nil
       else
-        includes.to_s
+        { includes.to_s => nil }
       end
     end
 
-    def initialize(include: nil)
+    def initialize(include: nil, prune: nil)
       @references = References.new
 
-      self.include = stringify_includes(include)
+      self.include = normalize_includes(include)
+      self.prune   = normalize_includes(prune)
     end
 
     def for_association(association_name)
       # Shallow clone aliases @references; association traversal must not
       # "change" the context, otherwise references will be lost.
       self.dup.tap do |copy|
-        copy.include = include.is_a?(Hash) ? include[association_name] : nil
+        copy.include = include.try { |i| i[association_name] }
+        copy.prune   = prune.try   { |p| p[association_name] }
       end
     end
 
-    def includes_association?(association_name)
+    def includes_association?(association_name, default)
       association_name = association_name.to_s
 
-      case include
-      when Array
-        include.include?(association_name)
-      when Hash
-        include.has_key?(association_name)
-      when nil
-        false
-      else
-        include.to_s == association_name
-      end
+      # Every node in the include tree is to be included
+      included = include.try { |is| is.has_key?(association_name) }
+      # whereas only the leaves of the prune tree are to be removed
+      pruned   = prune.try { |ps| ps.fetch(association_name, :sentinel).nil? }
+
+      (default || included) && !pruned
     end
 
 
