@@ -11,7 +11,6 @@ class ActiveRecordViewModel < ViewModel
   # Defined before requiring components so components can refer to them at parse time
   ID_ATTRIBUTE        = "id"
   TYPE_ATTRIBUTE      = "_type"
-  REFERENCE_ATTRIBUTE = "_ref"
   NEW_ATTRIBUTE       = "_new"
 
   # for functional updates
@@ -202,12 +201,10 @@ class ActiveRecordViewModel < ViewModel
               json.null!
             when association_data.through?
               json.array!(associated) do |through_target|
-                ref = serialize_context.add_reference(through_target)
-                json.set!(REFERENCE_ATTRIBUTE, ref)
+                self.class.serialize_as_reference(through_target, json, serialize_context: serialize_context)
               end
             when shared
-              reference = serialize_context.add_reference(associated)
-              json.set!(REFERENCE_ATTRIBUTE, reference)
+              self.class.serialize_as_reference(associated, json, serialize_context: serialize_context)
             else
               self.class.serialize(associated, json, serialize_context: serialize_context)
             end

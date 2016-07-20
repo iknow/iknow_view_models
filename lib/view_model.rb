@@ -3,6 +3,8 @@
 require 'jbuilder'
 
 class ViewModel
+  REFERENCE_ATTRIBUTE = "_ref"
+
   class DeserializationError < StandardError
     class Permissions < DeserializationError; end
   end
@@ -48,7 +50,7 @@ class ViewModel
 
   class SerializeContext
     delegate :add_reference, :has_references?, to: :@references
-    attr_accessor :include, :prune
+    attr_accessor :include, :prune, :flatten_references
 
     def normalize_includes(includes)
       case includes
@@ -67,9 +69,9 @@ class ViewModel
       end
     end
 
-    def initialize(include: nil, prune: nil)
+    def initialize(include: nil, prune: nil, flatten_references: false)
       @references = References.new
-
+      self.flatten_references = flatten_references
       self.include = normalize_includes(include)
       self.prune   = normalize_includes(prune)
     end
@@ -173,6 +175,15 @@ class ViewModel
         end
       else
         json.merge! target
+      end
+    end
+
+    def serialize_as_reference(target, json, serialize_context: new_serialize_context)
+      if serialize_context.flatten_references
+        serialize(target, json, serialize_context: serialize_context)
+      else
+        ref = serialize_context.add_reference(target)
+        json.set!(REFERENCE_ATTRIBUTE, ref)
       end
     end
 

@@ -36,9 +36,9 @@ class ActiveRecordViewModel
         {
           'type'                 => 'object',
           'description'          => 'shared reference',
-          'properties'           => { REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
+          'properties'           => { ViewModel::REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
           'additionalProperties' => false,
-          'required'             => [REFERENCE_ATTRIBUTE],
+          'required'             => [ViewModel::REFERENCE_ATTRIBUTE],
         }
       REFERENCE = JsonSchema.parse!(reference)
 
@@ -156,7 +156,7 @@ class ActiveRecordViewModel
 
     def self.extract_reference_metadata(hash)
       verify_schema!(Schemas::REFERENCE, hash)
-      hash.delete(REFERENCE_ATTRIBUTE)
+      hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
     def self.check_duplicates(arr, type:, &by)
