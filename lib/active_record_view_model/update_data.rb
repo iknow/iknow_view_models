@@ -182,49 +182,88 @@ class ActiveRecordViewModel
       self.new(viewmodel.class, viewmodel.id, false, {}, [])
     end
 
+    # Normalised handler for looking at the UpdateData for an association
+    def reduce_association(name, value, empty:, map:, inject:)
+      association_data = self.viewmodel_class._association_data(name)
+      case
+      when value.nil?
+        empty.()
+      when association_data.collection?
+        if association_data.shared?
+          value.map(&map).inject(empty.(), &inject)
+        else
+          value.update_datas.map(&map).inject(empty.(), &inject)
+        end
+      else
+        inject.(empty.(), map.(value))
+      end
+    end
+
+    # Normalised handler for looking at UpdateData for an association where the
+    # result is a deeply merged hash
+    def reduce_association_to_hash(name, value, &map)
+      reduce_association(
+        name, value,
+        empty:  ->() { {} },
+        inject: ->(acc, data) { acc.deep_merge(data) },
+        map:    map)
+    end
+
+    # Updates in terms of viewmodel associations
+    def updated_associations(referenced_updates)
+      deps = {}
+
+      associations.each do |assoc_name, assoc_update|
+        deps[assoc_name] = reduce_association_to_hash(assoc_name, assoc_update) do |update_data|
+          update_data.updated_associations(referenced_updates)
+        end
+      end
+
+      referenced_associations.each do |assoc_name, reference|
+        deps[assoc_name] = reduce_association_to_hash(assoc_name, reference) do |ref|
+          referenced_updates[ref].updated_associations(referenced_updates)
+        end
+      end
+
+      deps
+    end
+
+    # Updates in terms of activerecord associations
     def association_dependencies(referenced_updates)
       deps = {}
 
       associations.each do |assoc_name, assoc_update|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
-        assoc_deps =
-          case
-          when assoc_update.nil?
-            {}
-          when association_data.polymorphic?
-            # AR preloader doesn't allow us to specify different nested includes
-            # per polymorphic type. This means we can't continue eager-loading
-            # (in the same step) beyond a polymorphic association. For now, just
-            # stop and go lazy.
-            {}
-          when association_data.collection?
-            assoc_update.update_datas
-              .map { |values| values.association_dependencies(referenced_updates) }
-              .inject({}) { |acc, dep| acc.deep_merge(dep) }
-          else
-            assoc_update.association_dependencies(referenced_updates)
+        deps[association_data.direct_reflection.name.to_s] =
+          reduce_association_to_hash(assoc_name, assoc_update) do |update_data|
+            if association_data.polymorphic?
+              {}
+            else
+              update_data.association_dependencies(referenced_updates)
+            end
           end
-
-        deps[association_data.direct_reflection.name.to_s] = assoc_deps
       end
 
       referenced_associations.each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
         referenced_deps =
-          case
-          when reference.nil?
-            {}
-          when association_data.collection?
-            reference
-              .map { |ref| referenced_updates[ref].association_dependencies(referenced_updates) }
-              .inject({}) { |acc, dep| acc.deep_merge(dep) }
-          else
-            referenced_updates[reference].association_dependencies(referenced_updates)
+          reduce_association_to_hash(assoc_name, reference) do |ref|
+            if association_data.polymorphic?
+              {}
+            else
+              referenced_updates[ref].association_dependencies(referenced_updates)
+            end
           end
 
-        deps[association_data.direct_reflection.name.to_s] = referenced_deps
+        if association_data.through? && !association_data.indirect_reflection.polymorphic?
+          deps[association_data.direct_reflection.name.to_s] = {
+            association_data.indirect_reflection.name.to_s => referenced_deps
+          }
+        else
+          deps[association_data.direct_reflection.name.to_s] = referenced_deps
+        end
       end
 
       deps

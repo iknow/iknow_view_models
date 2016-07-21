@@ -31,11 +31,16 @@ module ActiveRecordViewModel::Controller
     end
   end
 
-  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def create(serialize_context: nil, deserialize_context: new_deserialize_context)
     update_hash, refs = parse_viewmodel_updates
 
     viewmodel.transaction do
       view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
+
+      serialize_context ||= begin
+        new_serialize_context(include: deserialize_context.updated_associations)
+      end
+
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
       render_viewmodel(view, serialize_context: serialize_context)
     end

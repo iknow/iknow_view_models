@@ -26,21 +26,44 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
     end
   end
 
-  def self.build_tag(arvm_test_case)
+  def self.build_tag(arvm_test_case, with: [])
+    use_childtag = with.include?(:ChildTag)
     arvm_test_case.build_viewmodel(:Tag) do
       define_schema do |t|
         t.string :name
-
       end
 
       define_model do
-        has_many :parents_tag, dependent: :destroy, inverse_of: :tag
+        has_many :parents_tags, dependent: :destroy, inverse_of: :tag
+        if use_childtag
+          has_many :child_tags, dependent: :destroy, inverse_of: :tag
+        end
       end
 
       define_viewmodel do
         attributes :name
+        if use_childtag
+          associations :child_tags
+        end
 
         include TrivialAccessControl
+      end
+    end
+  end
+
+  def self.build_childtag(arvm_test_case)
+    arvm_test_case.build_viewmodel(:ChildTag) do
+      define_schema do |t|
+        t.string :name
+        t.references :tag, foreign_key: true
+      end
+
+      define_model do
+        belongs_to :tag, dependent: :destroy, inverse_of: :child_tag
+      end
+
+      define_viewmodel do
+        attributes :name
       end
     end
   end
@@ -129,13 +152,26 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
                  root_updates.first.association_dependencies(ref_updates),
                  'nothing loaded by default')
 
-    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent',
-                                                                                  'tags' => [{ '_ref' => 'r1' }] }],
-                                                                               { 'r1' => { '_type' => 'Tag' } })
+    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
+      [{ '_type' => 'Parent',
+         'tags' => [{ '_ref' => 'r1' }] }],
+      { 'r1' => { '_type' => 'Tag' } })
 
-    assert_equal({ 'parents_tags' => {} },
+    assert_equal({ 'parents_tags' => { 'tag' => {} } },
                  root_updates.first.association_dependencies(ref_updates),
+                 'mentioning tags and child_tags causes through association loading')
+  end
+
+  def test_updated_associations
+    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
+      [{ '_type' => 'Parent',
+         'tags' => [{ '_ref' => 'r1' }] }],
+      { 'r1' => { '_type' => 'Tag', } })
+
+    assert_equal({ 'tags' => {} },
+                 root_updates.first.updated_associations(ref_updates),
                  'mentioning tags causes through association loading')
+
   end
 
   def test_serialize
@@ -226,6 +262,12 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
       enable_logging!
     end
 
+    def test_dependencies
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      assert_equal({ 'parents_tags' => { 'tag' => {} } }, root_updates.first.association_dependencies(ref_updates))
+      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
+    end
+
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context(include: :something_else)
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
@@ -241,6 +283,48 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
       end
 
       assert_equal('tag new name', @parent.parents_tags.first.tag.name)
+    end
+  end
+
+  class WithChildTagTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      container = ActiveRecordViewModel::HasManyThroughTest
+      container.build_parent(self)
+      container.build_tag(self, with: [:ChildTag])
+      container.build_childtag(self)
+      container.build_join_table_model(self)
+    end
+
+    def test_association_dependencies
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
+      assert_equal({},
+                   root_updates.first.association_dependencies(ref_updates),
+                   'nothing loaded by default')
+
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
+        [{ '_type' => 'Parent',
+           'tags' => [{ '_ref' => 'r1' }] }],
+        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
+
+      assert_equal({ 'parents_tags' => { 'tag' => { 'child_tags' => {} } } },
+                   root_updates.first.association_dependencies(ref_updates),
+                   'mentioning tags and child_tags causes through association loading')
+    end
+
+    def test_updated_associations
+      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
+        [{ '_type' => 'Parent',
+           'tags' => [{ '_ref' => 'r1' }] }],
+        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
+
+      assert_equal({ 'tags' => { 'child_tags' => {} } },
+                   root_updates.first.updated_associations(ref_updates),
+                   'mentioning tags causes through association loading')
+
     end
   end
 end

@@ -247,9 +247,16 @@ class ActiveRecordViewModel < ViewModel
         return_array = subtree_hashes.is_a?(Array)
         subtree_hashes = Array.wrap(subtree_hashes)
 
+        root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
+
+        # Provide information about will was updated
+        deserialize_context.updated_associations = root_update_data
+                                                     .map { |upd| upd.updated_associations(referenced_update_data) }
+                                                     .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
+
         updated_viewmodels =
           UpdateContext
-            .build!(subtree_hashes, references, root_type: self)
+            .build!(root_update_data, referenced_update_data, root_type: self)
             .run!(deserialize_context: deserialize_context)
 
         if return_array
@@ -429,7 +436,14 @@ class ActiveRecordViewModel < ViewModel
 
       # Construct an update operation tree for the provided child hashes
       viewmodel_class = association_data.viewmodel_class
-      update_context = UpdateContext.build!(subtree_hashes, references, root_type: viewmodel_class)
+
+      root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
+      update_context = UpdateContext.build!(root_update_data, referenced_update_data, root_type: viewmodel_class)
+
+      # Provide information about what was updated
+      deserialize_context.updated_associations = root_update_data
+                                                   .map { |upd| upd.updated_associations(referenced_update_data) }
+                                                   .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
       new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)

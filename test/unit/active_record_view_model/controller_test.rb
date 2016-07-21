@@ -66,7 +66,8 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     p = Parent.where(name: 'p2').first
     assert(p.present?, 'p created')
 
-    assert_equal({ 'data' => ParentView.new(p).to_hash },
+    context = ParentView.new_serialize_context(include: 'children')
+    assert_equal({ 'data' => ParentView.new(p).to_hash(serialize_context: context) },
                  parentcontroller.hash_response)
   end
 
