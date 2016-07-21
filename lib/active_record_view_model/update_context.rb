@@ -100,7 +100,7 @@ class ActiveRecordViewModel
         dependencies = updates.map { |_, upd| upd.association_dependencies(referenced_updates) }
                        .inject({}){ |acc, deps| acc.deep_merge(deps) }
 
-        model_ids = updates.map { |_, update_data| update_data.id }.compact
+        model_ids = updates.map { |_, update_data| update_data.id unless update_data.new? }.compact
 
         existing_models =
           if model_ids.present?
