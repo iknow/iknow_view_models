@@ -1,6 +1,7 @@
 # A ViewModel encapsulates a particular aggregation of data calculated via the
 # underlying models and provides a means of serializing it into views.
 require 'jbuilder'
+require 'deep_preloader'
 
 class ViewModel
   REFERENCE_ATTRIBUTE = "_ref"
@@ -154,9 +155,10 @@ class ViewModel
     end
 
     # If this viewmodel represents an AR model, what associations does it make
-    # use of?
+    # use of? Returns a includes spec appropriate for DeepPreloader, either as
+    # AR-style nested hashes or DeepPreloader::Spec.
     def eager_includes(serialize_context: new_serialize_context)
-      []
+      {}
     end
 
     # ViewModel can serialize ViewModels, Arrays and Hashes of ViewModels, and
@@ -217,8 +219,8 @@ class ViewModel
 
     def preload_for_serialization(viewmodels, serialize_context: new_serialize_context)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|
-        ActiveRecord::Associations::Preloader.new.preload(views.map(&:model),
-                                                          type.eager_includes(serialize_context: serialize_context))
+        DeepPreloader.preload(views.map(&:model),
+                              type.eager_includes(serialize_context: serialize_context))
       end
     end
   end
