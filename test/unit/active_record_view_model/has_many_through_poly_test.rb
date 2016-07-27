@@ -155,7 +155,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     # If we refactor out the contexts from their tests, this should go in another test file.
 
     root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
-    assert_equal(DeepPreloader::Spec.new(),
+    assert_equal(DeepPreloader::Spec.new,
                  root_updates.first.preload_dependencies(ref_updates),
                  'nothing loaded by default')
 
