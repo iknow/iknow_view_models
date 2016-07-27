@@ -6,7 +6,7 @@ class ActiveRecordViewModel
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
       def release!(deserialize_context:)
         model = viewmodel.model
-        case association_data.reflection.options[:dependent]
+        case association_data.direct_reflection.options[:dependent]
         when :delete
           viewmodel.editable!(deserialize_context: deserialize_context)
           model.delete

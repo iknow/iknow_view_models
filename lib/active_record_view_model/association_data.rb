@@ -1,7 +1,6 @@
 # TODO consider rephrase scope for consistency
 class ActiveRecordViewModel::AssociationData
   attr_reader :direct_reflection
-  alias reflection direct_reflection
 
   def initialize(direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
     @direct_reflection  = direct_reflection
@@ -145,7 +144,7 @@ class ActiveRecordViewModel::AssociationData
   end
 
   def collection?
-    through? || reflection.collection?
+    through? || direct_reflection.collection?
   end
 
   def indirect_association_data

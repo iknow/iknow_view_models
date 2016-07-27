@@ -441,7 +441,7 @@ class ActiveRecordViewModel < ViewModel
                                                    .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
-      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
+      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.direct_reflection.inverse_of, self)
       update_context.root_updates.each { |update| update.reparent_to = new_parent }
 
       # Set place in list
