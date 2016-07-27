@@ -255,7 +255,7 @@ class ActiveRecordViewModel
         association_data = self.viewmodel_class._association_data(assoc_name)
 
         assoc_deps = reduce_association_to_preload(assoc_name, assoc_update, association_data.polymorphic?) do |update_data|
-            update_data.preload_dependencies(referenced_updates)
+          update_data.preload_dependencies(referenced_updates)
         end
 
         deps[association_data.direct_reflection.name.to_s] = assoc_deps
