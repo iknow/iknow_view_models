@@ -218,28 +218,23 @@ class ActiveRecordViewModel < ViewModel
       assocs.each { |assoc| association(assoc) }
     end
 
-    def model_scope(eager_include: true, serialize_context: new_serialize_context)
-      scope = self.model_class.all
-      if eager_include
-        scope = scope.includes(self.eager_includes(serialize_context: serialize_context))
-      end
-      scope
-    end
-    private :model_scope
-
     ## Load an instance of the viewmodel by id
     def find(id, scope: nil, eager_include: true, serialize_context: new_serialize_context)
-      find_scope = model_scope(eager_include: eager_include, serialize_context: serialize_context)
+      find_scope = self.model_class.all
       find_scope = find_scope.merge(scope) if scope
-      self.new(find_scope.find(id))
+      vm = self.new(find_scope.find(id))
+      ViewModel.preload_for_serialization(vm, serialize_context: serialize_context) if eager_include
+      vm
     end
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
     def load(scope: nil, eager_include: true, serialize_context: new_serialize_context)
-      load_scope = model_scope(eager_include: eager_include, serialize_context: serialize_context)
+      load_scope = self.model_class.all
       load_scope = load_scope.merge(scope) if scope
-      load_scope.map { |model| self.new(model) }
+      vms = load_scope.map { |model| self.new(model) }
+      ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
+      vms
     end
 
     def deserialize_from_view(subtree_hashes, references: {}, deserialize_context: new_deserialize_context)
@@ -282,32 +277,32 @@ class ActiveRecordViewModel < ViewModel
       # them all. (We can subsequently use this same structure to build a
       # serialization context featuring the same associations.)
 
-      _associations.each_with_object({}) do |(assoc_name, association_data), h|
+      association_specs = {}
+      _associations.each do |assoc_name, association_data|
         next unless serialize_context.includes_association?(assoc_name, !association_data.optional?)
+        child_context = serialize_context.for_association(assoc_name)
 
         case
-        when association_data.polymorphic?
-          # The regular AR preloader doesn't support child includes that are
-          # conditional on type.  If we want to go through polymorphic includes,
-          # we'd need to manually specify the viewmodel spec so that the
-          # possible target classes are know, and also use our own preloader
-          # instead of AR.
-          children = {}
-
         when association_data.through?
           viewmodel = association_data.through_viewmodel
-          children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
+          children = viewmodel.eager_includes(serialize_context: child_context)
+
+        when association_data.polymorphic?
+          children_by_klass = {}
+          association_data.viewmodel_classes.each do |vm_class|
+            klass = vm_class.model_class.name
+            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context)
+          end
+          children = DeepPreloader::PolymorphicSpec.new(children_by_klass)
 
         else
-          # if we have a known non-polymorphic association class, we can find
-          # child viewmodels and recurse.
           viewmodel = association_data.viewmodel_class
-
-          children = viewmodel.eager_includes(serialize_context: serialize_context.for_association(assoc_name))
+          children = viewmodel.eager_includes(serialize_context: child_context)
         end
 
-        h[association_data.direct_reflection.name.to_s] = children
+        association_specs[association_data.direct_reflection.name.to_s] = children
       end
+      DeepPreloader::Spec.new(association_specs)
     end
 
     # Returns the AR model class wrapped by this viewmodel. If this has not been
@@ -446,7 +441,7 @@ class ActiveRecordViewModel < ViewModel
                                                    .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
-      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.reflection.inverse_of, self)
+      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.direct_reflection.inverse_of, self)
       update_context.root_updates.each { |update| update.reparent_to = new_parent }
 
       # Set place in list

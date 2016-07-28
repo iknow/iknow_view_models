@@ -228,45 +228,61 @@ class ActiveRecordViewModel
       deps
     end
 
-    # Updates in terms of activerecord associations
-    def association_dependencies(referenced_updates)
+    def reduce_association_to_preload(name, value, polymorphic, &update_data_map)
+      if polymorphic
+        empty = ->{ DeepPreloader::PolymorphicSpec.new }
+        map   = ->(update_data) {
+          target_model = update_data.viewmodel_class.model_class
+          DeepPreloader::PolymorphicSpec.new(target_model.name => update_data_map.(update_data))
+        }
+      else
+        empty = ->{ DeepPreloader::Spec.new }
+        map   = update_data_map
+      end
+
+      reduce_association(name, value,
+                         empty:  empty,
+                         inject: ->(a, b){ a.merge!(b) },
+                         map:    map)
+    end
+
+    # Updates in terms of activerecord associations: used for preloading subtree
+    # associations necessary to perform update.
+    def preload_dependencies(referenced_updates)
       deps = {}
 
       associations.each do |assoc_name, assoc_update|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
-        deps[association_data.direct_reflection.name.to_s] =
-          reduce_association_to_hash(assoc_name, assoc_update) do |update_data|
-            if association_data.polymorphic?
-              {}
-            else
-              update_data.association_dependencies(referenced_updates)
-            end
-          end
+        assoc_deps = reduce_association_to_preload(assoc_name, assoc_update, association_data.polymorphic?) do |update_data|
+          update_data.preload_dependencies(referenced_updates)
+        end
+
+        deps[association_data.direct_reflection.name.to_s] = assoc_deps
       end
 
       referenced_associations.each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
-
-        referenced_deps =
-          reduce_association_to_hash(assoc_name, reference) do |ref|
-            if association_data.polymorphic?
-              {}
-            else
-              referenced_updates[ref].association_dependencies(referenced_updates)
-            end
+        resolved_updates =
+          if association_data.collection?
+            reference.map { |r| referenced_updates[r] }
+          else
+            referenced_updates[reference]
           end
 
-        if association_data.through? && !association_data.indirect_reflection.polymorphic?
-          deps[association_data.direct_reflection.name.to_s] = {
-            association_data.indirect_reflection.name.to_s => referenced_deps
-          }
-        else
-          deps[association_data.direct_reflection.name.to_s] = referenced_deps
+        referenced_deps =
+          reduce_association_to_preload(assoc_name, resolved_updates, association_data.polymorphic?) do |update_data|
+            update_data.preload_dependencies(referenced_updates)
+          end
+
+        if association_data.through?
+          referenced_deps = DeepPreloader::Spec.new(association_data.indirect_reflection.name.to_s => referenced_deps)
         end
+
+        deps[association_data.direct_reflection.name.to_s] = referenced_deps
       end
 
-      deps
+      DeepPreloader::Spec.new(deps)
     end
 
     def viewmodel_reference

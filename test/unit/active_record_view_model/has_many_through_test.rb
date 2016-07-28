@@ -140,16 +140,16 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
   def test_eager_includes
     includes = ParentView.eager_includes(serialize_context: context_with(:tags))
-    assert_equal({ 'parents_tags' => { 'tag' => {} } }, includes)
+    assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)), includes)
   end
 
-  def test_association_dependencies
+  def test_preload_dependencies
     # TODO not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
     root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
-    assert_equal({},
-                 root_updates.first.association_dependencies(ref_updates),
+    assert_equal(DeepPreloader::Spec.new,
+                 root_updates.first.preload_dependencies(ref_updates),
                  'nothing loaded by default')
 
     root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
@@ -157,8 +157,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
          'tags' => [{ '_ref' => 'r1' }] }],
       { 'r1' => { '_type' => 'Tag' } })
 
-    assert_equal({ 'parents_tags' => { 'tag' => {} } },
-                 root_updates.first.association_dependencies(ref_updates),
+    assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
+                 root_updates.first.preload_dependencies(ref_updates),
                  'mentioning tags and child_tags causes through association loading')
   end
 
@@ -264,7 +264,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
 
     def test_dependencies
       root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
-      assert_equal({ 'parents_tags' => { 'tag' => {} } }, root_updates.first.association_dependencies(ref_updates))
+      assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
+                   root_updates.first.preload_dependencies(ref_updates))
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
     end
 
@@ -299,10 +300,10 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
       container.build_join_table_model(self)
     end
 
-    def test_association_dependencies
+    def test_preload_dependencies
       root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
-      assert_equal({},
-                   root_updates.first.association_dependencies(ref_updates),
+      assert_equal(DeepPreloader::Spec.new,
+                   root_updates.first.preload_dependencies(ref_updates),
                    'nothing loaded by default')
 
       root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes(
@@ -310,8 +311,8 @@ class ActiveRecordViewModel::HasManyThroughTest < ActiveSupport::TestCase
            'tags' => [{ '_ref' => 'r1' }] }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
-      assert_equal({ 'parents_tags' => { 'tag' => { 'child_tags' => {} } } },
-                   root_updates.first.association_dependencies(ref_updates),
+      assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new('child_tags' => DeepPreloader::Spec.new))),
+                   root_updates.first.preload_dependencies(ref_updates),
                    'mentioning tags and child_tags causes through association loading')
     end
 

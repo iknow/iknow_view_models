@@ -6,7 +6,7 @@ class ActiveRecordViewModel
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
       def release!(deserialize_context:)
         model = viewmodel.model
-        case association_data.reflection.options[:dependent]
+        case association_data.direct_reflection.options[:dependent]
         when :delete
           viewmodel.editable!(deserialize_context: deserialize_context)
           model.delete
@@ -97,14 +97,16 @@ class ActiveRecordViewModel
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       updates_by_viewmodel_class.each do |viewmodel_class, updates|
-        dependencies = updates.map { |_, upd| upd.association_dependencies(referenced_updates) }
-                       .inject({}){ |acc, deps| acc.deep_merge(deps) }
+        dependencies = updates.map { |_, upd| upd.preload_dependencies(referenced_updates) }
+                       .inject { |acc, deps| acc.merge!(deps) }
 
         model_ids = updates.map { |_, update_data| update_data.id unless update_data.new? }.compact
 
         existing_models =
           if model_ids.present?
-            viewmodel_class.model_class.includes(dependencies).find_all!(model_ids).index_by(&:id)
+            models = viewmodel_class.model_class.find_all!(model_ids)
+            DeepPreloader.preload(models, dependencies)
+            models.index_by(&:id)
           else
             {}
           end
@@ -192,9 +194,10 @@ class ActiveRecordViewModel
 
           @worklist.delete(key)
 
-          child_dependencies = deferred_update.update_data.association_dependencies(@referenced_update_data)
-          child_model        = key.viewmodel_class.model_class.includes(child_dependencies).find(key.model_id)
+          child_dependencies = deferred_update.update_data.preload_dependencies(@referenced_update_data)
+          child_model        = key.viewmodel_class.model_class.find(key.model_id)
           child_viewmodel    = key.viewmodel_class.new(child_model)
+          DeepPreloader.preload(child_model, child_dependencies)
 
           deferred_update.viewmodel = child_viewmodel
 

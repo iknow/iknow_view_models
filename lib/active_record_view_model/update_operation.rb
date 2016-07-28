@@ -211,7 +211,7 @@ class ActiveRecordViewModel
         referred_update = update_context.resolve_reference(reference_string)
 
         unless association_data.accepts?(referred_update.viewmodel.class)
-          raise ViewModel::DeserializationError.new("Association '#{association_data.reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
+          raise ViewModel::DeserializationError.new("Association '#{association_data.direct_reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
         end
 
         referred_update.build!(update_context)
@@ -273,7 +273,7 @@ class ActiveRecordViewModel
         # fix the target cache after recursing in run!(). If we don't, we promise
         # that the child will no longer be attached in the database, so the new
         # cached data of nil will be correct.
-        clear_association_cache(model, association_data.reflection)
+        clear_association_cache(model, association_data.direct_reflection)
       end
 
       child_viewmodel =
@@ -296,10 +296,10 @@ class ActiveRecordViewModel
             # that's private.
 
             inverse_reflection =
-              if association_data.reflection.polymorphic?
-                association_data.reflection.polymorphic_inverse_of(previous_child_viewmodel.model.class)
+              if association_data.direct_reflection.polymorphic?
+                association_data.direct_reflection.polymorphic_inverse_of(previous_child_viewmodel.model.class)
               else
-                association_data.reflection.inverse_of
+                association_data.direct_reflection.inverse_of
               end
 
             if inverse_reflection.present?
@@ -317,7 +317,7 @@ class ActiveRecordViewModel
         # ParentData to update
         parent_data =
           if association_data.pointer_location == :remote
-            ParentData.new(association_data.reflection.inverse_of, viewmodel)
+            ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
           else
             nil
           end
@@ -336,7 +336,7 @@ class ActiveRecordViewModel
       model = self.viewmodel.model
 
       # reference back to this model, so we can set the link while updating the children
-      parent_data = ParentData.new(association_data.reflection.inverse_of, viewmodel)
+      parent_data = ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
 
       # load children already attached to this model
       previous_child_viewmodels =
@@ -352,7 +352,7 @@ class ActiveRecordViewModel
         # run(). If not, the empty array we cache here will be correct, because
         # previous children will be deleted or have had their parent pointers
         # updated.
-        clear_association_cache(model, association_data.reflection)
+        clear_association_cache(model, association_data.direct_reflection)
       end
 
       child_datas =

@@ -124,13 +124,11 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
   def test_shared_eager_include
     parent_includes = ParentView.eager_includes
 
-    expected = { }
-
-    assert_equal(expected, parent_includes)
+    assert_equal(DeepPreloader::Spec.new, parent_includes)
 
     extra_includes = ParentView.eager_includes(serialize_context: ParentView.new_serialize_context(include: :category))
 
-    assert_equal({ 'category' => {} }, extra_includes)
+    assert_equal(DeepPreloader::Spec.new('category' => DeepPreloader::Spec.new), extra_includes)
   end
 
   def test_shared_serialize_interning
