@@ -1,13 +1,13 @@
 # coding: utf-8
 lib = File.expand_path('../lib', __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require 'cerego_view_models/version'
+require 'iknow_view_models/version'
 
 Gem::Specification.new do |spec|
-  spec.name          = "cerego_view_models"
-  spec.version       = CeregoViewModels::VERSION
-  spec.authors       = ["Cerego"]
-  spec.email         = ["edge@cerego.com"]
+  spec.name          = "iknow_view_models"
+  spec.version       = IknowViewModels::VERSION
+  spec.authors       = ["iKnow Team"]
+  spec.email         = ["edge@iknow.jp"]
   spec.summary       = %q{ViewModels provide a means of encapsulating a collection of related data and specifying its JSON serialization.}
   spec.description   = %q{}
   spec.homepage      = ""
