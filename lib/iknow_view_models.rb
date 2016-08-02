@@ -22,6 +22,12 @@ module IknowViewModels
         if Rails.env != 'production'
           json.set! :class, exception.class.name
           json.backtrace exception.backtrace
+          exception.cause.try do |cause|
+            json.cause do
+              json.set! :class, cause.class.name
+              json.backtrace cause.backtrace
+            end
+          end
         end
       end
     end

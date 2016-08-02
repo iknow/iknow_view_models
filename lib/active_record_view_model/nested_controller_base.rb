@@ -44,9 +44,9 @@ module ActiveRecordViewModel::NestedControllerBase
 
   def owner_update_hash(update)
     {
-      ActiveRecordViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
-      ActiveRecordViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
-      association_name.to_s                 => update
+      ViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
+      ViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
+      association_name.to_s     => update
     }
   end
 

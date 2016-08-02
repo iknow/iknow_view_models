@@ -106,7 +106,8 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(404, parentcontroller.status)
     assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent with 'id'=9999" }] },
+                                  'detail' => "Couldn't find Parent with 'id'=9999" ,
+                                  "metadata" => { "nodes" => [{ "_type" => "Parent", "id" => 9999 }]}}]},
                  parentcontroller.hash_response)
   end
 
@@ -119,7 +120,9 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     parentcontroller.invoke(:create)
 
     assert_equal({ 'errors' => [{ 'status' => 400,
-                                  'detail' => 'Validation failed: Age must be less than 42' }] },
+                                  'detail' => 'Validation failed: Age must be less than 42',
+                                  "metadata" => { "nodes" => [{ "_type" => "Child", "id" => nil }],
+                                                  "validation_errors" => { "age" => ["must be less than 42"]}}}] },
                  parentcontroller.hash_response)
   end
 
@@ -141,7 +144,8 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     parentcontroller.invoke(:destroy)
 
     assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent with 'id'=9999" }] },
+                                  'detail' => "Couldn't find Parent with 'id'=9999",
+                                  'metadata' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
                  parentcontroller.hash_response)
     assert_equal(404, parentcontroller.status)
   end

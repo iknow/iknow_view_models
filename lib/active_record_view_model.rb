@@ -9,8 +9,6 @@ require "concurrent"
 
 class ActiveRecordViewModel < ViewModel
   # Defined before requiring components so components can refer to them at parse time
-  ID_ATTRIBUTE        = "id"
-  TYPE_ATTRIBUTE      = "_type"
   NEW_ATTRIBUTE       = "_new"
 
   # for functional updates
@@ -22,7 +20,6 @@ class ActiveRecordViewModel < ViewModel
 
   require 'active_record_view_model/collections'
   require 'active_record_view_model/association_data'
-  require 'active_record_view_model/view_model_reference'
   require 'active_record_view_model/update_data'
   require 'active_record_view_model/update_context'
   require 'active_record_view_model/update_operation'
@@ -38,21 +35,6 @@ class ActiveRecordViewModel < ViewModel
     attr_accessor :abstract_class, :synthetic, :unregistered
 
     delegate :transaction, to: :model_class
-
-    # The user-facing name of this viewmodel: serialized in the TYPE_ATTRIBUTE field
-    def view_name
-      @view_name ||=
-        begin
-          # try to auto-detect based on class name
-          match = /(.*)View$/.match(self.name)
-          raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
-          match[1]
-        end
-    end
-
-    def view_name=(name)
-      @view_name = name
-    end
 
     def for_view_name(name)
       raise ViewModel::DeserializationError.new("ViewModel name cannot be nil") if name.nil?
@@ -224,7 +206,13 @@ class ActiveRecordViewModel < ViewModel
     def find(id, scope: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = self.model_class.all
       find_scope = find_scope.merge(scope) if scope
-      vm = self.new(find_scope.find(id))
+
+      ref = ViewModel::Reference.new(self, id)
+      model = ViewModel::DeserializationError::NotFound.wrap_lookup(ref) do
+        find_scope.find(id)
+      end
+
+      vm = self.new(model)
       ViewModel.preload_for_serialization(vm, serialize_context: serialize_context) if eager_include
       vm
     end
@@ -377,8 +365,8 @@ class ActiveRecordViewModel < ViewModel
   alias eql? ==
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
-    json.set!(ID_ATTRIBUTE, model.id)
-    json.set!(TYPE_ATTRIBUTE, self.class.view_name)
+    json.set!(ViewModel::ID_ATTRIBUTE, model.id)
+    json.set!(ViewModel::TYPE_ATTRIBUTE, self.class.view_name)
 
     serialize_members(json, serialize_context: serialize_context)
   end
@@ -426,8 +414,7 @@ class ActiveRecordViewModel < ViewModel
 
       association_data = self.class._association_data(association_name)
 
-      # TODO why not ArgumentError? The User was not responsible for this failure.
-      raise ViewModel::DeserializationError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
+      raise ArgumentError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
 
       associated_viewmodel_class = association_data.viewmodel_class
 
@@ -474,7 +461,7 @@ class ActiveRecordViewModel < ViewModel
       association_data = self.class._association_data(association_name)
 
       unless association_data.collection?
-        raise ViewModel::DeserializationError.new("Cannot remove element from single association '#{association_name}'")
+        raise ArgumentError.new("Cannot remove element from single association '#{association_name}'")
       end
 
       association = model.association(association_name)
@@ -497,7 +484,7 @@ class ActiveRecordViewModel < ViewModel
 
       associated.map do |through_model|
         model = through_model.public_send(association_data.indirect_reflection.name)
-        association_data.viewmodel_class_for_model(model.class).new(model)
+        association_data.viewmodel_class_for_model!(model.class).new(model)
       end
 
     when association_data.collection?
@@ -509,21 +496,8 @@ class ActiveRecordViewModel < ViewModel
       associated_viewmodels
 
     else
-      associated_viewmodel_class = association_data.viewmodel_class_for_model(associated.class)
+      associated_viewmodel_class = association_data.viewmodel_class_for_model!(associated.class)
       associated_viewmodel_class.new(associated)
     end
   end
-
-
-
-  ####### TODO LIST ########
-
-  ## Eager loading
-  # - Come up with a way to represent (and perform!) type-conditional eager
-  #   loads for polymorphic associations
-
-  ## Ensure that we have correct behaviour when a polymorphic relationship is
-  ## changed to an entity of a different type:
-  # - does the old one get correctly garbage collected?
-
 end

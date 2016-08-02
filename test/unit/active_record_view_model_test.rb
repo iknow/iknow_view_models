@@ -160,12 +160,25 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_edit_attribute_validation_failure
     old_name = @parent1.name
-    assert_raises(ActiveRecord::RecordInvalid) do
+    assert_raises(ViewModel::DeserializationError) do
       alter_by_view!(ParentView, @parent1) do |view, refs|
         view['name'] = 'invalid'
       end
     end
     assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
+  end
+
+  def test_edit_missing_root
+    view = {
+      "_type" => "Parent",
+      "id"    => 9999
+    }
+
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      ParentView.deserialize_from_view(view)
+    end
+
+    assert_equal(ex.nodes, [ViewModel::Reference.new(ParentView, 9999)])
   end
 
 

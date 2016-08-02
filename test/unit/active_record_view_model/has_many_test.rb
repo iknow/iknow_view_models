@@ -238,6 +238,22 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
                  @parent1.children.order(:position))
   end
 
+  def test_edit_missing_child
+    view = {
+      "_type" => "Parent",
+      "children" => [{
+                       "_type" => "Child",
+                       "id"    => 9999
+                     }]
+    }
+
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      ParentView.deserialize_from_view(view)
+    end
+
+    assert_equal(ex.nodes, [ViewModel::Reference.new(ChildView, 9999)])
+  end
+
   def test_move_child_to_new
     old_children = @parent1.children.order(:position)
     moved_child = old_children[1]
@@ -695,7 +711,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(update_view)
     end
 
-    assert_match(/Stale update/, ex.message)
+    assert_match(/Stale functional update/, ex.message)
   end
 
   def test_functional_update_duplicate_refs

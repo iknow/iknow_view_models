@@ -171,7 +171,7 @@ class ActiveRecordViewModel::SharedTest < ActiveSupport::TestCase
         refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
       end
     end
-    assert_match(/was not referred to/, ex.message)
+    assert_match(/References not referred to from roots/, ex.message)
   end
 
   def test_shared_requires_valid_references
