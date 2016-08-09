@@ -43,7 +43,7 @@ module ControllerBase
     when ActionController::Parameters
       data.to_unsafe_h
     else
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new('Invalid data submitted, expected hash: #{data.inspect}')
+      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid data submitted, expected hash: #{data.inspect}")
     end
   end
 
