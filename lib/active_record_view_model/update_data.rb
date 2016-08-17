@@ -49,15 +49,22 @@ class ActiveRecordViewModel
     end
   end
 
-  CollectionUpdate = Struct.new(:type, :values) do
-    enum :Type, [:Functional, :Replace]
+  class CollectionUpdate
+    attr_reader :values
 
-    def update_datas
-      case type
-      when CollectionUpdate::Type::Functional
-        values.flat_map(&:values)
-      when CollectionUpdate::Type::Replace
+    def initialize(values)
+      @values = values
+    end
+
+    class Replace < self
+      def update_datas
         values
+      end
+    end
+
+    class Functional < self
+      def update_datas
+        values.flat_map(&:values)
       end
     end
   end
@@ -447,7 +454,7 @@ class ActiveRecordViewModel
                 case value
                 when Array
                   children = value.map { |child_hash| parse_association.(child_hash) }
-                  CollectionUpdate.new(CollectionUpdate::Type::Replace, children)
+                  CollectionUpdate::Replace.new(children)
 
                 when Hash
                   UpdateData.verify_schema!(Schemas::COLLECTION_UPDATE, value)
@@ -490,7 +497,7 @@ class ActiveRecordViewModel
 
                     update
                   end
-                  CollectionUpdate.new(CollectionUpdate::Type::Functional, functional_updates)
+                  CollectionUpdate::Functional.new(functional_updates)
 
                 else
                   raise ViewModel::DeserializationError.new("Could not parse non-array collection association")

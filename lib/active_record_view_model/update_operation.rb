@@ -356,11 +356,11 @@ class ActiveRecordViewModel
       end
 
       child_datas =
-        case association_update.type
-        when CollectionUpdate::Type::Replace
+        case association_update
+        when CollectionUpdate::Replace
           association_update.values
 
-        when CollectionUpdate::Type::Functional
+        when CollectionUpdate::Functional
           child_datas =
             previous_child_viewmodels.map do |previous_child_viewmodel|
               UpdateData.empty_update_for(previous_child_viewmodel)
