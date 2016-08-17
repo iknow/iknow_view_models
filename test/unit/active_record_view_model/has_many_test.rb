@@ -517,6 +517,122 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
                  @parent1.children.order(:position).pluck(:id))
   end
 
+  def test_functional_update_append_before_mid
+    c1, c2, c3  = @parent1.children.order(:position)
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'before' => { '_type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    assert_equal([c1.name, 'new c1', 'new c2', c2.name, c3.name],
+                 @parent1.children.order(:position).pluck(:name))
+  end
+
+  def test_functional_update_append_before_reorder
+    c1, c2, c3  = @parent1.children.order(:position)
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'before' => { '_type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '_type' => 'Child', 'id' => c3.id }] }] } }
+    ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    assert_equal([c1.name, c3.name, c2.name],
+                 @parent1.children.order(:position).pluck(:name))
+  end
+
+  def test_functional_update_append_before_beginning
+    c1, c2, c3  = @parent1.children.order(:position)
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'before' => { '_type' => 'Child', 'id' => c1.id },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    assert_equal(['new c1', 'new c2', c1.name, c2.name, c3.name],
+                 @parent1.children.order(:position).pluck(:name))
+  end
+
+  def test_functional_update_append_before_corpse
+    c1, c2, c3 = @parent1.children.order(:position)
+    c2.destroy
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'before' => { '_type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    assert_raises(ViewModel::DeserializationError) do
+      ParentView.deserialize_from_view(append_view)
+    end
+  end
+
+  def test_functional_update_append_after_mid
+    c1, c2, c3  = @parent1.children.order(:position)
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'after'  => { '_type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    assert_equal([c1.name, c2.name, 'new c1', 'new c2', c3.name],
+                 @parent1.children.order(:position).pluck(:name))
+  end
+
+  def test_functional_update_append_after_end
+    c1, c2, c3  = @parent1.children.order(:position)
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'after'  => { '_type' => 'Child', 'id' => c3.id, },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    ParentView.deserialize_from_view(append_view)
+    @parent1.reload
+
+    assert_equal([c1.name, c2.name, c3.name, 'new c1', 'new c2'],
+                 @parent1.children.order(:position).pluck(:name))
+  end
+
+  def test_functional_update_append_after_corpse
+    c1, c2, c3 = @parent1.children.order(:position)
+    c2.destroy
+    append_view = { '_type'    => 'Parent',
+                    'id'       => @parent1.id,
+                    'children' => {
+                      '_type'   => '_update',
+                      'actions' => [{ '_type'  => 'append',
+                                      'after'  => { '_type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
+                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+    assert_raises(ViewModel::DeserializationError) do
+      ParentView.deserialize_from_view(append_view)
+    end
+  end
+
   def test_functional_update_remove_success
     c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
     remove_view         = { '_type'    => 'Parent',

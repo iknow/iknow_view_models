@@ -377,15 +377,32 @@ class ActiveRecordViewModel
           end
 
           association_update.values.each do |fupdate|
-            case fupdate.type
-            when FunctionalUpdate::Type::Append
-              child_datas.concat(fupdate.values)
+            case fupdate
+            when FunctionalUpdate::Append
+              if fupdate.before || fupdate.after
+                moved_refs  = fupdate.values.map(&:viewmodel_reference).to_set
+                child_datas = child_datas.reject { |child| moved_refs.include?(child.viewmodel_reference) }
 
-            when FunctionalUpdate::Type::Remove
+                ref   = (fupdate.before || fupdate.after).viewmodel_reference
+                index = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
+                unless index
+                  raise ViewModel::DeserializationError.new(
+                    "Attempted to insert relative to reference that does not exist #{ref}")
+                end
+
+                index += 1 if fupdate.after
+                child_datas.insert(index, *fupdate.values)
+
+              else
+                child_datas.concat(fupdate.values)
+
+              end
+
+            when FunctionalUpdate::Remove
               removed_refs = Set.new(fupdate.values.map(&:viewmodel_reference))
               child_datas.reject! { |child_data| removed_refs.include?(child_data.viewmodel_reference) }
 
-            when FunctionalUpdate::Type::Update
+            when FunctionalUpdate::Update
               new_datas = fupdate.values.group_by(&:viewmodel_reference)
 
               child_datas = child_datas.map do |child_data|

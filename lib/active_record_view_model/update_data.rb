@@ -5,12 +5,46 @@ require 'json_schema'
 class ActiveRecordViewModel
   using Collections
 
-  FunctionalUpdate = Struct.new(:type, :values) do
-    enum :Type, [:Append, :Remove, :Update] do
-      def self.parse!(str)
-        type = self.with_name(str.capitalize)
-        raise ArgumentError.new("No FunctionalUpdate::Type with name '#{str}'") if type.nil?
-        type
+
+  class FunctionalUpdate
+    attr_reader :values
+
+    def initialize(values)
+      @values = values
+    end
+
+    def self.for_type(type)
+      case type
+      when Append::NAME
+        return Append
+      when Remove::NAME
+        return Remove
+      when Update::NAME
+        return Update
+      else
+        raise ArgumentError.new("invalid functional update type #{type}")
+      end
+    end
+
+    class Append < self
+      NAME = 'append'
+      attr_accessor :before, :after
+      def self.schema
+        UpdateData::Schemas::APPEND_ACTION
+      end
+    end
+
+    class Remove < self
+      NAME = 'remove'
+      def self.schema
+        UpdateData::Schemas::REMOVE_ACTION
+      end
+    end
+
+    class Update < self
+      NAME = 'update'
+      def self.schema
+        UpdateData::Schemas::UPDATE_ACTION
       end
     end
   end
@@ -32,11 +66,16 @@ class ActiveRecordViewModel
     attr_accessor :viewmodel_class, :id, :new, :attributes, :associations, :referenced_associations
 
     module Schemas
+      id = { 'oneOf' => [{ 'type' => 'integer' },
+                         { 'type' => 'string', 'format' => 'uuid' }] }
+
+      type = { 'type' => 'string' }
+
       reference =
         {
           'type'                 => 'object',
           'description'          => 'shared reference',
-          'properties'           => { ViewModel::REFERENCE_ATTRIBUTE => { 'type' => 'string' } },
+          'properties'           => { ViewModel::REFERENCE_ATTRIBUTE => type },
           'additionalProperties' => false,
           'required'             => [ViewModel::REFERENCE_ATTRIBUTE],
         }
@@ -44,32 +83,85 @@ class ActiveRecordViewModel
 
       JsonSchema.configure do |c|
         uuid_format = /\A[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\Z/
-        c.register_format('uuid', ->(value){ uuid_format.match(value) })
+        c.register_format('uuid', ->(value) { uuid_format.match(value) })
       end
 
       viewmodel_update =
         {
           'type'        => 'object',
           'description' => 'viewmodel update',
-          'properties'  => { TYPE_ATTRIBUTE => { 'type' => 'string' },
-                             ID_ATTRIBUTE   => { "oneOf" => [{'type' => 'integer'},
-                                                             {'type' => 'string', 'format' => 'uuid' }] },
-                             NEW_ATTRIBUTE  => { 'type' => 'boolean' }},
+          'properties'  => { TYPE_ATTRIBUTE => type,
+                             ID_ATTRIBUTE   => id,
+                             NEW_ATTRIBUTE  => { 'type' => 'boolean' } },
           'required'    => [TYPE_ATTRIBUTE]
         }
       VIEWMODEL_UPDATE = JsonSchema.parse!(viewmodel_update)
 
-      collection_update_action =
+
+      viewmodel_reference =
         {
+          'type'                 => 'object',
+          'description'          => 'viewmodel reference',
+          'properties'           => { TYPE_ATTRIBUTE => type,
+                                      ID_ATTRIBUTE   => id },
+          'additionalProperties' => false,
+          'required'             => [TYPE_ATTRIBUTE, ID_ATTRIBUTE]
+        }
+
+      base_functional_update_schema =
+        {
+          'description' => 'functional update',
           'type'        => 'object',
-          'description' => 'collection functional update action',
           'properties'  => {
-            TYPE_ATTRIBUTE   => { 'enum' => FunctionalUpdate::Type.map { |type| type.name.downcase } },
+            TYPE_ATTRIBUTE   => { 'enum' => [FunctionalUpdate::Append::NAME,
+                                             FunctionalUpdate::Update::NAME,
+                                             FunctionalUpdate::Remove::NAME] },
             VALUES_ATTRIBUTE => { 'type'  => 'array',
                                   'items' => viewmodel_update }
           },
-          'required'    => [TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
+          'required'    => [TYPE_ATTRIBUTE, VALUES_ATTRIBUTE]
         }
+
+      append = base_functional_update_schema.deep_merge(
+        {
+          'description'          => 'collection append',
+          'additionalProperties' => false,
+          'properties'           => {
+            TYPE_ATTRIBUTE   => { 'enum' => [FunctionalUpdate::Append::NAME] },
+            BEFORE_ATTRIBUTE => viewmodel_reference,
+            AFTER_ATTRIBUTE  => viewmodel_reference
+          },
+        }
+      )
+
+      APPEND_ACTION = JsonSchema.parse!(append)
+
+      update = base_functional_update_schema.deep_merge(
+        {
+          'description'          => 'collection update',
+          'additionalProperties' => false,
+          'properties'           => {
+            TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Update::NAME] }
+          },
+        }
+      )
+
+      UPDATE_ACTION = JsonSchema.parse!(update)
+
+      remove = base_functional_update_schema.deep_merge(
+        {
+          'description'          => 'collection remove',
+          'additionalProperties' => false,
+          'properties'           => {
+            TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Remove::NAME] },
+            # The VALUES_ATTRIBUTE should be a viewmodel_reference, but in the
+            # name of error messages, we allow more keys and check the
+            # constraint in code.
+          },
+        }
+      )
+
+      REMOVE_ACTION = JsonSchema.parse!(remove)
 
       collection_update =
         {
@@ -77,8 +169,14 @@ class ActiveRecordViewModel
           'description' => 'collection functional update',
           'properties'  => {
             TYPE_ATTRIBUTE    => { 'enum' => [FUNCTIONAL_UPDATE_TYPE] },
-            ACTIONS_ATTRIBUTE => { 'type'  => 'array',
-                                   'items' => collection_update_action }
+            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_functional_update_schema }
+            # The ACTIONS_ATTRIBUTE could be accurately expressed as
+            #
+            #   { 'oneOf' => [append, update, remove] }
+            #
+            # but this produces completely unusable error messages.  Instead we
+            # specify it must be an array, and defer checking to the code that
+            # can determine the schema by inspecting the type field.
           }
         }
       COLLECTION_UPDATE = JsonSchema.parse!(collection_update)
@@ -354,12 +452,14 @@ class ActiveRecordViewModel
                 when Hash
                   UpdateData.verify_schema!(Schemas::COLLECTION_UPDATE, value)
                   functional_updates = value[ACTIONS_ATTRIBUTE].map do |action|
-                    type   = FunctionalUpdate::Type.parse!(action[TYPE_ATTRIBUTE])
+                    type   = FunctionalUpdate.for_type(action[TYPE_ATTRIBUTE])
                     values = action[VALUES_ATTRIBUTE]
+
+                    UpdateData.verify_schema!(type.schema, action)
 
                     # There's no reasonable interpretation of a remove update that includes data.
                     # Report it as soon as we detect it.
-                    if type == FunctionalUpdate::Type::Remove
+                    if type == FunctionalUpdate::Remove
                       invalid_entries = values.reject { |h| reference_only_hash?(h) }
                       if invalid_entries.present?
                         raise ViewModel::DeserializationError.new(
@@ -369,7 +469,26 @@ class ActiveRecordViewModel
                     end
 
                     values = action[VALUES_ATTRIBUTE].map(&parse_association)
-                    FunctionalUpdate.new(type, values)
+
+                    update = type.new(values)
+
+                    # Each type may have additional metadata for that type.
+
+                    if type == FunctionalUpdate::Append
+                      if (before = action[BEFORE_ATTRIBUTE])
+                        update.before = parse_association.(before)
+                      end
+
+                      if (after = action[AFTER_ATTRIBUTE])
+                        update.after = parse_association.(after)
+                      end
+
+                      if before && after
+                        raise ViewModel::DeserializationError.new("Append may not specify both 'after' and 'before'")
+                      end
+                    end
+
+                    update
                   end
                   CollectionUpdate.new(CollectionUpdate::Type::Functional, functional_updates)
 

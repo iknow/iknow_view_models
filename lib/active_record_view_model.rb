@@ -17,6 +17,8 @@ class ActiveRecordViewModel < ViewModel
   FUNCTIONAL_UPDATE_TYPE = "_update"
   ACTIONS_ATTRIBUTE      = "actions"
   VALUES_ATTRIBUTE       = "values"
+  BEFORE_ATTRIBUTE       = "before"
+  AFTER_ATTRIBUTE        = "after"
 
   require 'active_record_view_model/collections'
   require 'active_record_view_model/association_data'
