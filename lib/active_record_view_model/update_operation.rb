@@ -339,11 +339,14 @@ class ActiveRecordViewModel
       parent_data = ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
 
       # load children already attached to this model
+      child_viewmodel_class     = association_data.viewmodel_class
       previous_child_viewmodels =
-        model.public_send(association_data.direct_reflection.name).map do |previous_child_model|
-          vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
-          vm_class.new(previous_child_model)
+        model.public_send(association_data.direct_reflection.name).map do |child_model|
+          child_viewmodel_class.new(child_model)
         end
+      if child_viewmodel_class._list_member?
+        previous_child_viewmodels.sort_by!(&:_list_attribute)
+      end
 
       if previous_child_viewmodels.present?
         # Clear the cached association so that AR's save behaviour doesn't
