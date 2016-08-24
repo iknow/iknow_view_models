@@ -386,10 +386,6 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
     assert_equal("new", lc.name)
   end
 
-  def test_has_many_insert_child
-    skip("unimplemented")
-  end
-
   def test_has_many_append_and_update_existing_association
     child = @parent1.children[1]
 

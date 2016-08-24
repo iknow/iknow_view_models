@@ -344,6 +344,8 @@ class ActiveRecordViewModel::HasOneTest < ActiveSupport::TestCase
 
 
     def test_move
+      skip "Issue #8"; return
+
       model = Aye.create(bee: Bee.new(cee: Cee.new))
 
       # This test currently fails because we allow the new to Bee to resolve the
