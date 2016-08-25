@@ -17,6 +17,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
+        t.integer :lock_version, null: false
       end
 
       define_model do
@@ -25,7 +26,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
-        attributes   :name
+        attributes   :name, :lock_version
         include TrivialAccessControl
       end
     end
@@ -160,7 +161,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
   def test_edit_attribute_validation_failure
     old_name = @parent1.name
-    assert_raises(ActiveRecord::RecordInvalid) do
+    assert_raises(ViewModel::DeserializationError) do
       alter_by_view!(ParentView, @parent1) do |view, refs|
         view['name'] = 'invalid'
       end
@@ -168,6 +169,29 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
   end
 
+  def test_edit_missing_root
+    view = {
+      "_type" => "Parent",
+      "id"    => 9999
+    }
+
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      ParentView.deserialize_from_view(view)
+    end
+
+    assert_equal(ex.nodes, [ViewModel::Reference.new(ParentView, 9999)])
+  end
+
+  def test_optimistic_locking
+    @parent1.name = "changed"
+    @parent1.save!
+
+     ex = assert_raises(ViewModel::DeserializationError::LockFailure) do
+      alter_by_view!(ParentView, @parent1) do |view, refs|
+        view['lock_version'] = 0
+      end
+     end
+  end
 
   # Tests for functionality common to all ARVM instances, but require some kind
   # of relationship.

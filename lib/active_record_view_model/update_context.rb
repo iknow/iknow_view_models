@@ -19,7 +19,7 @@ class ActiveRecordViewModel
 
     class ReleasePool
       def initialize
-        # hash of { ViewModelReference => ReleaseEntry } for models
+        # hash of { ViewModel::Reference => ReleaseEntry } for models
         # that have been released by nodes we've already visited
         @released_viewmodels = {}
       end
@@ -29,7 +29,7 @@ class ActiveRecordViewModel
       end
 
       def release_to_pool(viewmodel, association_data)
-        @released_viewmodels[ActiveRecordViewModel::ViewModelReference.from_viewmodel(viewmodel)] =
+        @released_viewmodels[ViewModel::Reference.from_viewmodel(viewmodel)] =
           ReleaseEntry.new(viewmodel, association_data)
       end
 
@@ -47,7 +47,8 @@ class ActiveRecordViewModel
     def self.build!(root_update_data, referenced_update_data, root_type: nil)
       if root_type.present? && (bad_types = root_update_data.map(&:viewmodel_class).to_set.delete(root_type)).present?
         raise ViewModel::DeserializationError.new(
-                "Cannot deserialize incorrect root viewmodel type(s) '#{bad_types.map(&:view_name)}'")
+                "Cannot deserialize incorrect root viewmodel type(s) '#{bad_types.map(&:view_name)}'",
+                bad_types.map { |t| ViewModel::Reference.new(t, nil) })
       end
 
       self.new
@@ -65,12 +66,12 @@ class ActiveRecordViewModel
       @root_update_operations       = [] # The subject(s) of this update
       @referenced_update_operations = {} # Shared data updates, referred to by a ref hash
 
-      # hash of { ViewModelReference => :implicit || :explicit }; used to assert
+      # hash of { ViewModel::Reference => :implicit || :explicit }; used to assert
       # only a single update is present for each viewmodel, and prevents conflicts
       # by explicit and implicit updates for the same model.
       @updates_by_viewmodel = {}
 
-      # hash of { ViewModelReference => deferred UpdateOperation }
+      # hash of { ViewModel::Reference => deferred UpdateOperation }
       # for linked partially-constructed node updates
       @worklist = {}
 
@@ -104,7 +105,17 @@ class ActiveRecordViewModel
 
         existing_models =
           if model_ids.present?
-            models = viewmodel_class.model_class.find_all!(model_ids)
+            model_class = viewmodel_class.model_class
+            models = model_class.where(model_class.primary_key => model_ids).to_a
+
+            if models.size < model_ids.size
+              missing_model_ids = model_ids - models.map(&:id)
+              missing_viewmodel_refs = missing_model_ids.map  { |id| ViewModel::Reference.new(viewmodel_class, id) }
+              raise ViewModel::DeserializationError::NotFound.new(
+                      "Couldn't find #{model_class.name}(s) with id(s)=#{missing_model_ids.inspect}",
+                      missing_viewmodel_refs)
+            end
+
             DeepPreloader.preload(models, dependencies)
             models.index_by(&:id)
           else
@@ -187,7 +198,9 @@ class ActiveRecordViewModel
           key, deferred_update = @worklist.detect { |k, upd| upd.reparent_to.present? }
           if key.nil?
             vms = @worklist.keys.map {|k| "#{k.viewmodel_class.view_name}:#{k.model_id}" }.join(", ")
-            raise ViewModel::DeserializationError.new("Cannot resolve previous parents for the following referenced viewmodels: #{vms}")
+            raise ViewModel::DeserializationError::NotFound.new(
+                    "Cannot resolve previous parents for the following referenced viewmodels: #{vms}",
+                    @worklist.keys)
           end
 
           # We are guaranteed to make progress or fail entirely.
@@ -195,8 +208,12 @@ class ActiveRecordViewModel
           @worklist.delete(key)
 
           child_dependencies = deferred_update.update_data.preload_dependencies(@referenced_update_data)
-          child_model        = key.viewmodel_class.model_class.find(key.model_id)
-          child_viewmodel    = key.viewmodel_class.new(child_model)
+
+          child_model = ViewModel::DeserializationError::NotFound.wrap_lookup(key) do
+            key.viewmodel_class.model_class.find(key.model_id)
+          end
+
+          child_viewmodel = key.viewmodel_class.new(child_model)
           DeepPreloader.preload(child_model, child_dependencies)
 
           deferred_update.viewmodel = child_viewmodel
@@ -219,8 +236,9 @@ class ActiveRecordViewModel
         deferred_update.build!(self)
       end
 
-      @referenced_update_operations.each do |ref, upd|
-        raise ViewModel::DeserializationError.new("Reference '#{ref}' was not referred to from roots") unless upd.built? # TODO
+      dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| ref }
+      if dangling_references.present?
+        raise ViewModel::DeserializationError.new("References not referred to from roots", dangling_references)
       end
 
       self
@@ -237,7 +255,7 @@ class ActiveRecordViewModel
 
       return if parent_model_id.nil?
 
-      ref = ActiveRecordViewModel::ViewModelReference.new(
+      ref = ViewModel::Reference.new(
         parent_viewmodel_class, parent_model_id)
 
       return if @updates_by_viewmodel[ref] == :implicit
@@ -290,13 +308,13 @@ class ActiveRecordViewModel
         # explicit -> implicit; trying to take something twice, once from user, then once again
 
         # TODO error messages
-        raise ViewModel::DeserializationError.new("Not a valid type transition: #{current_type} -> #{new_type}")
+        raise ViewModel::DeserializationError.new("Not a valid type transition: #{current_type} -> #{new_type}", vm_ref)
       end
     end
 
     def resolve_reference(ref)
       @referenced_update_operations.fetch(ref) do
-        raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'")
+        raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'", ref)
       end
     end
 

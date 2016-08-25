@@ -5,130 +5,35 @@ require 'deep_preloader'
 
 class ViewModel
   REFERENCE_ATTRIBUTE = "_ref"
+  ID_ATTRIBUTE        = "id"
+  TYPE_ATTRIBUTE      = "_type"
 
-  class DeserializationError < StandardError
-    class Permissions < DeserializationError; end
-  end
-
-  class SerializationError < StandardError
-    class Permissions < SerializationError; end
-  end
-
-  # A bucket for configuration, used for serializing and deserializing.
-  class References
-    delegate :each, :size, to: :@value_by_ref
-
-    def initialize
-      @last_ref = 0
-      @ref_by_value = {}
-      @value_by_ref = {}
-    end
-
-    def has_references?
-      @ref_by_value.present?
-    end
-
-    # Takes a reference to a thing that is to be shared, and returns the id
-    # under which the data is stored. If the data is not present, will compute
-    # it by calling the given block.
-    def add_reference(value)
-      if (ref = @ref_by_value[value]).present?
-        ref
-      else
-        ref = new_ref!
-        @ref_by_value[value] = ref
-        @value_by_ref[ref] = value
-        ref
-      end
-    end
-
-    private
-
-    def new_ref!
-      'ref%06d' % (@last_ref += 1)
-    end
-  end
-
-  class SerializeContext
-    delegate :add_reference, :has_references?, to: :@references
-    attr_accessor :include, :prune, :flatten_references
-
-    def normalize_includes(includes)
-      case includes
-      when Array
-        includes.each_with_object({}) do |v, new_includes|
-          new_includes[v.to_s] = nil
-        end
-      when Hash
-        includes.each_with_object({}) do |(k,v), new_includes|
-          new_includes[k.to_s] = normalize_includes(v)
-        end
-      when nil
-        nil
-      else
-        { includes.to_s => nil }
-      end
-    end
-
-    def initialize(include: nil, prune: nil, flatten_references: false)
-      @references = References.new
-      self.flatten_references = flatten_references
-      self.include = normalize_includes(include)
-      self.prune   = normalize_includes(prune)
-    end
-
-    def for_association(association_name)
-      # Shallow clone aliases @references; association traversal must not
-      # "change" the context, otherwise references will be lost.
-      self.dup.tap do |copy|
-        copy.include = include.try { |i| i[association_name] }
-        copy.prune   = prune.try   { |p| p[association_name] }
-      end
-    end
-
-    def includes_association?(association_name, default)
-      association_name = association_name.to_s
-
-      # Every node in the include tree is to be included
-      included = include.try { |is| is.has_key?(association_name) }
-      # whereas only the leaves of the prune tree are to be removed
-      pruned   = prune.try { |ps| ps.fetch(association_name, :sentinel).nil? }
-
-      (default || included) && !pruned
-    end
-
-
-    def serialize_references(json)
-      seen = Set.new
-      while seen.size != @references.size
-        @references.each do |ref, value|
-          if seen.add?(ref)
-            json.set!(ref) do
-              ViewModel.serialize(value, json, serialize_context: self)
-            end
-          end
-        end
-      end
-    end
-
-    def serialize_references_to_hash
-      Jbuilder.new { |json| serialize_references(json) }.attributes!
-    end
-  end
-
-  class DeserializeContext
-    attr_accessor :updated_associations
-
-    def initialize(*)
-    end
-  end
-
+  require 'view_model/deserialization_error'
+  require 'view_model/serialization_error'
+  require 'view_model/references'
+  require 'view_model/reference'
+  require 'view_model/serialize_context'
+  require 'view_model/deserialize_context'
 
   class << self
     attr_accessor :_attributes
 
     def inherited(subclass)
       subclass._attributes = []
+    end
+
+    def view_name
+      @view_name ||=
+        begin
+          # try to auto-detect based on class name
+          match = /(.*)View$/.match(self.name)
+          raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
+          match[1]
+        end
+    end
+
+    def view_name=(name)
+      @view_name = name
     end
 
     # ViewModels are typically going to be pretty simple structures. Make it a
@@ -145,13 +50,6 @@ class ViewModel
 
       attr_accessor attr
       _attributes << attr
-    end
-
-    # Provide compatibility with previous ViewModel creation interface.
-    def self.with_attrs(*attrs)
-      Class.new(self) do
-        attributes(*attrs)
-      end
     end
 
     # If this viewmodel represents an AR model, what associations does it make
@@ -197,7 +95,7 @@ class ViewModel
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
     def deserialize_from_view(hash_data, deserialize_context: new_deserialize_context)
-      raise DeserializationError.new("Deserialization not defined for '#{self.name}'")
+      raise DeserializationError.new("Deserialization not defined for '#{self.name}'", ViewModel::Reference.from_viewmodel(self))
     end
 
     def serialize_context_class
@@ -279,7 +177,7 @@ class ViewModel
 
   def editable!(deserialize_context: self.class.new_deserialize_context)
     unless editable?(deserialize_context: deserialize_context)
-      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'")
+      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'", ViewModel::Reference.from_viewmodel(self))
     end
   end
 

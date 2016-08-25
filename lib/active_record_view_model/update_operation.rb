@@ -34,7 +34,7 @@ class ActiveRecordViewModel
 
     def viewmodel_reference
       unless viewmodel.model.new_record?
-        ViewModelReference.from_viewmodel(viewmodel)
+        ViewModel::Reference.from_viewmodel(viewmodel)
       end
     end
 
@@ -93,7 +93,7 @@ class ActiveRecordViewModel
         valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
         bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
         if bad_keys.present?
-          raise ViewModel::DeserializationError.new("Illegal member(s) #{bad_keys.inspect} when updating #{viewmodel.class.name}")
+          raise_deserialization_error("Illegal attribute/association(s) #{bad_keys.inspect} for viewmodel #{viewmodel.class.name}")
         end
 
         attributes.each do |attr_name, serialized_value|
@@ -124,7 +124,13 @@ class ActiveRecordViewModel
         end
 
         debug "-> #{debug_name}: Saving"
-        model.save!
+        begin
+          model.save!
+        rescue ActiveRecord::RecordInvalid => ex
+          raise_deserialization_error(ex.message, model.errors.messages, error: ViewModel::DeserializationError::Validation)
+        rescue ActiveRecord::StaleObjectError => ex
+          raise_deserialization_error(ex.message, error: ViewModel::DeserializationError::LockFailure)
+        end
         debug "<- #{debug_name}: Saved"
 
         # Update association cache of pointed-from associations after save: the
@@ -156,6 +162,8 @@ class ActiveRecordViewModel
 
       @run_state = RunState::Run
       viewmodel
+    rescue ActiveRecord::StatementInvalid, ActiveRecord::InvalidForeignKey, ActiveRecord::RecordNotSaved => ex
+      raise_deserialization_error(ex.message)
     end
 
     # Recursively builds UpdateOperations for the associations in our UpdateData
@@ -211,7 +219,7 @@ class ActiveRecordViewModel
         referred_update = update_context.resolve_reference(reference_string)
 
         unless association_data.accepts?(referred_update.viewmodel.class)
-          raise ViewModel::DeserializationError.new("Association '#{association_data.direct_reflection.name}' can't refer to #{referred_update.viewmodel.class}") # TODO
+          raise_deserialization_error("Type error: association '#{association_data.direct_reflection.name}' can't refer to #{referred_update.viewmodel.class}")
         end
 
         referred_update.build!(update_context)
@@ -222,7 +230,7 @@ class ActiveRecordViewModel
     # hash references an existing model not currently attached to this parent,
     # it must be found before recursing into that child. If the model is
     # available in released models we can take it and recurse, otherwise we must
-    # return a ViewModelReference to be added to the worklist for deferred
+    # return a ViewModel::Reference to be added to the worklist for deferred
     # resolution.
     def resolve_child_viewmodels(association_data, update_datas, previous_child_viewmodels, update_context)
       if self.viewmodel.class.respond_to?(:"resolve_#{association_data.direct_reflection.name}")
@@ -234,13 +242,13 @@ class ActiveRecordViewModel
       previous_child_viewmodels = Array.wrap(previous_child_viewmodels)
 
       previous_by_key = previous_child_viewmodels.index_by do |vm|
-        ViewModelReference.from_viewmodel(vm)
+        ViewModel::Reference.from_viewmodel(vm)
       end
 
       resolved_viewmodels =
         update_datas.map do |update_data|
         child_viewmodel_class = update_data.viewmodel_class
-        key = ActiveRecordViewModel::ViewModelReference.new(child_viewmodel_class, update_data.id)
+        key = ViewModel::Reference.new(child_viewmodel_class, update_data.id)
 
         case
         when update_data.new?
@@ -262,7 +270,7 @@ class ActiveRecordViewModel
       model = self.viewmodel.model
 
       previous_child_viewmodel = model.public_send(association_data.direct_reflection.name).try do |previous_child_model|
-        vm_class = association_data.viewmodel_class_for_model(previous_child_model.class)
+        vm_class = association_data.viewmodel_class_for_model!(previous_child_model.class)
         vm_class.new(previous_child_model)
       end
 
@@ -323,7 +331,7 @@ class ActiveRecordViewModel
           end
 
         case child_viewmodel
-        when ActiveRecordViewModel::ViewModelReference # deferred
+        when ViewModel::Reference # deferred
           vm_ref = child_viewmodel
           update_context.new_deferred_update(vm_ref, association_update_data, reparent_to: parent_data)
         else
@@ -374,9 +382,8 @@ class ActiveRecordViewModel
                                  .update_datas
                                  .duplicates { |upd| upd.viewmodel_reference if upd.id }
           if duplicate_children.present?
-            formatted_invalid_ids = duplicate_children.keys.map(&:to_s).join(',')
-            raise ViewModel::DeserializationError.new(
-              "Duplicate functional update targets: #{formatted_invalid_ids}")
+            formatted_invalid_ids = duplicate_children.keys.map(&:to_s).join(', ')
+            raise_deserialization_error("Duplicate functional update targets: [#{formatted_invalid_ids}]")
           end
 
           association_update.values.each do |fupdate|
@@ -406,24 +413,23 @@ class ActiveRecordViewModel
               child_datas.reject! { |child_data| removed_refs.include?(child_data.viewmodel_reference) }
 
             when FunctionalUpdate::Update
-              new_datas = fupdate.values.group_by(&:viewmodel_reference)
+              # Already guaranteed that each ref has a single data attached
+              new_datas = fupdate.values.index_by(&:viewmodel_reference)
 
               child_datas = child_datas.map do |child_data|
                 ref = child_data.viewmodel_reference
-                if new_datas.has_key?(ref)
-                  # Already guaranteed that each ref has a single data attached
-                  new_datas.delete(ref).first
-                else
-                  child_data
-                end
+                new_datas.delete(ref) { child_data }
               end
 
               # Assertion that all values in update_op.values are present in the collection
               unless new_datas.empty?
-                raise ViewModel::DeserializationError.new('Stale update')
+                raise_deserialization_error(
+                  "Stale functional update for association '#{association_data.direct_reflection.name}' - "\
+                  "could not match referenced viewmodels: [#{new_datas.keys.map(&:to_s).join(', ')}]",
+                  error: ViewModel::DeserializationError::NotFound)
               end
             else
-              raise ArgumentError.new("Unknown update type: '#{fupdate.type}'")
+              raise_deserialization_error("Unknown functional update type: '#{fupdate.type}'")
             end
           end
 
@@ -450,7 +456,7 @@ class ActiveRecordViewModel
         set_position = ->(index, pos){ positions[index] = pos }
         get_previous_position = ->(index) do
           vm = child_viewmodels[index]
-          vm._list_attribute unless vm.is_a?(ActiveRecordViewModel::ViewModelReference)
+          vm._list_attribute unless vm.is_a?(ViewModel::Reference)
         end
 
         ActsAsManualList.update_positions((0...child_viewmodels.size).to_a, # indexes
@@ -461,7 +467,7 @@ class ActiveRecordViewModel
       # Recursively build update operations for children
       child_updates = child_viewmodels.zip(child_datas, positions).map do |child_viewmodel, association_update_data, position|
         case child_viewmodel
-        when ActiveRecordViewModel::ViewModelReference # deferred
+        when ViewModel::Reference # deferred
           reference = child_viewmodel
           update_context.new_deferred_update(reference, association_update_data, reparent_to: parent_data, reposition_to: position)
         else
@@ -484,8 +490,8 @@ class ActiveRecordViewModel
       viewmodel_reference_for_indirect_model = ->(through_model) do
         model_class     = through_model.association(indirect_reflection.name).klass
         model_id        = through_model.public_send(indirect_reflection.foreign_key)
-        viewmodel_class = indirect_association_data.viewmodel_class_for_model(model_class)
-        ViewModelReference.new(viewmodel_class, model_id)
+        viewmodel_class = indirect_association_data.viewmodel_class_for_model!(model_class)
+        ViewModel::Reference.new(viewmodel_class, model_id)
       end
 
       # we want to set position => we need to reimplement the through handling
@@ -555,6 +561,10 @@ class ActiveRecordViewModel
       else
         association.target = nil
       end
+    end
+
+    def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
+      raise error.new(msg, [ViewModel::Reference.from_viewmodel(self.viewmodel)], *args)
     end
 
     def debug(msg)

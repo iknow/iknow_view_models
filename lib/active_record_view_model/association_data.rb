@@ -23,8 +23,7 @@ class ActiveRecordViewModel::AssociationData
     end
 
     if through?
-      # TODO exception type
-      raise "through associations must be has_many" unless direct_reflection.macro == :has_many
+      raise ArgumentError.new("Through associations must be `has_many`") unless direct_reflection.macro == :has_many
     end
   end
 
@@ -85,17 +84,27 @@ class ActiveRecordViewModel::AssociationData
   end
 
   def viewmodel_class_for_model(model_class)
-    vm_class = model_to_viewmodel[model_class]
+    model_to_viewmodel[model_class]
+  end
+
+  def viewmodel_class_for_model!(model_class)
+    vm_class = viewmodel_class_for_model(model_class)
     if vm_class.nil?
-      raise ArgumentError.new("Can't find corresponding viewmodel to model '#{model_class.name}' for association '#{target_reflection.name}'")
+      raise ArgumentError.new(
+              "Invalid viewmodel model for association '#{target_reflection.name}': '#{model_class.name}'")
     end
     vm_class
   end
 
   def viewmodel_class_for_name(name)
-    vm_class = name_to_viewmodel[name]
+    name_to_viewmodel[name]
+  end
+
+  def viewmodel_class_for_name!(name)
+    vm_class = viewmodel_class_for_name(name)
     if vm_class.nil?
-      raise ArgumentError.new("Can't find corresponding viewmodel with name '#{name}' for association '#{target_reflection.name}'")
+      raise ArgumentError.new(
+              "Invalid viewmodel name for association '#{target_reflection.name}': '#{name}'")
     end
     vm_class
   end

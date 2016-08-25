@@ -141,6 +141,14 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     assert_nil(pv.model.label)
   end
 
+  def test_create_invalid_child_type
+    view = { '_type' => 'Parent', 'name' => 'p', 'label' => { '_type' => 'Parent', 'name' => 'q' } }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      ParentView.deserialize_from_view(view)
+    end
+    assert_match(/Invalid target viewmodel type '.*' for association '.*'/, ex.message)
+  end
+
   def test_belongs_to_create
     @parent1.update(label: nil)
 

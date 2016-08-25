@@ -92,17 +92,10 @@ module ControllerBase
     IknowViewModels.renderable!(self)
     delegate :viewmodel, to: 'self.class'
 
-    rescue_from RenderError,                                  with: ->(ex){ render_error(ex, ex.code) }
+    rescue_from RenderError, with: ->(ex){ render_error(ex, ex.code) }
 
-    rescue_from ActiveRecord::RecordNotFound,                 with: ->(ex){ render_error(ex, 404)}
-    rescue_from ActiveRecord::RecordInvalid,                  with: ->(ex){ render_error(ex, 400)}
-    rescue_from ActiveRecord::StatementInvalid,               with: ->(ex){ render_error(ex, 400)} # Catch database CHECK constraints # TODO: - write test for foreign key constraint
-
-    rescue_from ViewModel::DeserializationError,              with: ->(ex){ render_error(ex, 400)}
-    rescue_from ViewModel::DeserializationError::Permissions, with: ->(ex){ render_error(ex, 403)}
-
-    rescue_from ViewModel::SerializationError,                with: ->(ex){ render_error(ex, 400)}
-    rescue_from ViewModel::SerializationError::Permissions,   with: ->(ex){ render_error(ex, 403)}
+    rescue_from ViewModel::DeserializationError, with: ->(ex){ render_error(ex, ex.http_status, metadata: ex.metadata) }
+    rescue_from ViewModel::SerializationError,   with: ->(ex){ render_error(ex, ex.http_status, metadata: ex.metadata) }
   end
 
 end
