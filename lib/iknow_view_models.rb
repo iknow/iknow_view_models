@@ -15,17 +15,23 @@ module IknowViewModels
         json.status status
         json.detail exception.message
 
+        if error_type = exception.try(:error_type)
+          json.type error_type
+        end
+
         json.metadata do
           ViewModel.serialize(metadata, json, serialize_context: serialize_context)
         end
 
         if Rails.env != 'production'
-          json.set! :class, exception.class.name
-          json.backtrace exception.backtrace
-          exception.cause.try do |cause|
-            json.cause do
-              json.set! :class, cause.class.name
-              json.backtrace cause.backtrace
+          json.exception do
+            json.set! :class, exception.class.name
+            json.backtrace exception.backtrace
+            if cause = exception.cause
+              json.cause do
+                json.set! :class, cause.class.name
+                json.backtrace cause.backtrace
+              end
             end
           end
         end

@@ -8,6 +8,10 @@ class ViewModel
       {}
     end
 
+    def error_type
+      "Serialization.#{self.class.name.demodulize}"
+    end
+
     class Permissions < SerializationError
       def http_status
         403

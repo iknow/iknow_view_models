@@ -21,6 +21,10 @@ class ViewModel
       }
     end
 
+    def error_type
+      "Deserialization.#{self.class.name.demodulize}"
+    end
+
     class Permissions < DeserializationError
       def http_status
         403
