@@ -43,6 +43,9 @@ class ViewModel
       end
     end
 
+    class LockFailure < DeserializationError
+    end
+
     class Validation < DeserializationError
       attr_reader :validation_errors
 

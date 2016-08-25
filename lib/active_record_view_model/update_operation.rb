@@ -128,6 +128,8 @@ class ActiveRecordViewModel
           model.save!
         rescue ActiveRecord::RecordInvalid => ex
           raise_deserialization_error(ex.message, model.errors.messages, error: ViewModel::DeserializationError::Validation)
+        rescue ActiveRecord::StaleObjectError => ex
+          raise_deserialization_error(ex.message, error: ViewModel::DeserializationError::LockFailure)
         end
         debug "<- #{debug_name}: Saved"
 

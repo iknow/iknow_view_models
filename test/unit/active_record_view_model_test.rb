@@ -17,6 +17,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
+        t.integer :lock_version, null: false
       end
 
       define_model do
@@ -25,7 +26,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
-        attributes   :name
+        attributes   :name, :lock_version
         include TrivialAccessControl
       end
     end
@@ -181,6 +182,16 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert_equal(ex.nodes, [ViewModel::Reference.new(ParentView, 9999)])
   end
 
+  def test_optimistic_locking
+    @parent1.name = "changed"
+    @parent1.save!
+
+     ex = assert_raises(ViewModel::DeserializationError::LockFailure) do
+      alter_by_view!(ParentView, @parent1) do |view, refs|
+        view['lock_version'] = 0
+      end
+     end
+  end
 
   # Tests for functionality common to all ARVM instances, but require some kind
   # of relationship.
