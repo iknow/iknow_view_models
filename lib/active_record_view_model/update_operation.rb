@@ -423,7 +423,8 @@ class ActiveRecordViewModel
               unless new_datas.empty?
                 raise_deserialization_error(
                   "Stale functional update for association '#{association_data.direct_reflection.name}' - "\
-                  "could not match referenced viewmodels: [#{new_datas.keys.map(&:to_s).join(', ')}]")
+                  "could not match referenced viewmodels: [#{new_datas.keys.map(&:to_s).join(', ')}]",
+                  error: ViewModel::DeserializationError::NotFound)
               end
             else
               raise_deserialization_error("Unknown functional update type: '#{fupdate.type}'")

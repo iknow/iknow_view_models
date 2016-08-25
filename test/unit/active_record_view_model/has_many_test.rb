@@ -703,7 +703,7 @@ class ActiveRecordViewModel::HasManyTest < ActiveSupport::TestCase
                               'actions' => [{ '_type'  => 'update',
                                               'values' => [{ '_type' => 'Child', 'id' => cnew }] }] } }
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
       ParentView.deserialize_from_view(update_view)
     end
 
