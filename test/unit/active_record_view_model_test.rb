@@ -17,6 +17,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name
+        t.integer :one, null: false, default: 1
         t.integer :lock_version, null: false
       end
 
@@ -26,7 +27,8 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
-        attributes   :name, :lock_version
+        attributes :name, :lock_version
+        attribute :one, read_only: true
         include TrivialAccessControl
       end
     end
@@ -167,6 +169,14 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       end
     end
     assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
+  end
+
+  def test_edit_readonly_attribute
+    assert_raises(ViewModel::DeserializationError) do
+      alter_by_view!(ParentView, @parent1) do |view, refs|
+        view['one'] = 2
+      end
+    end
   end
 
   def test_edit_missing_root
