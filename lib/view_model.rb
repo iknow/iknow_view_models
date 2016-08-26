@@ -39,11 +39,11 @@ class ViewModel
     # ViewModels are typically going to be pretty simple structures. Make it a
     # bit easier to define them: attributes specified this way are given
     # accessors and assigned in order by the default constructor.
-    def attributes(*attrs)
-      attrs.each { |attr| attribute(attr) }
+    def attributes(*attrs, **args)
+      attrs.each { |attr| attribute(attr, **args) }
     end
 
-    def attribute(attr)
+    def attribute(attr, **args)
       unless attr.is_a?(Symbol)
         raise ArgumentError.new("ViewModel attributes must be symbols")
       end
