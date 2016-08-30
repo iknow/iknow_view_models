@@ -232,7 +232,7 @@ class ActiveRecordViewModel
         viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
         viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
-        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
+        UpdateData.parse(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
 
       # Ensure that no root is referred to more than once
@@ -243,7 +243,7 @@ class ActiveRecordViewModel
         viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
         viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
 
-        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
+        UpdateData.parse(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
 
       check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
@@ -272,19 +272,23 @@ class ActiveRecordViewModel
       end
     end
 
-    def initialize(viewmodel_class, id, new, hash_data, valid_reference_keys)
+    def initialize(viewmodel_class, id, new)
       self.viewmodel_class = viewmodel_class
       self.id = id
       self.new = id.nil? || new
       self.attributes = {}
       self.associations = {}
       self.referenced_associations = {}
+    end
 
-      parse(hash_data, valid_reference_keys)
+    def self.parse(viewmodel_class, id, new, hash_data, valid_reference_keys)
+      update_data = self.new(viewmodel_class, id, new)
+      update_data.parse(hash_data, valid_reference_keys)
+      update_data
     end
 
     def self.empty_update_for(viewmodel)
-      self.new(viewmodel.class, viewmodel.id, false, {}, [])
+      self.new(viewmodel.class, viewmodel.id, false)
     end
 
     # Normalised handler for looking at the UpdateData for an association
@@ -394,8 +398,6 @@ class ActiveRecordViewModel
       ViewModel::Reference.new(viewmodel_class, id)
     end
 
-    private
-
     def reference_only_hash?(hash)
       hash.size == 2 && hash.has_key?(ViewModel::ID_ATTRIBUTE) && hash.has_key?(ViewModel::TYPE_ATTRIBUTE)
     end
@@ -449,7 +451,7 @@ class ActiveRecordViewModel
                 raise_deserialization_error("Invalid target viewmodel type '#{child_viewmodel_name}' for association '#{association_data.target_reflection.name}'")
               end
 
-              UpdateData.new(child_viewmodel_class, child_id, child_new, child_hash, valid_reference_keys)
+              UpdateData.parse(child_viewmodel_class, child_id, child_new, child_hash, valid_reference_keys)
             end
 
             if association_data.collection?

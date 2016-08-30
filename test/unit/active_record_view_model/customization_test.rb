@@ -119,8 +119,11 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
 
   def before_all
     super
+    self.class.build_viewmodels(self)
+  end
 
-    build_viewmodel(:QuizSection) do
+  def self.build_viewmodels(instance, in_collection: false)
+    instance.build_viewmodel(:QuizSection) do
       define_schema do |t|
         t.string :quiz_name
       end
@@ -132,7 +135,7 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
       end
     end
 
-    build_viewmodel(:VocabSection) do
+    instance.build_viewmodel(:VocabSection) do
       define_schema do |t|
         t.string :vocab_word
       end
@@ -151,6 +154,7 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
       Vocab(VocabSectionView)
 
       attr_reader :viewmodel
+
       def init(viewmodel)
         @viewmodel = viewmodel
       end
@@ -172,15 +176,23 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
       end
     end
 
-    build_viewmodel(:Section) do
+    instance.build_viewmodel(:Section) do
       define_schema do |t|
         t.string :name
         t.references :section_data
         t.string :section_data_type
+
+        if in_collection
+          t.references in_collection
+        end
       end
 
       define_model do
         belongs_to :section_data, polymorphic: :true, dependent: :destroy
+
+        if in_collection
+          belongs_to in_collection, inverse_of: :sections
+        end
       end
 
       define_viewmodel do
@@ -310,5 +322,51 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
     old_vocabsection_data = @vocabsection.section_data
     alter_by_view!(SectionView, @vocabsection) {}
     assert_equal(old_vocabsection_data, @vocabsection.section_data)
+  end
+
+  class InCollectionTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+      build_viewmodel(:Exercise) do
+        define_schema do |t|
+          t.string :name
+        end
+        define_model do
+          has_many :sections
+        end
+        define_viewmodel do
+          attribute :name
+          association :sections
+        end
+      end
+      ActiveRecordViewModel::FlattenAssociationTest.build_viewmodels(self, in_collection: :exercise)
+    end
+
+    def setup
+      super
+      sections   = [
+        Section.new(name: "simple1"),
+        Section.new(name: "quiz1", section_data: QuizSection.new(quiz_name: "qq")),
+        Section.new(name: "vocab1", section_data: VocabSection.new(vocab_word: "dog"))
+      ]
+      @exercise1 = Exercise.create(sections: sections)
+    end
+
+    def test_functional_update
+      alter_by_view!(ExerciseView, @exercise1) do |view, refs|
+        view['sections'] = {
+          '_type'   => '_update',
+          'actions' => [{ '_type'  => 'append',
+                          'values' => [{ '_type'        => 'Section',
+                                         'section_type' => 'Vocab',
+                                         'name'         => 'vocab_new',
+                                         'vocab_word'   => 'cat'
+                                       }] }]
+        }
+      end
+
+    end
   end
 end
