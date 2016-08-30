@@ -186,12 +186,12 @@ class ActiveRecordViewModel
       update_data.referenced_associations.each do |association_name, reference_string|
         association_data = self.viewmodel.class._association_data(association_name)
 
-          if association_data.through?
-            build_and_add_update_for_has_many_through(association_data, reference_string, update_context)
-          else
-            update = build_update_for_single_referenced_association(association_data, reference_string, update_context)
-            add_update(association_data, update)
-          end
+        if association_data.through?
+          build_and_add_update_for_has_many_through(association_data, reference_string, update_context)
+        else
+          update = build_update_for_single_referenced_association(association_data, reference_string, update_context)
+          add_update(association_data, update)
+        end
       end
 
       @built = true
@@ -247,21 +247,21 @@ class ActiveRecordViewModel
 
       resolved_viewmodels =
         update_datas.map do |update_data|
-        child_viewmodel_class = update_data.viewmodel_class
-        key = ViewModel::Reference.new(child_viewmodel_class, update_data.id)
+          child_viewmodel_class = update_data.viewmodel_class
+          key = ViewModel::Reference.new(child_viewmodel_class, update_data.id)
 
-        case
-        when update_data.new?
-          child_viewmodel_class.for_new_model(id: update_data.id)
-        when existing_child = previous_by_key[key]
-          existing_child
-        when taken_child = update_context.try_take_released_viewmodel(key)
-          taken_child
-        else
-          # Refers to child that hasn't yet been seen: create a deferred update.
-          key
+          case
+          when update_data.new?
+            child_viewmodel_class.for_new_model(id: update_data.id)
+          when existing_child = previous_by_key[key]
+            existing_child
+          when taken_child = update_context.try_take_released_viewmodel(key)
+            taken_child
+          else
+            # Refers to child that hasn't yet been seen: create a deferred update.
+            key
+          end
         end
-      end
 
       was_singular ? resolved_viewmodels.first : resolved_viewmodels
     end
