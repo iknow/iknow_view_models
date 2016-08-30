@@ -396,8 +396,9 @@ class ActiveRecordViewModel
                 ref   = (fupdate.before || fupdate.after).viewmodel_reference
                 index = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
                 unless index
-                  raise ViewModel::DeserializationError.new(
-                    "Attempted to insert relative to reference that does not exist #{ref}")
+                  raise ViewModel::DeserializationError::NotFound.new(
+                    "Attempted to insert relative to reference that does not exist #{ref}",
+                    [ref])
                 end
 
                 index += 1 if fupdate.after
