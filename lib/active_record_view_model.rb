@@ -93,7 +93,7 @@ class ActiveRecordViewModel < ViewModel
         if read_only
           define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
             if value != self.public_send(attr)
-              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}")
+              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", ViewModel::Reference.from_viewmodel(self))
             end
           end
         else
