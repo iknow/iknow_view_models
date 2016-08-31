@@ -16,7 +16,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
 
     build_viewmodel(:Parent) do
       define_schema do |t|
-        t.string :name
+        t.string :name, null: false
         t.integer :one, null: false, default: 1
         t.integer :lock_version, null: false
       end
@@ -70,6 +70,48 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
     assert(!p.new_record?)
 
     assert_equal("p", p.name)
+  end
+
+  def test_create_from_view_with_explicit_id
+    view = {
+      "_type" => "Parent",
+      "id"    => 9999,
+      "name"  => "p",
+      "_new"  => true
+    }
+    pv = ParentView.deserialize_from_view(view)
+    p = pv.model
+
+    assert(!p.changed?)
+    assert(!p.new_record?)
+    assert_equal(9999, p.id)
+  end
+
+  def test_create_explicit_id_raises_with_id
+    view = {
+      "_type" => "Parent",
+      "id"    => 9999,
+      "_new"  => true
+    }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      pv = ParentView.deserialize_from_view(view)
+    end
+    assert_match(/not-null constraint/, ex.message)
+    assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
+  end
+
+  def test_read_only_raises_with_id
+    view = {
+      "_type" => "Parent",
+      "one"   => 2,
+      "id"    => 9999,
+      "_new"  => true
+    }
+    ex = assert_raises(ViewModel::DeserializationError) do
+      pv = ParentView.deserialize_from_view(view)
+    end
+    assert_match(/read only/, ex.message)
+    assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
   end
 
   def test_visibility_raises
@@ -202,6 +244,7 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
       end
      end
   end
+
 
   # Tests for functionality common to all ARVM instances, but require some kind
   # of relationship.
