@@ -116,6 +116,13 @@ class ActiveRecordViewModel < ViewModel
               self.class.serialize(value.try(:enum_constant), json, serialize_context: serialize_context)
             end
           end
+          redefine_method("deserialize_#{attr}") do |value, deserialize_context: self.class.deserialize_context|
+            begin
+              model.public_send("#{attr}=", value)
+            rescue NameError => ex
+              raise ViewModel::DeserializationError.new("Invalid enumeration constant '#{value}'", ViewModel::Reference.from_viewmodel(self))
+            end
+          end
         end
       end
     end
