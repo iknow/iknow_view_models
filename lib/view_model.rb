@@ -95,7 +95,7 @@ class ViewModel
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
     def deserialize_from_view(hash_data, deserialize_context: new_deserialize_context)
-      raise DeserializationError.new("Deserialization not defined for '#{self.name}'", self.to_reference)
+      raise DeserializationError.new("Deserialization not defined for '#{self.name}'", self.blame_reference)
     end
 
     def serialize_context_class
@@ -161,6 +161,13 @@ class ViewModel
     ViewModel::Reference.new(self.class, self.try(&:id))
   end
 
+  # When deserializing, if an error occurs within this viewmodel, what viewmodel
+  # is reported as to blame. Can be overridden for example when a viewmodel is
+  # merged with its parent.
+  def blame_reference
+    to_reference
+  end
+
   def preload_for_serialization(serialize_context: self.class.new_serialize_context)
     ViewModel.preload_for_serialization([self], serialize_context: serialize_context)
   end
@@ -181,7 +188,7 @@ class ViewModel
 
   def editable!(deserialize_context: self.class.new_deserialize_context)
     unless editable?(deserialize_context: deserialize_context)
-      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'", self.to_reference)
+      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'", self.blame_reference)
     end
   end
 

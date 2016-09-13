@@ -565,7 +565,7 @@ class ActiveRecordViewModel
     end
 
     def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
-      raise error.new(msg, [self.viewmodel.to_reference], *args)
+      raise error.new(msg, self.viewmodel.blame_reference, *args)
     end
 
     def debug(msg)
