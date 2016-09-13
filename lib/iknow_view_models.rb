@@ -46,7 +46,7 @@ module IknowViewModels
 
   def self.renderable!(klass)
     klass.class_eval do
-      def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_deserialize_context))
+      def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
         render_jbuilder(status: status) do |json|
           json.data do
             ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
