@@ -29,7 +29,7 @@ class ActiveRecordViewModel
       end
 
       def release_to_pool(viewmodel, association_data)
-        @released_viewmodels[ViewModel::Reference.from_viewmodel(viewmodel)] =
+        @released_viewmodels[viewmodel.to_reference] =
           ReleaseEntry.new(viewmodel, association_data)
       end
 

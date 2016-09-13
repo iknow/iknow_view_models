@@ -93,7 +93,7 @@ class ActiveRecordViewModel < ViewModel
         if read_only
           define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
             if value != self.public_send(attr)
-              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", ViewModel::Reference.from_viewmodel(self))
+              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.to_reference)
             end
           end
         else
@@ -120,7 +120,7 @@ class ActiveRecordViewModel < ViewModel
             begin
               model.public_send("#{attr}=", value)
             rescue NameError => ex
-              raise ViewModel::DeserializationError.new("Invalid enumeration constant '#{value}'", ViewModel::Reference.from_viewmodel(self))
+              raise ViewModel::DeserializationError.new("Invalid enumeration constant '#{value}'", self.to_reference)
             end
           end
         end

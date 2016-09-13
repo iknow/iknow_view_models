@@ -34,7 +34,7 @@ class ActiveRecordViewModel
 
     def viewmodel_reference
       unless viewmodel.model.new_record?
-        ViewModel::Reference.from_viewmodel(viewmodel)
+        viewmodel.to_reference
       end
     end
 
@@ -242,7 +242,7 @@ class ActiveRecordViewModel
       previous_child_viewmodels = Array.wrap(previous_child_viewmodels)
 
       previous_by_key = previous_child_viewmodels.index_by do |vm|
-        ViewModel::Reference.from_viewmodel(vm)
+        vm.to_reference
       end
 
       resolved_viewmodels =
@@ -565,7 +565,7 @@ class ActiveRecordViewModel
     end
 
     def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
-      raise error.new(msg, [ViewModel::Reference.from_viewmodel(self.viewmodel)], *args)
+      raise error.new(msg, [self.viewmodel.to_reference], *args)
     end
 
     def debug(msg)
