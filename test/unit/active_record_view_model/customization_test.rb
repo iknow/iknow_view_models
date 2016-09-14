@@ -33,7 +33,7 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
           user_data.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
         end
 
-        def self.resolve_translations(update_datas, previous_translation_views)
+        def resolve_translations(update_datas, previous_translation_views)
           existing = previous_translation_views.index_by { |x| [x.model.language, x.model.translation] }
           update_datas.map do |update_data|
             existing.fetch([update_data["language"], update_data["translation"]]) { TranslationView.for_new_model }
@@ -197,7 +197,7 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
           user_data
         end
 
-        def self.resolve_section_data(update_data, previous_translation_view)
+        def resolve_section_data(update_data, previous_translation_view)
           # Reuse if it's the same type
           if update_data.viewmodel_class == previous_translation_view.class
             previous_translation_view

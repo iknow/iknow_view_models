@@ -233,8 +233,8 @@ class ActiveRecordViewModel
     # return a ViewModel::Reference to be added to the worklist for deferred
     # resolution.
     def resolve_child_viewmodels(association_data, update_datas, previous_child_viewmodels, update_context)
-      if self.viewmodel.class.respond_to?(:"resolve_#{association_data.direct_reflection.name}")
-        return self.viewmodel.class.public_send(:"resolve_#{association_data.direct_reflection.name}", update_datas, previous_child_viewmodels)
+      if self.viewmodel.respond_to?(:"resolve_#{association_data.direct_reflection.name}")
+        return self.viewmodel.public_send(:"resolve_#{association_data.direct_reflection.name}", update_datas, previous_child_viewmodels)
       end
 
       was_singular = !update_datas.is_a?(Array)
