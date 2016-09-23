@@ -401,13 +401,17 @@ class ActiveRecordViewModel
     end
 
     def parse(hash_data, valid_reference_keys)
-      if hash_data.present? && self.viewmodel_class.respond_to?(:pre_parse)
-        hash_data = self.viewmodel_class.pre_parse(hash_data)
+      hash_data = hash_data.dup
+
+      # handle view pre-parsing if defined
+      self.viewmodel_class.pre_parse(hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
+      hash_data.keys.each do |key|
+        if self.viewmodel_class.respond_to?(:"pre_parse_#{key}")
+          self.viewmodel_class.public_send("pre_parse_#{key}", hash_data, hash_data.delete(key))
+        end
       end
 
       hash_data.each do |name, value|
-        value = self.viewmodel_class.public_send("pre_parse_#{name}", value) if self.viewmodel_class.respond_to?(:"pre_parse_#{name}")
-
         case self.viewmodel_class._members[name]
         when :attribute
           attributes[name] = value
