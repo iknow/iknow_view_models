@@ -498,8 +498,8 @@ class ActiveRecordViewModel
       # we want to set position => we need to reimplement the through handling
       previous_through_children =
         model
-          .public_send(direct_reflection.name)
-          .tap { |x| x.sort_by(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
+          .public_send(direct_reflection.name).to_a
+          .tap { |x| x.sort_by!(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
           .group_by(&viewmodel_reference_for_indirect_model)
 
       # To try to reduce list position churn in the case of multiple
