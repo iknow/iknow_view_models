@@ -28,9 +28,9 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
         attributes :text
         association :translations
 
-        def self.pre_parse_translations(user_data)
-          raise "type check" unless user_data.is_a?(Hash) && user_data.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
-          user_data.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
+        def self.pre_parse_translations(hash, translations)
+          raise "type check" unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
+          hash["translations"] = translations.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
         end
 
         def resolve_translations(update_datas, previous_translation_views)
@@ -188,13 +188,11 @@ class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
         association :section_data, viewmodels: [VocabSectionView, QuizSectionView]
 
         def self.pre_parse(user_data)
-          section_type = SectionType.with_name(user_data["section_type"])
-          raise "Invalid section type: #{user_data["section_type"].inspect}" unless section_type
+          section_type_name = user_data.delete("section_type")
+          section_type = SectionType.with_name(section_type_name)
+          raise "Invalid section type: #{section_type_name.inspect}" unless section_type
 
-          user_data.delete("section_type")
           user_data["section_data"] = section_type.construct_hash(user_data.slice!(*self._members.keys))
-
-          user_data
         end
 
         def resolve_section_data(update_data, previous_translation_view)
