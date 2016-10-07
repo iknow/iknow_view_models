@@ -305,4 +305,67 @@ class ActiveRecordViewModelTest < ActiveSupport::TestCase
                                       'children' => [] }))
     end
   end
+
+  # Parent view should be correctly passed down the tree when deserializing
+  class DeserializationParentContextTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    class RefError < RuntimeError
+      attr_reader :ref
+      def initialize(ref)
+        super("Boom")
+        @ref = ref
+      end
+    end
+
+    def before_all
+      super
+
+      build_viewmodel(:List) do
+        define_schema do |t|
+          t.integer :child_id
+        end
+
+        define_model do
+          belongs_to :child, class_name: :List
+        end
+
+        define_viewmodel do
+          association :child
+          attribute :explode
+          # Escape deserialization with the parent context
+          define_method(:deserialize_explode) do |val, deserialize_context: |
+            raise RefError.new(deserialize_context.parent_ref) if val
+          end
+        end
+      end
+    end
+
+    def setup
+      @list = List.new(child: List.new(child: nil))
+    end
+
+    def test_deserialize_context
+      view = {
+        "_type" => "List",
+        "id"    => 1000,
+        "_new"  => true,
+        "child" => {
+          "_type" => "List",
+        }}
+
+      ref_error = assert_raises(RefError) do
+        ListView.deserialize_from_view(view.deep_merge("child" => { "explode" => true }))
+      end
+
+      assert_equal(ListView, ref_error.ref.viewmodel_class)
+      assert_equal(1000, ref_error.ref.model_id)
+
+      ref_error = assert_raises(RefError) do
+        ListView.deserialize_from_view(view.deep_merge("explode" => true))
+      end
+
+      assert_nil(ref_error.ref)
+    end
+  end
 end
