@@ -192,4 +192,15 @@ class ViewModel
     end
   end
 
+  def ==(other_view)
+    other_view.class == self.class && self.class._attributes.all? do |attr|
+      other_view.send(attr) == self.send(attr)
+    end
+  end
+
+  alias :eql? :==
+
+  def hash
+    self.class._attributes.map { |attr| self.send(attr) }.hash
+  end
 end

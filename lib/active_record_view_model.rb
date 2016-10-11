@@ -75,12 +75,14 @@ class ActiveRecordViewModel < ViewModel
     end
 
     # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, read_only: false)
+    def attribute(attr, read_only: false, using: nil)
       _members[attr.to_s] = :attribute
 
       @generated_accessor_module.module_eval do
         define_method attr do
-          model.public_send(attr)
+          val = model.public_send(attr)
+          val = using.new(val) if using.present?
+          val
         end
 
         define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
@@ -92,12 +94,14 @@ class ActiveRecordViewModel < ViewModel
 
         if read_only
           define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
+            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)) if using.present?
             if value != self.public_send(attr)
               raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
             end
           end
         else
           define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
+            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)).model if using.present?
             model.public_send("#{attr}=", value)
           end
         end

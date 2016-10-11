@@ -107,7 +107,7 @@ class ActiveRecordViewModel
 
           association = model.association(reflection.name)
           child_model = if child_operation
-                          child_operation.run!(deserialize_context: deserialize_context).model
+                          child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
                         else
                           nil
                         end
@@ -146,9 +146,9 @@ class ActiveRecordViewModel
             when nil
               nil
             when ActiveRecordViewModel::UpdateOperation
-              child_operation.run!(deserialize_context: deserialize_context).model
+              child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
             when Array
-              viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context) }
+              viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context.for_child(viewmodel)) }
               viewmodels.map(&:model)
             end
 
