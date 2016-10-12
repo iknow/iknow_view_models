@@ -1,11 +1,17 @@
 require 'active_support'
 require 'minitest/hooks'
 
+require 'view_model'
+require 'view_model/test_helpers'
+
 require_relative 'query_logging.rb'
 
 ActiveSupport::TestCase.include(Minitest::Hooks)
 
 module ARVMTestUtilities
+  extend ActiveSupport::Concern
+  include ViewModel::TestHelpers
+
   def self.included(klass)
     klass.include(QueryLogging)
   end
@@ -31,14 +37,11 @@ module ARVMTestUtilities
   end
 
   def serialize_with_references(serializable, serialize_context: ViewModelBase.new_serialize_context)
-    data = ViewModel.serialize_to_hash(serializable, serialize_context: serialize_context)
-    references = serialize_context.serialize_references_to_hash
-    return data, references
+    super(serializable, serialize_context: serialize_context)
   end
 
   def serialize(serializable, serialize_context: ViewModelBase.new_serialize_context)
-    data, _ = serialize_with_references(serializable, serialize_context: serialize_context)
-    data
+    super(serializable, serialize_context: serialize_context)
   end
 
   # Construct an update hash that references an existing model. Does not include
@@ -47,37 +50,6 @@ module ARVMTestUtilities
     refhash = {'_type' => viewmodel_class.view_name, 'id' => model.id}
     yield(refhash) if block_given?
     refhash
-  end
-
-  # Test helper: update a model by manipulating the full view hash
-  def alter_by_view!(viewmodel_class, model,
-                     serialize_context:   viewmodel_class.new_serialize_context,
-                     deserialize_context: viewmodel_class.new_deserialize_context)
-
-    models = Array.wrap(model)
-
-    data, refs = serialize_with_references(models.map { |m| viewmodel_class.new(m) }, serialize_context: serialize_context)
-
-    if model.is_a?(Array)
-      yield(data, refs)
-    else
-      yield(data.first, refs)
-    end
-
-    begin
-      result = viewmodel_class.deserialize_from_view(
-        data, references: refs, deserialize_context: deserialize_context)
-
-      result.each do |vm|
-        assert_model_represents_database(vm.model)
-      end
-
-      result = result.first unless model.is_a?(Array)
-
-      return result, deserialize_context
-    ensure
-      models.each { |m| m.reload }
-    end
   end
 
   # Test helper: update a model by constructing a new view hash
@@ -117,37 +89,6 @@ module ARVMTestUtilities
     ActiveRecord::Base.logger = Logger.new(STDOUT)
   end
 
-  def assert_model_represents_database(model, been_there: Set.new)
-    return if been_there.include?(model)
-    been_there << model
 
-    refute(model.new_record?, 'model represents database entity')
-    refute(model.changed?, 'model is fully persisted')
-
-    database_model = model.class.find(model.id)
-
-    assert_equal(database_model.attributes,
-                 model.attributes,
-                 'in memory attributes match database attributes')
-
-    model.class.reflections.each do |_, reflection|
-      association = model.association(reflection.name)
-
-      next unless association.loaded?
-
-      case
-      when association.target == nil
-        assert_nil(database_model.association(reflection.name).target,
-                   'in memory nil association matches database')
-      when reflection.collection?
-        association.target.each do |associated_model|
-          assert_model_represents_database(associated_model, been_there: been_there)
-        end
-      else
-        assert_model_represents_database(association.target, been_there: been_there)
-      end
-
-    end
-  end
 
 end
