@@ -1,6 +1,8 @@
 class ViewModel
   class DeserializeContext
-    attr_accessor :updated_associations, :parent_context, :parent_viewmodel
+    attr_accessor :updated_associations
+    attr_reader :parent_context, :parent_viewmodel
+    private :parent_context, :parent_viewmodel
 
     def initialize(*)
     end
@@ -19,11 +21,15 @@ class ViewModel
 
     def for_child(parent_viewmodel)
       self.dup.tap do |copy|
-        copy.parent_context   = self
-        copy.parent_viewmodel = parent_viewmodel
+        copy.initialize_as_child(self, parent_viewmodel)
       end
     end
 
-    private :parent_context, :parent_viewmodel
+    protected
+
+    def initialize_as_child(parent_context, parent_viewmodel)
+      @parent_context   = parent_context
+      @parent_viewmodel = parent_viewmodel
+    end
   end
 end
