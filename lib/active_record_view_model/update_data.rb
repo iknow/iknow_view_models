@@ -404,10 +404,10 @@ class ActiveRecordViewModel
       hash_data = hash_data.dup
 
       # handle view pre-parsing if defined
-      self.viewmodel_class.pre_parse(hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
+      self.viewmodel_class.pre_parse(viewmodel_reference, hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
       hash_data.keys.each do |key|
         if self.viewmodel_class.respond_to?(:"pre_parse_#{key}")
-          self.viewmodel_class.public_send("pre_parse_#{key}", hash_data, hash_data.delete(key))
+          self.viewmodel_class.public_send("pre_parse_#{key}", viewmodel_reference, hash_data, hash_data.delete(key))
         end
       end
 
