@@ -4,6 +4,7 @@ class ActiveRecordViewModel
 module ControllerBase
   extend ActiveSupport::Concern
   include IknowParams::Parser
+  include ViewModel::Controller
 
   class RenderError < StandardError
     attr_accessor :code
@@ -89,13 +90,12 @@ module ControllerBase
   end
 
   included do
-    IknowViewModels.renderable!(self)
     delegate :viewmodel, to: 'self.class'
 
-    rescue_from RenderError, with: ->(ex){ render_error(ex, ex.code) }
+    rescue_from RenderError, with: ->(ex){ render_exception(ex, ex.code) }
 
-    rescue_from ViewModel::DeserializationError, with: ->(ex){ render_error(ex, ex.http_status, metadata: ex.metadata) }
-    rescue_from ViewModel::SerializationError,   with: ->(ex){ render_error(ex, ex.http_status, metadata: ex.metadata) }
+    rescue_from ViewModel::DeserializationError, with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
+    rescue_from ViewModel::SerializationError,   with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
   end
 
 end
