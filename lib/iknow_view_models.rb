@@ -16,10 +16,10 @@ module IknowViewModels
         json.detail exception.message
 
         if error_type = exception.try(:error_type)
-          json.type error_type
+          json.code error_type
         end
 
-        json.metadata do
+        json.meta do
           ViewModel.serialize(metadata, json, serialize_context: serialize_context)
         end
 

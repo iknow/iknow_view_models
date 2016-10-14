@@ -107,8 +107,8 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
     assert_equal(404, parentcontroller.status)
     assert_equal({ 'errors' => [{ 'status' => 404,
                                   'detail' => "Couldn't find Parent with 'id'=9999",
-                                  'type'   => "Deserialization.NotFound",
-                                  "metadata" => { "nodes" => [{ "_type" => "Parent", "id" => 9999 }]}}]},
+                                  'code'   => "Deserialization.NotFound",
+                                  "meta" => { "nodes" => [{ "_type" => "Parent", "id" => 9999 }]}}]},
                  parentcontroller.hash_response)
   end
 
@@ -122,9 +122,9 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal({ 'errors' => [{ 'status' => 400,
                                   'detail' => 'Validation failed: Age must be less than 42',
-                                  'type'   => "Deserialization.Validation",
-                                  "metadata" => { "nodes" => [{ "_type" => "Child", "id" => nil }],
-                                                  "validation_errors" => { "age" => ["must be less than 42"]}}}] },
+                                  'code'   => "Deserialization.Validation",
+                                  "meta" => { "nodes" => [{ "_type" => "Child", "id" => nil }],
+                                              "validation_errors" => { "age" => ["must be less than 42"]}}}] },
                  parentcontroller.hash_response)
   end
 
@@ -147,8 +147,8 @@ class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
 
     assert_equal({ 'errors' => [{ 'status' => 404,
                                   'detail' => "Couldn't find Parent with 'id'=9999",
-                                  'type'   => "Deserialization.NotFound",
-                                  'metadata' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
+                                  'code'   => "Deserialization.NotFound",
+                                  'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
                  parentcontroller.hash_response)
     assert_equal(404, parentcontroller.status)
   end
