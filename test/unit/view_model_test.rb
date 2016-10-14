@@ -14,7 +14,7 @@ class TestViewModel < ViewModel
   end
 end
 
-class ActiveRecordViewModelTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   def test_serialize
     s = TestViewModel.new("a")
     assert_equal(ViewModel.serialize_to_hash(s),

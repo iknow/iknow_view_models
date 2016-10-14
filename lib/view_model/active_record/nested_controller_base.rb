@@ -1,5 +1,5 @@
-require 'active_record_view_model/controller_base'
-module ActiveRecordViewModel::NestedControllerBase
+require 'view_model/active_record/controller_base'
+module ViewModel::ActiveRecord::NestedControllerBase
   extend ActiveSupport::Concern
 
   protected

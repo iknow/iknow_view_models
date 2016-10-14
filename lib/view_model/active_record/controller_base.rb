@@ -1,6 +1,6 @@
 require "iknow_params/parser"
 
-class ActiveRecordViewModel
+class ViewModel::ActiveRecord
 module ControllerBase
   extend ActiveSupport::Concern
   include IknowParams::Parser
@@ -44,7 +44,7 @@ module ControllerBase
     when ActionController::Parameters
       data.to_unsafe_h
     else
-      raise ActiveRecordViewModel::ControllerBase::BadRequest.new("Invalid data submitted, expected hash: #{data.inspect}")
+      raise ViewModel::ActiveRecord::ControllerBase::BadRequest.new("Invalid data submitted, expected hash: #{data.inspect}")
     end
   end
 
@@ -74,7 +74,7 @@ module ControllerBase
     protected
 
     def viewmodel_name=(name)
-      self.viewmodel = ActiveRecordViewModel.for_view_name(name)
+      self.viewmodel = ViewModel::ActiveRecord.for_view_name(name)
     end
 
     def viewmodel=(type)
@@ -82,8 +82,8 @@ module ControllerBase
         raise ArgumentError.new("ViewModel class for Controller '#{self.name}' already set")
       end
 
-      unless type < ActiveRecordViewModel
-        raise ArgumentError.new("'#{type.inspect}' is not a valid ActiveRecordViewModel")
+      unless type < ViewModel::ActiveRecord
+        raise ArgumentError.new("'#{type.inspect}' is not a valid ViewModel::ActiveRecord")
       end
       @viewmodel = type
     end

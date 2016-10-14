@@ -1,7 +1,7 @@
 require "renum"
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.
-class ActiveRecordViewModel
+class ViewModel::ActiveRecord
   using Collections
 
   class UpdateOperation
@@ -126,9 +126,9 @@ class ActiveRecordViewModel
         debug "-> #{debug_name}: Saving"
         begin
           model.save!
-        rescue ActiveRecord::RecordInvalid => ex
+        rescue ::ActiveRecord::RecordInvalid => ex
           raise_deserialization_error(ex.message, model.errors.messages, error: ViewModel::DeserializationError::Validation)
-        rescue ActiveRecord::StaleObjectError => ex
+        rescue ::ActiveRecord::StaleObjectError => ex
           raise_deserialization_error(ex.message, error: ViewModel::DeserializationError::LockFailure)
         end
         debug "<- #{debug_name}: Saved"
@@ -145,7 +145,7 @@ class ActiveRecordViewModel
             case child_operation
             when nil
               nil
-            when ActiveRecordViewModel::UpdateOperation
+            when ViewModel::ActiveRecord::UpdateOperation
               child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
             when Array
               viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context.for_child(viewmodel)) }
@@ -162,7 +162,7 @@ class ActiveRecordViewModel
 
       @run_state = RunState::Run
       viewmodel
-    rescue ActiveRecord::StatementInvalid, ActiveRecord::InvalidForeignKey, ActiveRecord::RecordNotSaved => ex
+    rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => ex
       raise_deserialization_error(ex.message)
     end
 
@@ -569,7 +569,7 @@ class ActiveRecordViewModel
     end
 
     def debug(msg)
-      ActiveRecord::Base.logger.try do |logger|
+      ::ActiveRecord::Base.logger.try do |logger|
         logger.debug(msg)
       end
     end

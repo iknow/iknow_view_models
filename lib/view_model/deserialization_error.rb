@@ -38,7 +38,7 @@ class ViewModel
 
       def self.wrap_lookup(*target_refs)
         yield
-      rescue ActiveRecord::RecordNotFound => ex
+      rescue ::ActiveRecord::RecordNotFound => ex
         raise self.new(ex.message, target_refs)
       end
     end

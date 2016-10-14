@@ -1,11 +1,11 @@
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
+require_relative "../../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 
-require "active_record_view_model"
+require "view_model/active_record"
 
-class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def self.build_tag_a(arvm_test_case)
@@ -154,12 +154,12 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     # TODO not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
-    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
+    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
     assert_equal(DeepPreloader::Spec.new,
                  root_updates.first.preload_dependencies(ref_updates),
                  'nothing loaded by default')
 
-    root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent',
+    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent',
                                                                                   'tags' => [{ '_ref' => 'r1' }] }],
                                                                                { 'r1' => { '_type' => 'TagB' } })
 
@@ -225,8 +225,8 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     def before_all
       super
 
-      ActiveRecordViewModel::HasManyThroughPolyTest.build_tag_a(self)
-      ActiveRecordViewModel::HasManyThroughPolyTest.build_tag_b(self)
+      ViewModel::ActiveRecord::HasManyThroughPolyTest.build_tag_a(self)
+      ViewModel::ActiveRecord::HasManyThroughPolyTest.build_tag_b(self)
 
       build_viewmodel(:Parent) do
         define_schema do |t|
@@ -244,7 +244,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
         end
       end
 
-      ActiveRecordViewModel::HasManyThroughPolyTest.build_parent_tag_join_model(self)
+      ViewModel::ActiveRecord::HasManyThroughPolyTest.build_parent_tag_join_model(self)
     end
 
     def setup
@@ -256,7 +256,7 @@ class ActiveRecordViewModel::HasManyThroughPolyTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       # Compare to non-polymorphic, which will also load the tags
       deps = root_updates.first.preload_dependencies(ref_updates)
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::PolymorphicSpec.new)), deps)

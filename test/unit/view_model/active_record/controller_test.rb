@@ -3,14 +3,14 @@
 require "bundler/setup"
 Bundler.require
 
-require_relative "../../helpers/controller_test_helpers.rb"
+require_relative "../../../helpers/controller_test_helpers.rb"
 
 require 'byebug'
 
 require "minitest/autorun"
 require 'minitest/unit'
 
-class ActiveRecordViewModel::ControllerTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ARVMTestUtilities
   include ControllerTestModels
   include ControllerTestControllers

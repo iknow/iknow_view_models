@@ -2,7 +2,7 @@ require 'renum'
 require 'json'
 require 'json_schema'
 
-class ActiveRecordViewModel
+class ViewModel::ActiveRecord
   using Collections
 
 
@@ -230,7 +230,7 @@ class ActiveRecordViewModel
       # Construct root UpdateData
       root_updates = root_subtree_hashes.map do |subtree_hash|
         viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
+        viewmodel_class         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
 
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
@@ -241,7 +241,7 @@ class ActiveRecordViewModel
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
         viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class         = ActiveRecordViewModel.for_view_name(viewmodel_name)
+        viewmodel_class         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
 
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end

@@ -1,15 +1,15 @@
 # coding: utf-8
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
+require_relative "../../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 
-require "active_record_view_model"
+require "view_model/active_record"
 
 
 require 'renum'
 
-class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def before_all
@@ -114,7 +114,7 @@ class ActiveRecordViewModel::SpecializeAssociationTest < ActiveSupport::TestCase
   end
 end
 
-class ActiveRecordViewModel::FlattenAssociationTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def before_all

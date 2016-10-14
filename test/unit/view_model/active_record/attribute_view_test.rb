@@ -1,11 +1,11 @@
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
+require_relative "../../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 
-require "active_record_view_model"
+require "view_model/active_record"
 
-class ActiveRecordViewModel::AttributeViewTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::AttributeViewTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   class ComplexAttributeView < ViewModel

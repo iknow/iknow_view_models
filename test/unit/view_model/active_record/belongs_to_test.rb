@@ -1,11 +1,11 @@
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
+require_relative "../../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 
-require "active_record_view_model"
+require "view_model/active_record"
 
-class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   module WithLabel
@@ -293,7 +293,7 @@ class ActiveRecordViewModel::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
       assert_equal(DeepPreloader::Spec.new('label' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies(ref_updates))
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
     end

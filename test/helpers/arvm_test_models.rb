@@ -1,6 +1,6 @@
 require "iknow_view_models"
-require "active_record_view_model"
-require "active_record_view_model/controller"
+require "view_model/active_record"
+require "view_model/active_record/controller"
 
 require "acts_as_manual_list"
 
@@ -51,7 +51,7 @@ module TrivialAccessControl
 end
 
 # base class for viewmodels
-class ViewModelBase < ActiveRecordViewModel
+class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
 
   module ContextAccessLogging

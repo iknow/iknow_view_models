@@ -1,11 +1,11 @@
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
+require_relative "../../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 
-require "active_record_view_model"
+require "view_model/active_record"
 
-module ActiveRecordViewModel::PolyTest
+module ViewModel::ActiveRecord::PolyTest
   ## Polymorphic pointer to parent in child (child may belong to different type parents)
   class PolyParentPointerTest < ActiveSupport::TestCase
     include ARVMTestUtilities
@@ -258,7 +258,7 @@ module ActiveRecordViewModel::PolyTest
       def before_all
         super
 
-        ActiveRecordViewModel::PolyTest::PolyChildPointerTest.build_poly_children(self)
+        ViewModel::ActiveRecord::PolyTest::PolyChildPointerTest.build_poly_children(self)
 
         build_viewmodel(:Parent) do
           define_schema do |t|
@@ -288,7 +288,7 @@ module ActiveRecordViewModel::PolyTest
       end
 
       def test_dependencies
-        root_updates, ref_updates = ActiveRecordViewModel::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+        root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
         assert_equal(DeepPreloader::Spec.new('poly' => DeepPreloader::PolymorphicSpec.new), root_updates.first.preload_dependencies(ref_updates))
         assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
       end

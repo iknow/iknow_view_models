@@ -7,7 +7,7 @@ require "cerego_active_record_patches"
 require "lazily"
 require "concurrent"
 
-class ActiveRecordViewModel < ViewModel
+class ViewModel::ActiveRecord < ViewModel
   # Defined before requiring components so components can refer to them at parse time
   NEW_ATTRIBUTE       = "_new"
 
@@ -18,11 +18,11 @@ class ActiveRecordViewModel < ViewModel
   BEFORE_ATTRIBUTE       = "before"
   AFTER_ATTRIBUTE        = "after"
 
-  require 'active_record_view_model/collections'
-  require 'active_record_view_model/association_data'
-  require 'active_record_view_model/update_data'
-  require 'active_record_view_model/update_context'
-  require 'active_record_view_model/update_operation'
+  require 'view_model/active_record/collections'
+  require 'view_model/active_record/association_data'
+  require 'view_model/active_record/update_data'
+  require 'view_model/active_record/update_context'
+  require 'view_model/active_record/update_operation'
 
   # An AR ViewModel wraps a single AR model
   attribute :model
@@ -47,7 +47,7 @@ class ActiveRecordViewModel < ViewModel
 
       viewmodel_class = @@viewmodel_classes_by_name[name]
 
-      if viewmodel_class.nil? || !(viewmodel_class < ActiveRecordViewModel)
+      if viewmodel_class.nil? || !(viewmodel_class < ViewModel::ActiveRecord)
         raise ViewModel::DeserializationError.new("ViewModel class for view name '#{name}' not found")
       end
 
@@ -349,7 +349,7 @@ class ActiveRecordViewModel < ViewModel
         raise ArgumentError.new("Model class for ViewModel '#{self.name}' already set")
       end
 
-      unless type < ActiveRecord::Base
+      unless type < ::ActiveRecord::Base
         raise ArgumentError.new("'#{type.inspect}' is not a valid ActiveRecord model class")
       end
       @model_class = type
@@ -449,7 +449,7 @@ class ActiveRecordViewModel < ViewModel
                                                    .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
-      new_parent = ActiveRecordViewModel::UpdateOperation::ParentData.new(association_data.direct_reflection.inverse_of, self)
+      new_parent = ViewModel::ActiveRecord::UpdateOperation::ParentData.new(association_data.direct_reflection.inverse_of, self)
       update_context.root_updates.each { |update| update.reparent_to = new_parent }
 
       # Set place in list

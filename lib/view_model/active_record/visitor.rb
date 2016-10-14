@@ -1,4 +1,4 @@
-class ActiveRecordViewModel::Visitor
+class ViewModel::ActiveRecord::Visitor
   def visit(node)
     pre_visit(node)
 
