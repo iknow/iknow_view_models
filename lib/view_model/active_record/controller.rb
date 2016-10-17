@@ -1,15 +1,15 @@
-require 'active_record_view_model/controller_base'
+require 'view_model/active_record/controller_base'
 
-# Controller for accessing an ActiveRecordViewModel
+# Controller for accessing an ViewModel::ActiveRecord
 # Provides for the following routes:
 # POST   /models      #create -- create or update one or more models
 # GET    /models      #index
 # GET    /models/:id  #show
 # DELETE /models/:id  #destroy
 
-module ActiveRecordViewModel::Controller
+module ViewModel::ActiveRecord::Controller
   extend ActiveSupport::Concern
-  include ActiveRecordViewModel::ControllerBase
+  include ViewModel::ActiveRecord::ControllerBase
 
   included do
     delegate :viewmodel, to: 'self.class'
@@ -57,13 +57,13 @@ module ActiveRecordViewModel::Controller
   class_methods do
     def nested_in(owner, as:)
       if as.to_s.singularize == as.to_s
-        include ActiveRecordViewModel::SingularNestedController
+        include ViewModel::ActiveRecord::SingularNestedController
       else
-        include ActiveRecordViewModel::CollectionNestedController
+        include ViewModel::ActiveRecord::CollectionNestedController
       end
 
-      unless owner.is_a?(Class) && owner < ActiveRecordViewModel
-        owner = ActiveRecordViewModel.for_view_name(owner.to_s.camelize)
+      unless owner.is_a?(Class) && owner < ViewModel::ActiveRecord
+        owner = ViewModel::ActiveRecord.for_view_name(owner.to_s.camelize)
       end
 
       self.owner_viewmodel = owner

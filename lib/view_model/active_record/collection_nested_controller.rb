@@ -1,4 +1,4 @@
-require 'active_record_view_model/nested_controller_base'
+require 'view_model/active_record/nested_controller_base'
 # Controller for accessing a ViewModel which is necessarily owned in a collection by a parent model.
 
 # Contributes the following routes:
@@ -12,9 +12,9 @@ require 'active_record_view_model/nested_controller_base'
 # POST   /children      #create -- create or update without parent
 # GET    /children/:id  #show
 # DELETE /children/:id  #destroy
-module ActiveRecordViewModel::CollectionNestedController
+module ViewModel::ActiveRecord::CollectionNestedController
   extend ActiveSupport::Concern
-  include ActiveRecordViewModel::NestedControllerBase
+  include ViewModel::ActiveRecord::NestedControllerBase
 
   # List items associated with the owner
   def index(serialize_context: new_serialize_context, &block)

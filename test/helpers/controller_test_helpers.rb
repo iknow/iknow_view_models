@@ -1,6 +1,6 @@
 require "iknow_view_models"
-require "active_record_view_model"
-require "active_record_view_model/controller"
+require "view_model/active_record"
+require "view_model/active_record/controller"
 
 require_relative "../helpers/arvm_test_utilities.rb"
 require_relative "../helpers/arvm_test_models.rb"
@@ -207,24 +207,24 @@ module ControllerTestControllers
 
     Class.new(DummyController) do |c|
       Object.const_set(:ParentController, self)
-      include ActiveRecordViewModel::Controller
+      include ViewModel::ActiveRecord::Controller
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:ChildController, self)
-      include ActiveRecordViewModel::Controller
+      include ViewModel::ActiveRecord::Controller
       nested_in :parent, as: :children
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:LabelController, self)
-      include ActiveRecordViewModel::Controller
+      include ViewModel::ActiveRecord::Controller
       nested_in :parent, as: :label
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:TargetController, self)
-      include ActiveRecordViewModel::Controller
+      include ViewModel::ActiveRecord::Controller
       nested_in :parent, as: :target
     end
   end

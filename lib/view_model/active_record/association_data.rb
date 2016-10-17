@@ -1,5 +1,5 @@
 # TODO consider rephrase scope for consistency
-class ActiveRecordViewModel::AssociationData
+class ViewModel::ActiveRecord::AssociationData
   attr_reader :direct_reflection
 
   def initialize(direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
@@ -13,7 +13,7 @@ class ActiveRecordViewModel::AssociationData
       @viewmodel_classes = Array.wrap(viewmodel_classes).map! do |v|
         case v
         when String, Symbol
-          ActiveRecordViewModel.for_view_name(v.to_s)
+          ViewModel::ActiveRecord.for_view_name(v.to_s)
         when Class
           v
         else
@@ -49,7 +49,7 @@ class ActiveRecordViewModel::AssociationData
         if model_class.nil?
           raise "Couldn't derive target class for association '#{target_reflection.name}"
         end
-        viewmodel_class = ActiveRecordViewModel.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
+        viewmodel_class = ViewModel::ActiveRecord.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
         [viewmodel_class]
       end
   end
@@ -138,7 +138,7 @@ class ActiveRecordViewModel::AssociationData
       through_order_attr  = @through_order_attr
       viewmodel_classes   = self.viewmodel_classes
 
-      Class.new(ActiveRecordViewModel) do
+      Class.new(ViewModel::ActiveRecord) do
         self.synthetic = true
         self.model_class = direct_reflection.klass
         association indirect_reflection.name, shared: true, optional: false, viewmodels: viewmodel_classes

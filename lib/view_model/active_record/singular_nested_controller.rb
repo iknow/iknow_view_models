@@ -10,10 +10,10 @@
 # GET    /children/:id  #show
 # DELETE /children/:id  #destroy
 
-require 'active_record_view_model/nested_controller_base'
-module ActiveRecordViewModel::SingularNestedController
+require 'view_model/active_record/nested_controller_base'
+module ViewModel::ActiveRecord::SingularNestedController
   extend ActiveSupport::Concern
-  include ActiveRecordViewModel::NestedControllerBase
+  include ViewModel::ActiveRecord::NestedControllerBase
 
   def index
     raise ArgumentError.new("Index unavailable for nested view")

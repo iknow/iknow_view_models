@@ -1,5 +1,5 @@
 class ViewModel
-  # Key to identify a viewmodel with some kind of inherent ID (e.g. an ActiveRecordViewModel)
+  # Key to identify a viewmodel with some kind of inherent ID (e.g. an ViewModel::ActiveRecord)
   class Reference
     attr_accessor :viewmodel_class, :model_id
 

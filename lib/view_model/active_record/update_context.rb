@@ -1,7 +1,7 @@
 # Assembles an update operation tree from user input. Handles the interlinking
 # and model of update operations, but does not handle the actual user data nor
 # the mechanism by which it is applied to models.
-class ActiveRecordViewModel
+class ViewModel::ActiveRecord
   class UpdateContext
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
       def release!(deserialize_context:)
@@ -280,14 +280,14 @@ class ActiveRecordViewModel
     # we require construction to go via methods that do this tracking.
 
     def new_deferred_update(viewmodel_reference, update_data, reparent_to: nil, reposition_to: nil)
-      update_operation = ActiveRecordViewModel::UpdateOperation.new(
+      update_operation = ViewModel::ActiveRecord::UpdateOperation.new(
         nil, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
       set_update_type(viewmodel_reference, :explicit)
       @worklist[viewmodel_reference] = update_operation
     end
 
     def new_update(viewmodel, update_data, reparent_to: nil, reposition_to: nil, update_type: :explicit)
-      update = ActiveRecordViewModel::UpdateOperation.new(
+      update = ViewModel::ActiveRecord::UpdateOperation.new(
         viewmodel, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
 
       if (vm_ref = update.viewmodel_reference).present?

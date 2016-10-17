@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
-require_relative "../helpers/arvm_test_utilities.rb"
-require_relative "../helpers/arvm_test_models.rb"
+require_relative "../../helpers/arvm_test_utilities.rb"
+require_relative "../../helpers/arvm_test_models.rb"
 
 require "minitest/autorun"
 require 'minitest/unit'
 
-require "active_record_view_model"
+require "view_model/active_record"
 
-class ActiveRecordViewModelTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def before_all

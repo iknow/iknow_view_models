@@ -1,4 +1,4 @@
-class ActiveRecordViewModel
+class ViewModel::ActiveRecord
   module Collections
     def self.count_by(enumerable)
       enumerable.each_with_object(Hash.new(0)) do |el, counts|
