@@ -19,15 +19,28 @@ module ViewModel::Controller
         ViewModel.serialize(metadata, json, serialize_context: serialize_context)
       end
     end
+
+    def to_error
+      ApiError.new([self], self.status)
+    end
+  end
+
+  class ApiError < RuntimeError
+    attr_reader :error_views, :status
+    def initialize(error_views, status = nil)
+      @error_views = Array.wrap(error_views)
+      @status = status || @error_views.first.status
+      super
+    end
   end
 
   class ExceptionView < ViewModel
     attributes :exception, :error_view
 
     def initialize(exception, status, metadata)
-      error_view = ApiErrorView.new(status: status,
-                                    detail: exception.message,
-                                    code: exception.try(:error_type),
+      error_view = ApiErrorView.new(status:   status,
+                                    detail:   exception.message,
+                                    code:     exception.try(:error_type),
                                     metadata: metadata)
       super(exception, error_view)
     end
@@ -50,6 +63,10 @@ module ViewModel::Controller
     end
   end
 
+  included do
+    rescue_from ApiError, with: ->(ex){ render_errors(ex.error_views, ex.status) }
+  end
+
   def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
     render_jbuilder(status: status) do |json|
       json.data do
@@ -65,10 +82,10 @@ module ViewModel::Controller
   end
 
   def render_exception(exception, status = 500, metadata: {})
-    render_errors([ExceptionView.new(exception, status, metadata)], status, metadata: metadata)
+    render_errors([ExceptionView.new(exception, status, metadata)], status)
   end
 
-  def render_errors(error_views, status = 500, metadata: {})
+  def render_errors(error_views, status = 500)
     render_jbuilder(status: status) do |json|
       json.errors Array.wrap(error_views) do |error_view|
         ViewModel.serialize(error_view, json)
