@@ -6,20 +6,6 @@ module ControllerBase
   include IknowParams::Parser
   include ViewModel::Controller
 
-  class RenderError < StandardError
-    attr_accessor :code
-    def initialize(msg, code)
-      super(msg)
-      self.code = code
-    end
-  end
-
-  class BadRequest < RenderError
-    def initialize(msg)
-      super(msg, 400)
-    end
-  end
-
   protected
 
   def parse_viewmodel_updates
@@ -44,7 +30,7 @@ module ControllerBase
     when ActionController::Parameters
       data.to_unsafe_h
     else
-      raise ViewModel::ActiveRecord::ControllerBase::BadRequest.new("Invalid data submitted, expected hash: #{data.inspect}")
+      raise ApiErrorView.new(status: 400, detail: "Invalid data submitted, expected hash: #{data.inspect}").to_error
     end
   end
 
@@ -91,8 +77,6 @@ module ControllerBase
 
   included do
     delegate :viewmodel, to: 'self.class'
-
-    rescue_from RenderError, with: ->(ex){ render_exception(ex, ex.code) }
 
     rescue_from ViewModel::DeserializationError, with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
     rescue_from ViewModel::SerializationError,   with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
