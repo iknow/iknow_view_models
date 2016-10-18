@@ -30,7 +30,7 @@ module ViewModel::Controller
     def initialize(error_views, status = nil)
       @error_views = Array.wrap(error_views)
       @status = status || @error_views.first.status
-      super
+      super()
     end
   end
 
