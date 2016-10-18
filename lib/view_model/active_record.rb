@@ -23,6 +23,7 @@ class ViewModel::ActiveRecord < ViewModel
   require 'view_model/active_record/update_data'
   require 'view_model/active_record/update_context'
   require 'view_model/active_record/update_operation'
+  require 'view_model/active_record/visitor'
 
   # An AR ViewModel wraps a single AR model
   attribute :model

@@ -7,8 +7,8 @@ class ViewModel::ActiveRecord::Visitor
     end_visit  = :"end_visit_#{class_name}"
 
     visit_children =
-      if method_defined?(visit)
-        self.public_send(visit, node)
+      if respond_to?(visit, true)
+        self.send(visit, node)
       else
         true
       end
@@ -24,7 +24,7 @@ class ViewModel::ActiveRecord::Visitor
       end
     end
 
-    self.public_send(end_visit, node) if method_defined?(end_visit)
+    self.send(end_visit, node) if respond_to?(end_visit, true)
 
     post_visit(node)
   end
