@@ -19,6 +19,7 @@ class ViewModel::ActiveRecord < ViewModel
   AFTER_ATTRIBUTE        = "after"
 
   require 'view_model/active_record/collections'
+  require 'view_model/active_record/attribute_data'
   require 'view_model/active_record/association_data'
   require 'view_model/active_record/update_data'
   require 'view_model/active_record/update_context'
@@ -32,7 +33,7 @@ class ViewModel::ActiveRecord < ViewModel
   @@deferred_viewmodel_classes = Concurrent::Array.new
 
   class << self
-    attr_reader :_members, :_associations, :_list_attribute_name
+    attr_reader :_members, :_list_attribute_name
     attr_accessor :abstract_class, :synthetic, :unregistered
 
     delegate :transaction, to: :model_class
@@ -67,7 +68,6 @@ class ViewModel::ActiveRecord < ViewModel
 
     def initialize_members
       @_members = {}
-      @_associations = {}
       @abstract_class = false
       @unregistered = false
 
@@ -76,8 +76,8 @@ class ViewModel::ActiveRecord < ViewModel
     end
 
     # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, read_only: false, using: nil)
-      _members[attr.to_s] = :attribute
+    def attribute(attr, read_only: false, using: nil, optional: false)
+      _members[attr.to_s] = AttributeData.new(using, optional)
 
       @generated_accessor_module.module_eval do
         define_method attr do
@@ -189,8 +189,7 @@ class ViewModel::ActiveRecord < ViewModel
 
       association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
 
-      _members[vm_association_name.to_s]      = :association
-      _associations[vm_association_name.to_s] = association_data
+      _members[vm_association_name.to_s]      = association_data
 
       @generated_accessor_module.module_eval do
         define_method vm_association_name do
@@ -272,9 +271,6 @@ class ViewModel::ActiveRecord < ViewModel
       end
     end
 
-    # TODO: Need to sort out preloading for polymorphic viewmodels: how do you
-    # specify "when type A, go on to load these, but type B go on to load
-    # those?"
     def eager_includes(serialize_context: new_serialize_context)
       # When serializing, we need to (recursively) include all intrinsic
       # associations and also those optional (incl. shared) associations
@@ -288,8 +284,9 @@ class ViewModel::ActiveRecord < ViewModel
       # serialization context featuring the same associations.)
 
       association_specs = {}
-      _associations.each do |assoc_name, association_data|
-        next unless serialize_context.includes_association?(assoc_name, !association_data.optional?)
+      _members.each do |assoc_name, association_data|
+        next unless association_data.is_a?(AssociationData)
+        next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
         child_context = serialize_context.for_association(assoc_name)
 
         case
@@ -327,11 +324,14 @@ class ViewModel::ActiveRecord < ViewModel
       @model_class
     end
 
+    def member_names
+      self._members.keys
+    end
 
     # internal
     def _association_data(association_name)
-      association_data = self._associations[association_name.to_s]
-      raise ArgumentError.new("Invalid association") if association_data.nil?
+      association_data = self._members[association_name.to_s]
+      raise ArgumentError.new("Invalid association") unless association_data.is_a?(AssociationData)
       association_data
     end
 
@@ -392,14 +392,16 @@ class ViewModel::ActiveRecord < ViewModel
   end
 
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
-    self.class._members.each do |member_name, member_type|
-      member_context = serialize_context
+    self.class._members.each do |member_name, member_data|
+      next unless serialize_context.includes_member?(member_name, !member_data.optional?)
 
-      if member_type == :association
-        member_context = member_context.for_association(member_name)
-        association_data = self.class._association_data(member_name)
-        next unless serialize_context.includes_association?(member_name, !association_data.optional?)
-      end
+      member_context =
+        case member_data
+        when AssociationData
+          member_context = serialize_context.for_association(member_name)
+        else
+          serialize_context
+        end
 
       self.public_send("serialize_#{member_name}", json, serialize_context: member_context)
     end

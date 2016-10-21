@@ -36,13 +36,13 @@ class ViewModel
       end
     end
 
-    def includes_association?(association_name, default)
-      association_name = association_name.to_s
+    def includes_member?(member_name, default)
+      member_name = member_name.to_s
 
       # Every node in the include tree is to be included
-      included = include.try { |is| is.has_key?(association_name) }
+      included = include.try { |is| is.has_key?(member_name) }
       # whereas only the leaves of the prune tree are to be removed
-      pruned   = prune.try { |ps| ps.fetch(association_name, :sentinel).nil? }
+      pruned   = prune.try { |ps| ps.fetch(member_name, :sentinel).nil? }
 
       (default || included) && !pruned
     end
