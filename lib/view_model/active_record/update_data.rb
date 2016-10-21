@@ -412,12 +412,13 @@ class ViewModel::ActiveRecord
       end
 
       hash_data.each do |name, value|
-        case self.viewmodel_class._members[name]
-        when :attribute
+        member_data = self.viewmodel_class._members[name]
+        case member_data
+        when AttributeData
           attributes[name] = value
 
-        when :association
-          association_data = self.viewmodel_class._association_data(name)
+        when AssociationData
+          association_data = member_data
           case
           when value.nil?
             if association_data.collection?
