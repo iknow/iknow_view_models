@@ -16,7 +16,8 @@ class ViewModel::ActiveRecord::Visitor
     if visit_children
       # visit the underlying viewmodel for each association, ignoring any
       # customization
-      node.class._associations.each do |name, association_data|
+      node.class._members.each do |name, member_data|
+        next unless member_data.is_a?(ViewModel::ActiveRecord::AssociationData)
         children = Array.wrap(node.read_association(name))
         children.each do |child|
           self.visit(child)
