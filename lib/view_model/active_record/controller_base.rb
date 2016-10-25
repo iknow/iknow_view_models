@@ -17,6 +17,9 @@ module ControllerBase
 
   def _extract_update_data(data)
     if data.is_a?(Array)
+      if data.blank?
+        raise ViewModel::Controller::ApiErrorView.new(status: 400, detail: "No data submitted: #{data.inspect}").to_error
+      end
       data.map { |el| _extract_param_hash(el) }
     else
       _extract_param_hash(data)
@@ -25,12 +28,12 @@ module ControllerBase
 
   def _extract_param_hash(data)
     case data
-    when Hash, nil
+    when Hash
       data
     when ActionController::Parameters
       data.to_unsafe_h
     else
-      raise ApiErrorView.new(status: 400, detail: "Invalid data submitted, expected hash: #{data.inspect}").to_error
+      raise ViewModel::Controller::ApiErrorView.new(status: 400, detail: "Invalid data submitted, expected hash: #{data.inspect}").to_error
     end
   end
 

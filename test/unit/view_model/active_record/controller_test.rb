@@ -71,6 +71,20 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                  parentcontroller.hash_response)
   end
 
+  def test_create_empty
+    parentcontroller = ParentController.new(data: [])
+    parentcontroller.invoke(:create)
+
+    assert_equal(400, parentcontroller.status)
+  end
+
+  def test_create_invalid
+    parentcontroller = ParentController.new(data: 42)
+    parentcontroller.invoke(:create)
+
+    assert_equal(400, parentcontroller.status)
+  end
+
   def test_update
     data = { 'id'    => @parent.id,
              '_type' => 'Parent',

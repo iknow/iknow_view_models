@@ -201,6 +201,11 @@ class Rails
   end
 end
 
+module ActionController
+  class Parameters
+  end
+end
+
 module ControllerTestControllers
   def before_all
     super
