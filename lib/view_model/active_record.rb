@@ -217,8 +217,8 @@ class ViewModel::ActiveRecord < ViewModel
     end
 
     # Specify multiple associations at once
-    def associations(*assocs)
-      assocs.each { |assoc| association(assoc) }
+    def associations(*assocs, **args)
+      assocs.each { |assoc| association(assoc, **args) }
     end
 
     ## Load an instance of the viewmodel by id
