@@ -226,4 +226,46 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
     assert_equal(nil, @parent1.category)
     assert(Category.where(id: @category1.id).present?)
   end
+
+  def test_child_edit_doesnt_editcheck_parent
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    d_context = ParentView.new_deserialize_context
+
+    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
+      refs[view['category']["_ref"]]["name"] = "changed"
+    end
+
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(CategoryView, @parent1.category.id)))
+    refute(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
+
+  def test_child_change_editchecks_parent
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    d_context = ParentView.new_deserialize_context
+
+    old_category_id = @parent1.category.id
+
+    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
+      refs.delete(view['category']['_ref'])
+      view['category']['_ref'] = 'new_cat'
+      refs['new_cat'] = { "_type" => "Category", "name" => "new category"}
+    end
+
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(CategoryView, nil)))
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
+
+  def test_child_delete_editchecks_parent
+    serialize_context = ParentView.new_serialize_context(include: :category)
+    d_context = ParentView.new_deserialize_context
+
+    old_category_id = @parent1.category.id
+
+    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
+      refs.delete(view['category']['_ref'])
+      view['category'] = nil
+    end
+
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
 end

@@ -214,18 +214,32 @@ class ViewModel::ActiveRecord
 
     def build_update_for_single_referenced_association(association_data, reference_string, update_context)
       # TODO intern loads for shared items so we only load them once
+      model = self.viewmodel.model
+      previous_child_viewmodel = model.public_send(association_data.direct_reflection.name).try do |previous_child_model|
+        vm_class = association_data.viewmodel_class_for_model!(previous_child_model.class)
+        vm_class.new(previous_child_model)
+      end
 
       if reference_string.nil?
-        nil
+        referred_update    = nil
+        referred_viewmodel = nil
       else
-        referred_update = update_context.resolve_reference(reference_string)
+        referred_update    = update_context.resolve_reference(reference_string)
+        referred_viewmodel = referred_update.viewmodel
 
-        unless association_data.accepts?(referred_update.viewmodel.class)
-          raise_deserialization_error("Type error: association '#{association_data.direct_reflection.name}' can't refer to #{referred_update.viewmodel.class}")
+        unless association_data.accepts?(referred_viewmodel.class)
+          raise_deserialization_error("Type error: association '#{association_data.direct_reflection.name}'"\
+                                      " can't refer to #{referred_viewmodel.class}")
         end
 
         referred_update.build!(update_context)
       end
+
+      if previous_child_viewmodel != referred_viewmodel
+        self.association_changed!
+      end
+
+      referred_update
     end
 
     # Resolve or construct viewmodels for incoming update data. Where a child
