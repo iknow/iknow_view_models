@@ -121,6 +121,11 @@ class ARVMBuilder
     raise "Model not created in ARVMBuilder"     unless model
     raise "Schema not created in ARVMBuilder"    unless model.table_exists?
     raise "ViewModel not created in ARVMBuilder" unless (viewmodel || @no_viewmodel)
+
+    # Force the realization of the view model into the library's lookup
+    # table. If this doesn't happen the library may have conflicting entries in
+    # the deferred table, and will allow viewmodels to leak between tests.
+    ViewModel::ActiveRecord.for_view_name(viewmodel.view_name) unless @no_viewmodel
   end
 
   def teardown
