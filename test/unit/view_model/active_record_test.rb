@@ -127,7 +127,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     context = ViewModelBase.new_deserialize_context
     ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
-    assert_equal([[ParentView, nil]], context.edit_checks)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.edit_checks)
   end
 
   def test_editability_raises

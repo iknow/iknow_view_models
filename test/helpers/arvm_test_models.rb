@@ -25,21 +25,6 @@ class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
 
-# Trampoline access checks back to the context so we can have a scoped record of
-# all access checks in a (de)serailize operation.
-module TestAccessLogging
-  def visible!(context:)
-    context.log_visible_check(self)
-    super
-  end
-
-  def editable!(deserialize_context:)
-    deserialize_context.log_edit_check(self)
-    super
-  end
-end
-
-
 module TrivialAccessControl
   def visible?(context:)
     context.can_view
@@ -55,25 +40,23 @@ class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
 
   module ContextAccessLogging
-    def edit_checks
-      # Create is expressed as edit checking a new model. Since checks are
-      # recorded as (viewmodel_class, model_class, id), and we want to verify
-      # multiple creation events, we record everything here and sort it as
-      # appropriate.
-      @edit_checks ||= []
+    attr_accessor :edit_checks, :visible_checks
+
+    def initialize(**args)
+      super
+
+      # force existence of these objects, so when we get cloned in context we
+      # get aliased.
+      @edit_checks    = []
+      @visible_checks = []
     end
 
     def log_edit_check(viewmodel)
-      edit_checks << [viewmodel.class, viewmodel.model.id]
+      edit_checks << viewmodel.to_reference
     end
 
-    # def visible_checks
-    #   @visible_checks ||= []
-    # end
-
     def log_visible_check(viewmodel)
-      # TODO format not specified yet
-      # visible_checks << [viewmodel.class, viewmodel.model.id]
+      visible_checks << viewmodel.to_reference
     end
   end
 
@@ -101,7 +84,15 @@ class ViewModelBase < ViewModel::ActiveRecord
 
   # TODO abstract class like active record
 
-  include TestAccessLogging
+  def visible!(context:)
+    context.log_visible_check(self)
+    super
+  end
+
+  def editable!(deserialize_context:)
+    deserialize_context.log_edit_check(self)
+    super
+  end
 
   def self.deserialize_context_class
     DeserializeContext

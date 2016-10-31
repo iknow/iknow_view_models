@@ -153,8 +153,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     context = ViewModelBase::new_deserialize_context
     pv = ParentView.deserialize_from_view(view, deserialize_context: context)
 
-    assert_equal({ [ParentView, nil] => 1,
-                   [ChildView,  nil] => 2 },
+    assert_equal({ ViewModel::Reference.new(ParentView, nil) => 1,
+                   ViewModel::Reference.new(ChildView,  nil) => 2 },
                  count_all(context.edit_checks))
 
     assert_equal(%w(c1 c2), pv.model.children.map(&:name))
@@ -201,7 +201,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       view['children'] = []
     end
 
-    assert_equal(Set.new([[ParentView, @parent1.id]]).merge(old_children.map { |x| [ChildView, x.id] }),
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)] +
+                           old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) }
+
+    assert_equal(Set.new(expected_edit_checks),
                  context.edit_checks.to_set)
 
     assert_equal([], @parent1.children, 'no children associated with parent1')
@@ -215,9 +218,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
     end
 
-    assert_equal({ [ParentView, @parent1.id] => 1,
-                   [ChildView,  c1.id]       => 1, # deleted child
-                   [ChildView,  nil]         => 1, # created child
+    assert_equal({ ViewModel::Reference.new(ParentView, @parent1.id) => 1,
+                   ViewModel::Reference.new(ChildView,  c1.id)       => 1, # deleted child
+                   ViewModel::Reference.new(ChildView,  nil)         => 1, # created child
                  },
                  count_all(context.edit_checks))
 
@@ -305,10 +308,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     new_parent = new_parent_view.model
     new_parent.reload
 
-    assert_equal({ [ParentView, nil]           => 1,
-                   [ChildView,  nil]           => 1,
-                   [ChildView,  moved_child.id]=> 1,
-                   [ParentView, @parent1.id]   => 1 },
+    assert_equal({ ViewModel::Reference.new(ParentView, nil)            => 1,
+                   ViewModel::Reference.new(ChildView,  nil)            => 1,
+                   ViewModel::Reference.new(ChildView,  moved_child.id) => 1,
+                   ViewModel::Reference.new(ParentView, @parent1.id)    => 1 },
                  count_all(deserialize_context.edit_checks))
 
     # child should be removed from old parent

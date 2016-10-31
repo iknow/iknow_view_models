@@ -118,10 +118,10 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
        update_hash_for(ParentView, @parent2) { |p| p['target'] = update_hash_for(TargetView, t1) }],
       deserialize_context: deserialize_context)
 
-    assert_equal(Set.new([[ParentView, @parent1.id],
-                          [ParentView, @parent2.id],
-                          [TargetView, t1.id],
-                          [TargetView, t2.id]]),
+    assert_equal(Set.new([ViewModel::Reference.new(ParentView, @parent1.id),
+                          ViewModel::Reference.new(ParentView, @parent2.id),
+                          ViewModel::Reference.new(TargetView, t1.id),
+                          ViewModel::Reference.new(TargetView, t2.id)]),
                  deserialize_context.edit_checks.to_set)
 
     @parent1.reload
