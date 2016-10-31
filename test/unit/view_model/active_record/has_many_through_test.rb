@@ -214,6 +214,42 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                  @parent1.parents_tags.order(:position).map(&:tag))
   end
 
+  def test_child_edit_doesnt_editcheck_parent
+    # editing child doesn't edit check parent
+    d_context = ParentView.new_deserialize_context
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+      refs[view['tags'][0]["_ref"]]["name"] = "changed"
+    end
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(TagView, @parent1.parents_tags.order(:position).first.tag_id)))
+    refute(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
+
+  def test_child_reordering_editchecks_parent
+    d_context = ParentView.new_deserialize_context
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+      view['tags'].reverse!
+    end
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
+
+  def test_child_deletion_editchecks_parent
+    d_context = ParentView.new_deserialize_context
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+      removed = view['tags'].pop['_ref']
+      refs.delete(removed)
+    end
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+  end
+
+  def test_child_addition_editchecks_parent
+    d_context = ParentView.new_deserialize_context
+    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+      view['tags'] << { '_ref' => 't_new' }
+      refs['t_new'] = { '_type' => 'Tag', 'name' => 'newest tag' }
+    end
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
+  end
 
   def test_reordering_multi
     alter_by_view!(ParentView, @parent2, serialize_context: context_with(:tags)) do |view, refs|

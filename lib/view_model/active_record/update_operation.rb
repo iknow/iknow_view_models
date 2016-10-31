@@ -186,12 +186,14 @@ class ViewModel::ActiveRecord
       update_data.referenced_associations.each do |association_name, reference_string|
         association_data = self.viewmodel.class._association_data(association_name)
 
-        if association_data.through?
-          build_and_add_update_for_has_many_through(association_data, reference_string, update_context)
-        else
-          update = build_update_for_single_referenced_association(association_data, reference_string, update_context)
-          add_update(association_data, update)
-        end
+        update =
+          if association_data.through?
+            build_updates_for_has_many_through(association_data, reference_string, update_context)
+          else
+            build_update_for_single_referenced_association(association_data, reference_string, update_context)
+          end
+
+        add_update(association_data, update)
       end
 
       @built = true
@@ -480,48 +482,53 @@ class ViewModel::ActiveRecord
     end
 
     # TODO name isn't generic like all others; why not _collection_referenced_?
-    def build_and_add_update_for_has_many_through(association_data, reference_strings, update_context)
+    def build_updates_for_has_many_through(association_data, reference_strings, update_context)
       model = self.viewmodel.model
 
       direct_reflection         = association_data.direct_reflection
       indirect_reflection       = association_data.indirect_reflection
-      through_viewmodel         = association_data.through_viewmodel
+      through_viewmodel_class   = association_data.through_viewmodel
       indirect_association_data = association_data.indirect_association_data
 
-      viewmodel_reference_for_indirect_model = ->(through_model) do
+      viewmodel_reference_for_indirect_model = ->(through_viewmodel) do
+        through_model   = through_viewmodel.model
         model_class     = through_model.association(indirect_reflection.name).klass
         model_id        = through_model.public_send(indirect_reflection.foreign_key)
         viewmodel_class = indirect_association_data.viewmodel_class_for_model!(model_class)
         ViewModel::Reference.new(viewmodel_class, model_id)
       end
 
-      # we want to set position => we need to reimplement the through handling
-      previous_through_children =
-        model
-          .public_send(direct_reflection.name).to_a
-          .tap { |x| x.sort_by!(&through_viewmodel._list_attribute_name) if through_viewmodel._list_member? }
-          .group_by(&viewmodel_reference_for_indirect_model)
+      previous_through_viewmodels =
+        model.public_send(direct_reflection.name).to_a
+          .map { |m| through_viewmodel_class.new(m) }
+
+      previous_through_viewmodels.sort_by! { |x| x._list_attribute } if through_viewmodel_class._list_member?
 
       # To try to reduce list position churn in the case of multiple
       # associations to a single model, we keep the previous_through_children
       # values sorted, and take the first element from the list each time we
-      # find a reference to it in the update data.
+      # find a reference to it in the update data. Any viewmodels left
+      # afterwards are orphaned.
+      previous_through_viewmodels_by_indirect_ref =
+        previous_through_viewmodels.group_by(&viewmodel_reference_for_indirect_model)
 
       new_through_viewmodels = reference_strings.map do |ref|
         target_reference = update_context.resolve_reference(ref).viewmodel_reference
 
-        existing_through_record =
-          (previous_through_children[target_reference].try(:shift) if target_reference)
+        existing_through_viewmodel =
+          previous_through_viewmodels_by_indirect_ref[target_reference].try(:shift) if target_reference
 
-        if existing_through_record
-          through_viewmodel.new(existing_through_record)
-        else
-          through_viewmodel.for_new_model
-        end
+        existing_through_viewmodel || through_viewmodel_class.for_new_model
+      end
+
+      orphaned_through_viewmodels = previous_through_viewmodels_by_indirect_ref.flat_map { |_, vms| vms }
+
+      if new_through_viewmodels != previous_through_viewmodels
+        self.association_changed!
       end
 
       positions = Array.new(new_through_viewmodels.length)
-      if through_viewmodel._list_member?
+      if through_viewmodel_class._list_member?
         # It's always fine to use a position, since this is always owned data (no moves, so no positions to ignore.)
         get_position = ->(index)     { new_through_viewmodels[index]._list_attribute }
         set_position = ->(index, pos){ positions[index] = pos }
@@ -543,16 +550,13 @@ class ViewModel::ActiveRecord
       end
 
 
-      add_update(association_data, new_through_updates)
-
-      # Anything left in the list of previous_children is now garbage, and
-      # should be released. We assert it's never going to be reclaimed.
-
-      previous_through_children.each do |_, children|
-        children.each do |child|
-          update_context.release_viewmodel(through_viewmodel.new(child), association_data)
-        end
+      # Anything left from previous_children is now garbage, and should be
+      # released. We assert it's never going to be reclaimed.
+      orphaned_through_viewmodels.each do |viewmodel|
+        update_context.release_viewmodel(viewmodel, association_data)
       end
+
+      new_through_updates
     end
 
     def clear_association_cache(model, reflection)
