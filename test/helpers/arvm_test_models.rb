@@ -25,16 +25,6 @@ class ApplicationRecord < ActiveRecord::Base
   self.abstract_class = true
 end
 
-module TrivialAccessControl
-  def visible?(context:)
-    context.can_view
-  end
-
-  def editable?(deserialize_context:)
-    deserialize_context.can_edit
-  end
-end
-
 # base class for viewmodels
 class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
@@ -84,16 +74,6 @@ class ViewModelBase < ViewModel::ActiveRecord
 
   # TODO abstract class like active record
 
-  def visible!(context:)
-    context.log_visible_check(self)
-    super
-  end
-
-  def editable!(deserialize_context:)
-    deserialize_context.log_edit_check(self)
-    super
-  end
-
   def self.deserialize_context_class
     DeserializeContext
   end
@@ -101,6 +81,17 @@ class ViewModelBase < ViewModel::ActiveRecord
   def self.serialize_context_class
     SerializeContext
   end
+
+  def visible?(context:)
+    context.log_visible_check(self)
+    super && context.can_view
+  end
+
+  def editable?(deserialize_context:)
+    deserialize_context.log_edit_check(self)
+    super && deserialize_context.can_edit
+  end
+
 end
 
 class ARVMBuilder

@@ -21,7 +21,6 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes :name
         associations :children
-        include TrivialAccessControl
       end
     end
   end
@@ -42,8 +41,6 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes :name
         acts_as_list :position
-
-        include TrivialAccessControl
       end
     end
 
@@ -751,7 +748,6 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes :name
           association :children, as: :something_else
-          include TrivialAccessControl
         end
       end
 

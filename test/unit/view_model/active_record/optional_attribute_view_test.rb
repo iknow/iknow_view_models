@@ -23,7 +23,6 @@ class ViewModel::ActiveRecord::AttributeViewTest < ActiveSupport::TestCase
       define_viewmodel do
         attribute :a
         attribute :b, optional: true
-        include TrivialAccessControl
       end
     end
   end

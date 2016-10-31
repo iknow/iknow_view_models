@@ -21,7 +21,6 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :text
-        include TrivialAccessControl
       end
     end
   end
@@ -40,7 +39,6 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes   :name
         associations :target
-        include TrivialAccessControl
       end
     end
   end
@@ -268,7 +266,6 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes   :name
           association :target, as: :something_else
-          include TrivialAccessControl
         end
       end
 

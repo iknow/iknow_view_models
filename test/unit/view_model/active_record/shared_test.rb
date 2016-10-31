@@ -23,7 +23,6 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
 
         define_viewmodel do
           attributes :name
-          include TrivialAccessControl
         end
       end
     end
@@ -46,7 +45,6 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes   :name
           association :category, shared: true
-          include TrivialAccessControl
         end
       end
     end

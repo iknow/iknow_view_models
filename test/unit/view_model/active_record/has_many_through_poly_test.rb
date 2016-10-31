@@ -21,8 +21,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-
-        include TrivialAccessControl
       end
     end
   end
@@ -40,8 +38,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-
-        include TrivialAccessControl
       end
     end
   end
@@ -59,7 +55,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes :name
         association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels:[TagAView, TagBView]
-        include TrivialAccessControl
       end
     end
   end
@@ -240,7 +235,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes :name
           association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView], as: :something_else
-          include TrivialAccessControl
         end
       end
 

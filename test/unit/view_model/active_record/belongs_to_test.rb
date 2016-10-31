@@ -23,7 +23,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
         define_viewmodel do
           attributes :text
-          include TrivialAccessControl
         end
       end
     end
@@ -46,7 +45,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes   :name
           associations :label
-          include TrivialAccessControl
         end
       end
     end
@@ -69,7 +67,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
         define_viewmodel do
           associations :deleted, :ignored
-          include TrivialAccessControl
         end
       end
     end
@@ -279,7 +276,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes :name
           association :label, as: :something_else
-          include TrivialAccessControl
         end
       end
     end

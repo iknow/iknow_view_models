@@ -29,7 +29,6 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes :name, :lock_version
         attribute :one, read_only: true
-        include TrivialAccessControl
       end
     end
   end

@@ -21,7 +21,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       define_viewmodel do
         attributes :name
         association :tags, shared: true, through: :parents_tags, through_order_attr: :position
-        include TrivialAccessControl
       end
     end
   end
@@ -45,8 +44,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         if use_childtag
           associations :child_tags
         end
-
-        include TrivialAccessControl
       end
     end
   end
@@ -246,7 +243,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         define_viewmodel do
           attributes :name
           association :tags, shared: true, through: :parents_tags, through_order_attr: :position, as: :something_else
-          include TrivialAccessControl
         end
       end
 

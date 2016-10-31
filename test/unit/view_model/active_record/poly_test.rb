@@ -22,7 +22,6 @@ module ViewModel::ActiveRecord::PolyTest
         end
         define_viewmodel do
           attributes :text
-          include TrivialAccessControl
         end
       end
 
@@ -37,7 +36,6 @@ module ViewModel::ActiveRecord::PolyTest
         define_viewmodel do
           attributes :text
           association :child
-          include TrivialAccessControl
         end
       end
 
@@ -52,7 +50,6 @@ module ViewModel::ActiveRecord::PolyTest
         define_viewmodel do
           attributes :num
           association :children
-          include TrivialAccessControl
         end
       end
 
@@ -138,7 +135,6 @@ module ViewModel::ActiveRecord::PolyTest
 
         define_viewmodel do
           attributes :number
-          include TrivialAccessControl
         end
       end
 
@@ -153,7 +149,6 @@ module ViewModel::ActiveRecord::PolyTest
 
         define_viewmodel do
           attributes :text
-          include TrivialAccessControl
         end
       end
     end
@@ -173,7 +168,6 @@ module ViewModel::ActiveRecord::PolyTest
         define_viewmodel do
           attributes   :name
           association :poly, viewmodels: [PolyOneView, PolyTwoView]
-          include TrivialAccessControl
         end
       end
     end
@@ -274,7 +268,6 @@ module ViewModel::ActiveRecord::PolyTest
           define_viewmodel do
             attributes :name
             association :poly, viewmodels: [PolyOneView, PolyTwoView], as: :something_else
-            include TrivialAccessControl
           end
         end
       end
