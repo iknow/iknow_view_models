@@ -99,6 +99,7 @@ class ARVMBuilder
 
   def initialize(name, &block)
     @name = name.to_s.camelize
+    @no_viewmodel = false
     instance_eval(&block)
     raise "Model not created in ARVMBuilder"     unless model
     raise "Schema not created in ARVMBuilder"    unless model.table_exists?
