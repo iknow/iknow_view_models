@@ -172,23 +172,32 @@ class ViewModel
     ViewModel.preload_for_serialization([self], serialize_context: serialize_context)
   end
 
+  attr_writer :access_check_error
+
   def visible?(context: self.class.new_serialize_context)
     true
   end
 
   def visible!(context: self.class.new_serialize_context)
+    self.access_check_error = nil
     unless visible?(context: context)
-      raise SerializationError::Permissions.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
+      err = @access_check_error ||
+            SerializationError::Permissions.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
+      raise err
     end
   end
 
-  def editable?(deserialize_context: self.class.new_deserialize_context)
+  def editable?(deserialize_context: self.class.new_deserialize_context, changed_associations:, deleted:)
     visible?(context: deserialize_context)
   end
 
-  def editable!(deserialize_context: self.class.new_deserialize_context)
-    unless editable?(deserialize_context: deserialize_context)
-      raise DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'", self.blame_reference)
+  def editable!(deserialize_context: self.class.new_deserialize_context, changed_associations: [], deleted: false)
+    self.access_check_error = nil
+    unless editable?(deserialize_context: deserialize_context, changed_associations: changed_associations, deleted: deleted)
+      err = @access_check_error ||
+            DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'",
+                                                  self.blame_reference)
+      raise err
     end
   end
 

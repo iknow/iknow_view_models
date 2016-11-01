@@ -8,10 +8,10 @@ class ViewModel::ActiveRecord
         model = viewmodel.model
         case association_data.direct_reflection.options[:dependent]
         when :delete
-          viewmodel.editable!(deserialize_context: deserialize_context)
+          viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
           model.delete
         when :destroy
-          viewmodel.editable!(deserialize_context: deserialize_context)
+          viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
           model.destroy
         end
       end
@@ -268,7 +268,7 @@ class ViewModel::ActiveRecord
                           update_type: :implicit)
 
       update.build!(self)
-      update.association_changed!
+      update.association_changed!(parent_association_name)
       @root_update_operations << update
       update
     end

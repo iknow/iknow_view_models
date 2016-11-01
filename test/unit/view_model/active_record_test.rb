@@ -244,6 +244,158 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
      end
   end
 
+  # Tests for `editable?` behaviour
+  class EditCheckTests < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+      build_viewmodel(:List) do
+        define_schema do |t|
+          t.integer :car
+          t.integer :cdr_id
+        end
+
+        define_model do
+          belongs_to :cdr, class_name: :List, dependent: :destroy
+        end
+
+        define_viewmodel do
+          attr_reader :edit_data
+          attribute   :car
+          association :cdr
+
+          def editable?(deserialize_context:, changed_associations:, deleted:)
+            EditCheckTests.add_edit_check(self.to_reference,
+                                          [model.changes.keys, changed_associations, deleted])
+            super
+          end
+        end
+      end
+
+      build_viewmodel(:Invisible) do
+        define_schema {}
+        define_model {}
+        define_viewmodel do
+          def visible?(*)
+            self.access_check_error = ViewModel::SerializationError.new("view-failed")
+            false
+          end
+        end
+      end
+
+      build_viewmodel(:Immutable) do
+        define_schema do |t|
+          t.integer :i
+        end
+        define_model {}
+        define_viewmodel do
+          attribute :i
+
+          def editable?(*)
+            self.access_check_error = ViewModel::DeserializationError.new("edit-failed")
+            false
+          end
+        end
+      end
+    end
+
+     class << self
+       def reset_edit_checks
+         @edit_checks = {}
+       end
+
+       def add_edit_check(ref, data)
+         @edit_checks[ref] = data
+       end
+
+       def edit_check(ref)
+         @edit_checks[ref]
+       end
+     end
+
+     delegate :reset_edit_checks, :add_edit_check, :edit_check, to: :class
+
+     def setup
+       reset_edit_checks
+     end
+
+     def test_custom_view_failure
+       v = Invisible.create!
+       ex = assert_raises(ViewModel::SerializationError) do
+         InvisibleView.new(v).to_hash
+       end
+       assert_match(/view-failed/, ex.message)
+     end
+
+     def test_custom_edit_failure
+       v = Immutable.create!
+       ex = assert_raises(ViewModel::DeserializationError) do
+         alter_by_view!(ImmutableView, v) do |view, refs|
+           view["i"] = 1
+         end
+       end
+       assert_match(/edit-failed/, ex.message)
+     end
+
+     def test_editable_change_attribute
+       l = List.create!(car: 1)
+
+       alter_by_view!(ListView, l) do |view, refs|
+         view["car"] = nil
+       end
+
+       edits = edit_check(ViewModel::Reference.new(ListView, l.id))
+       assert_equal([["car"], [], false], edits)
+     end
+
+     def test_editable_add_association
+       l = List.create!(car: 1)
+
+       alter_by_view!(ListView, l) do |view, refs|
+         view["cdr"] = { "_type" => "List", "car" => 2 }
+       end
+
+       l_edits = edit_check(ViewModel::Reference.new(ListView, l.id))
+       assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+
+       c_edits = edit_check(ViewModel::Reference.new(ListView, nil))
+       assert_equal([["car"], [], false], c_edits)
+     end
+
+     def test_editable_change_association
+       l = List.create!(car: 1, cdr: List.new(car: 2))
+       l2 = l.cdr
+
+       alter_by_view!(ListView, l) do |view, refs|
+         view["cdr"] = { "_type" => "List", "car" => 2 }
+       end
+
+       l_edits = edit_check(ViewModel::Reference.new(ListView, l.id))
+       assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+
+       l2_edits = edit_check(ViewModel::Reference.new(ListView, l2.id))
+       assert_equal([[], [], true], l2_edits)
+
+       c_edits = edit_check(ViewModel::Reference.new(ListView, nil))
+       assert_equal([["car"], [], false], c_edits)
+     end
+
+     def test_editable_delete_association
+       l = List.create!(car: 1, cdr: List.new(car: 2))
+       l2 = l.cdr
+
+       alter_by_view!(ListView, l) do |view, refs|
+         view["cdr"] = nil
+       end
+
+       l_edits = edit_check(ViewModel::Reference.new(ListView, l.id))
+       assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+
+       l2_edits = edit_check(ViewModel::Reference.new(ListView, l2.id))
+       assert_equal([[], [], true], l2_edits)
+     end
+  end
 
   # Tests for overriding the serialization of attributes using custom viewmodels
   class CustomAttributeViewsTests < ActiveSupport::TestCase

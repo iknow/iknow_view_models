@@ -409,7 +409,7 @@ class ViewModel::ActiveRecord < ViewModel
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, deleted: true)
       model.destroy!
     end
   end
@@ -432,7 +432,7 @@ class ViewModel::ActiveRecord < ViewModel
     subtree_hashes = Array.wrap(subtree_hashes)
 
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
 
       association_data = self.class._association_data(association_name)
 
@@ -478,7 +478,7 @@ class ViewModel::ActiveRecord < ViewModel
   # or `:delete_all`
   def delete_associated(association_name, associated, deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
 
       association_data = self.class._association_data(association_name)
 
