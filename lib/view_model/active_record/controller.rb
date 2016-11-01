@@ -11,10 +11,6 @@ module ViewModel::ActiveRecord::Controller
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::ControllerBase
 
-  included do
-    delegate :viewmodel, to: 'self.class'
-  end
-
   def show(scope: nil, serialize_context: new_serialize_context)
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
