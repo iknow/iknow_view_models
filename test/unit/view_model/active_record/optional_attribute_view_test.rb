@@ -31,8 +31,9 @@ class ViewModel::ActiveRecord::AttributeViewTest < ActiveSupport::TestCase
     super
     @thing = Thing.create!(a: 1, b: 2)
 
-    @skel = { "_type" => "Thing",
-              "id"    => @thing.id }
+    @skel = { "_type"    => "Thing",
+              "_version" => 1,
+              "id"       => @thing.id }
   end
 
   def test_optional_not_serialized

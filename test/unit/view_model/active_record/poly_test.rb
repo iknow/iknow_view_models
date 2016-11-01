@@ -225,14 +225,30 @@ module ViewModel::ActiveRecord::PolyTest
     def test_serialize_view
       view, _refs = serialize_with_references(ParentView.new(@parent1))
 
-      assert_equal({ "_type" => "Parent",
-                     "id" => @parent1.id,
-                     "name" => @parent1.name,
-                     "poly" => { "_type" => @parent1.poly_type,
-                                 "id" => @parent1.poly.id,
-                                 "number" => @parent1.poly.number }
+      assert_equal({ "_type"    => "Parent",
+                     "_version" => 1,
+                     "id"       => @parent1.id,
+                     "name"     => @parent1.name,
+                     "poly"     => { "_type"    => @parent1.poly_type,
+                                     "_version" => 1,
+                                     "id"       => @parent1.poly.id,
+                                     "number"   => @parent1.poly.number }
                    },
                    view)
+    end
+
+    # TODO(review): is this test worth keeping?
+    def test_invalid_type_lookup_with_version
+      ex = assert_raises do
+        ParentView.deserialize_from_view(
+          { '_type' => 'Parent',
+            '_new'  => true,
+            'poly' => {
+              '_type'    => 'SomethingThatsNotActuallyAType',
+              '_version' => 1,
+            } })
+        end
+        assert_match(/\binvalid\b.+\bviewmodel type\b/i, ex.message)
     end
 
     def test_change_polymorphic_type
@@ -288,9 +304,10 @@ module ViewModel::ActiveRecord::PolyTest
 
       def test_renamed_roundtrip
         alter_by_view!(ParentView, @parent) do |view, refs|
-          assert_equal({ 'id'     => @parent.id,
-                         '_type'  => 'PolyOne',
-                         'number' => 42 },
+          assert_equal({ 'id'       => @parent.id,
+                         '_type'    => 'PolyOne',
+                         '_version' => 1,
+                         'number'   => 42 },
                        view['something_else'])
           view['something_else'] = {'_type' => 'PolyTwo', 'text' => 'hi'}
         end

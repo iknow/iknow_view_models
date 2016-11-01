@@ -31,6 +31,9 @@ class ViewModel
       end
     end
 
+    class SchemaMismatch < DeserializationError
+    end
+
     class NotFound < DeserializationError
       def http_status
         404

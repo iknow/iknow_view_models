@@ -7,6 +7,7 @@ class ViewModel
   REFERENCE_ATTRIBUTE = "_ref"
   ID_ATTRIBUTE        = "id"
   TYPE_ATTRIBUTE      = "_type"
+  VERSION_ATTRIBUTE   = "_version"
 
   require 'view_model/deserialization_error'
   require 'view_model/serialization_error'
@@ -17,9 +18,11 @@ class ViewModel
 
   class << self
     attr_accessor :_attributes
+    attr_accessor :schema_version
 
     def inherited(subclass)
       subclass._attributes = []
+      subclass.schema_version = 1
     end
 
     def view_name
@@ -114,6 +117,9 @@ class ViewModel
       deserialize_context_class.new(*args)
     end
 
+    def accepts_schema_version?(schema_version)
+      schema_version == self.schema_version
+    end
 
     def preload_for_serialization(viewmodels, serialize_context: new_serialize_context)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|

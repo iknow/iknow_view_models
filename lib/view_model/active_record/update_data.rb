@@ -97,9 +97,10 @@ class ViewModel::ActiveRecord
         {
           'type'        => 'object',
           'description' => 'viewmodel update',
-          'properties'  => { ViewModel::TYPE_ATTRIBUTE => type,
-                             ViewModel::ID_ATTRIBUTE   => id,
-                             NEW_ATTRIBUTE  => { 'type' => 'boolean' } },
+          'properties'  => { ViewModel::TYPE_ATTRIBUTE    => type,
+                             ViewModel::ID_ATTRIBUTE      => id,
+                             NEW_ATTRIBUTE                => { 'type' => 'boolean' },
+                             ViewModel::VERSION_ATTRIBUTE => { 'type' => 'integer' } },
           'required'    => [ViewModel::TYPE_ATTRIBUTE]
         }
       VIEWMODEL_UPDATE = JsonSchema.parse!(viewmodel_update)
@@ -229,9 +230,9 @@ class ViewModel::ActiveRecord
 
       # Construct root UpdateData
       root_updates = root_subtree_hashes.map do |subtree_hash|
-        viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
-
+        viewmodel_name, schema_version, id, new = extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class                         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
+        verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
 
@@ -240,8 +241,9 @@ class ViewModel::ActiveRecord
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
-        viewmodel_name, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
+        viewmodel_name, schema_version, id, new = extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class                         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
+        verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
 
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
@@ -253,10 +255,11 @@ class ViewModel::ActiveRecord
 
     def self.extract_viewmodel_metadata(hash)
       verify_schema!(Schemas::VIEWMODEL_UPDATE, hash)
-      id        = hash.delete(ViewModel::ID_ATTRIBUTE)
-      type_name = hash.delete(ViewModel::TYPE_ATTRIBUTE)
-      new       = hash.delete(NEW_ATTRIBUTE) { false }
-      return type_name, id, new
+      id             = hash.delete(ViewModel::ID_ATTRIBUTE)
+      type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
+      schema_version = hash.delete(ViewModel::VERSION_ATTRIBUTE)
+      new            = hash.delete(NEW_ATTRIBUTE) { false }
+      return type_name, schema_version, id, new
     end
 
     def self.extract_reference_metadata(hash)
@@ -448,11 +451,17 @@ class ViewModel::ActiveRecord
           else
             # Recurse into child
             parse_association = ->(child_hash) do
-              child_viewmodel_name, child_id, child_new = UpdateData.extract_viewmodel_metadata(child_hash)
-              child_viewmodel_class = association_data.viewmodel_class_for_name(child_viewmodel_name)
+              child_viewmodel_name, child_schema_version, child_id, child_new =
+                UpdateData.extract_viewmodel_metadata(child_hash)
+
+              child_viewmodel_class =
+                association_data.viewmodel_class_for_name(child_viewmodel_name)
+
               if child_viewmodel_class.nil?
                 raise_deserialization_error("Invalid target viewmodel type '#{child_viewmodel_name}' for association '#{association_data.target_reflection.name}'")
               end
+
+              self.class.verify_schema_version!(child_viewmodel_class, child_schema_version, child_id) if child_schema_version
 
               UpdateData.new(child_viewmodel_class, child_id, child_new, child_hash, valid_reference_keys)
             end
@@ -528,6 +537,15 @@ class ViewModel::ActiveRecord
 
     def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
       raise error.new(msg, [ViewModel::Reference.new(self.viewmodel_class, self.id)], *args)
+    end
+
+    def self.verify_schema_version!(viewmodel_class, schema_version, id)
+      unless viewmodel_class.accepts_schema_version?(schema_version)
+        raise ViewModel::DeserializationError::SchemaMismatch.new(
+                "Mismatched schema version for type #{viewmodel_class.view_name}, "\
+                "expected #{viewmodel_class.schema_version}, received #{schema_version}.",
+                ViewModel::Reference.new(viewmodel_class, id))
+      end
     end
   end
 end

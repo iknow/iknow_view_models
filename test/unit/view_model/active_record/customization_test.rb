@@ -76,9 +76,10 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
                                    Translation.new(language: "fr", translation: "chien")])
 
     @text1_view = {
-      "id" => @text1.id,
-      "_type" => "Text",
-      "text"  => "dog",
+      "id"           => @text1.id,
+      "_type"        => "Text",
+      "_version"     => 1,
+      "text"         => "dog",
       "translations" => {
         "ja" => "犬",
         "fr" => "chien"
@@ -225,6 +226,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @simplesection_view = {
       "id"           => @simplesection.id,
       "_type"        => "Section",
+      "_version"     => 1,
       "section_type" => "Simple",
       "name"         => "simple1"
     }
@@ -233,6 +235,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @quizsection_view = {
       "id"           => @quizsection.id,
       "_type"        => "Section",
+      "_version"     => 1,
       "section_type" => "Quiz",
       "name"         => "quiz1",
       "quiz_name"    => "qq"
@@ -242,6 +245,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @vocabsection_view = {
       "id"           => @vocabsection.id,
       "_type"        => "Section",
+      "_version"     => 1,
       "section_type" => "Vocab",
       "name"         => "vocab1",
       "vocab_word"   => "dog"

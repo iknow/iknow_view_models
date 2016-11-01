@@ -287,9 +287,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     def test_serialize_view
       view, _refs = serialize_with_references(PairView.new(@pair))
 
-      assert_equal({ "_type" => "Pair",
-                     "id"    => @pair.id,
-                     "pair"  => { "a" => 1, "b" => 2 }},
+      assert_equal({ "_type"    => "Pair",
+                     "_version" => 1,
+                     "id"       => @pair.id,
+                     "pair"     => { "a" => 1, "b" => 2 } },
                    view)
     end
 
