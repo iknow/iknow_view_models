@@ -243,8 +243,6 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
     serialize_context = ParentView.new_serialize_context(include: :category)
     d_context = ParentView.new_deserialize_context
 
-    old_category_id = @parent1.category.id
-
     alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
       refs.delete(view['category']['_ref'])
       view['category']['_ref'] = 'new_cat'
@@ -258,8 +256,6 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
   def test_child_delete_editchecks_parent
     serialize_context = ParentView.new_serialize_context(include: :category)
     d_context = ParentView.new_deserialize_context
-
-    old_category_id = @parent1.category.id
 
     alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
       refs.delete(view['category']['_ref'])

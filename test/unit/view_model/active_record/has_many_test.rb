@@ -194,7 +194,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_remove_has_many
     old_children = @parent1.children
-    model, context = alter_by_view!(ParentView, @parent1) do |view, refs|
+    _, context = alter_by_view!(ParentView, @parent1) do |view, refs|
       view['children'] = []
     end
 
@@ -210,7 +210,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_edit_has_many
     c1, c2, c3 = @parent1.children.order(:position).to_a
-    view, context = alter_by_view!(ParentView, @parent1) do |view, refs|
+    _, context = alter_by_view!(ParentView, @parent1) do |view, refs|
       view['children'].shift
       view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
     end
@@ -502,7 +502,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # child should be added to new parent with valid position
     assert_equal(3, @parent2.children.size)
-    nc1, nc2, nc3 = @parent2.children.order(:position)
+    nc1, _, nc3 = @parent2.children.order(:position)
     assert_equal("p2c1", nc1.name)
 
     assert_equal("p2c1", nc1.name)
@@ -580,7 +580,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   end
 
   def test_functional_update_append_before_corpse
-    c1, c2, c3 = @parent1.children.order(:position)
+    _, c2, _ = @parent1.children.order(:position)
     c2.destroy
     append_view = { '_type'    => 'Parent',
                     'id'       => @parent1.id,
@@ -630,7 +630,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   end
 
   def test_functional_update_append_after_corpse
-    c1, c2, c3 = @parent1.children.order(:position)
+    _, c2, _ = @parent1.children.order(:position)
     c2.destroy
     append_view = { '_type'    => 'Parent',
                     'id'       => @parent1.id,

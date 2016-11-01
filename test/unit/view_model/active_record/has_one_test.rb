@@ -341,7 +341,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
 
     def test_move
-      skip "Issue #8"; return
+      skip "Issue #8"
 
       model = Aye.create(bee: Bee.new(cee: Cee.new))
 
