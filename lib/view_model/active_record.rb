@@ -177,7 +177,7 @@ class ViewModel::ActiveRecord < ViewModel
         through_to             = nil
       end
 
-      vm_association_name    = as || association_name
+      vm_association_name    = (as || association_name).to_s
 
       reflection = model_class.reflect_on_association(model_association_name)
 
@@ -187,9 +187,9 @@ class ViewModel::ActiveRecord < ViewModel
 
       viewmodel_spec = viewmodel || viewmodels
 
-      association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
+      association_data = AssociationData.new(vm_association_name, reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
 
-      _members[vm_association_name.to_s]      = association_data
+      _members[vm_association_name] = association_data
 
       @generated_accessor_module.module_eval do
         define_method vm_association_name do

@@ -1,8 +1,9 @@
 # TODO consider rephrase scope for consistency
 class ViewModel::ActiveRecord::AssociationData
-  attr_reader :direct_reflection
+  attr_reader :direct_reflection, :association_name
 
-  def initialize(direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
+  def initialize(association_name, direct_reflection, viewmodel_classes, shared, optional, through_to, through_order_attr)
+    @association_name   = association_name
     @direct_reflection  = direct_reflection
     @shared             = shared
     @optional           = optional
