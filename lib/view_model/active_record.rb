@@ -124,7 +124,7 @@ class ViewModel::ActiveRecord < ViewModel
           redefine_method("deserialize_#{attr}") do |value, deserialize_context: self.class.deserialize_context|
             begin
               model.public_send("#{attr}=", value)
-            rescue NameError => ex
+            rescue NameError
               raise ViewModel::DeserializationError.new("Invalid enumeration constant '#{value}'", self.blame_reference)
             end
           end

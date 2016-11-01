@@ -93,7 +93,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       "_new"  => true
     }
     ex = assert_raises(ViewModel::DeserializationError) do
-      pv = ParentView.deserialize_from_view(view)
+      ParentView.deserialize_from_view(view)
     end
     assert_match(/not-null constraint/, ex.message)
     assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
@@ -107,7 +107,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       "_new"  => true
     }
     ex = assert_raises(ViewModel::DeserializationError) do
-      pv = ParentView.deserialize_from_view(view)
+      ParentView.deserialize_from_view(view)
     end
     assert_match(/read only/, ex.message)
     assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
@@ -237,7 +237,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     @parent1.name = "changed"
     @parent1.save!
 
-     ex = assert_raises(ViewModel::DeserializationError::LockFailure) do
+     assert_raises(ViewModel::DeserializationError::LockFailure) do
       alter_by_view!(ParentView, @parent1) do |view, refs|
         view['lock_version'] = 0
       end

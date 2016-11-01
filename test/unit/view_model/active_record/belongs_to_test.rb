@@ -183,7 +183,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_belongs_to_move_and_replace_from_outside_tree
     old_p1_label = @parent1.label
-    old_p2_label = @parent2.label
 
     ex = assert_raises(ViewModel::DeserializationError) do
       set_by_view!(ParentView, @parent2) do |p2, refs|
