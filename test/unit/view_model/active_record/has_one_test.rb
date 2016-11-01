@@ -96,13 +96,15 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_serialize_view
     view, _refs = serialize_with_references(ParentView.new(@parent1))
-    assert_equal({ "_type" => "Parent",
-                   "id" => @parent1.id,
-                   "name" => @parent1.name,
-                   "target" => { "_type" => "Target",
-                                 "id" => @parent1.target.id,
-                                 "text" => @parent1.target.text }},
-                view)
+    assert_equal({ "_type"    => "Parent",
+                   "_version" => 1,
+                   "id"       => @parent1.id,
+                   "name"     => @parent1.name,
+                   "target"   => { "_type"    => "Target",
+                                   "_version" => 1,
+                                   "id"       => @parent1.target.id,
+                                   "text"     => @parent1.target.text } },
+                 view)
   end
 
   def test_swap_has_one
@@ -288,9 +290,10 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
-        assert_equal({'id' => @parent.target.id,
-                     '_type' => 'Target',
-                     'text' => 'target text'},
+        assert_equal({ 'id'       => @parent.target.id,
+                       '_type'    => 'Target',
+                       '_version' => 1,
+                       'text'     => 'target text' },
                      view['something_else'])
         view['something_else']['text'] = 'target new text'
       end

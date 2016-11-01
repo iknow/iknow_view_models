@@ -176,8 +176,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                                            serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
-    assert_equal([{ 'id' => @tag1.id, '_type' => 'Tag', 'name' => 'tag1' },
-                  { 'id' => @tag2.id, '_type' => 'Tag', 'name' => 'tag2' }],
+    assert_equal([{ 'id' => @tag1.id, '_type' => 'Tag', '_version' => 1, 'name' => 'tag1' },
+                  { 'id' => @tag2.id, '_type' => 'Tag', '_version' => 1, 'name' => 'tag2' }],
                  tag_data)
   end
 
@@ -304,9 +304,10 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context(include: :something_else)
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
-        assert_equal({refs.keys.first => {'id'    => @parent.parents_tags.first.tag.id,
-                                          '_type' => 'Tag',
-                                          'name'  => 'tag name'}}, refs)
+        assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
+                                           '_type'    => 'Tag',
+                                           '_version' => 1,
+                                           'name'     => 'tag name' }}, refs)
         assert_equal([{ '_ref' => refs.keys.first }],
                      view['something_else'])
 

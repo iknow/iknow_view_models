@@ -80,12 +80,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view, _refs = serialize_with_references(ParentView.new(@parent1))
 
 
-    assert_equal({ "_type" => "Parent",
-                   "id" => @parent1.id,
-                   "name" => @parent1.name,
-                   "children" => @parent1.children.map { |child| { "_type" => "Child",
-                                                                   "id" => child.id,
-                                                                   "name" => child.name } } },
+    assert_equal({ "_type"    => "Parent",
+                   "_version" => 1,
+                   "id"       => @parent1.id,
+                   "name"     => @parent1.name,
+                   "children" => @parent1.children.map { |child| { "_type"    => "Child",
+                                                                   "_version" => 1,
+                                                                   "id"       => child.id,
+                                                                   "name"     => child.name } } },
                  view)
   end
 
@@ -770,9 +772,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
-        assert_equal([{'id'   => @parent.children.first.id,
-                      '_type' => 'Child',
-                      'name'  => 'c1'}],
+        assert_equal([{ 'id'       => @parent.children.first.id,
+                        '_type'    => 'Child',
+                        '_version' => 1,
+                        'name'     => 'c1' }],
                      view['something_else'])
         view['something_else'][0]['name'] = 'new c1 name'
       end

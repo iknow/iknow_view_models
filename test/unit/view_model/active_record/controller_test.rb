@@ -325,9 +325,10 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal({ 'data' => { '_type' => 'Label',
-                               'id'    => @parent.label.id,
-                               'text'  => 'new label' } },
+    assert_equal({ 'data' => { '_type'    => 'Label',
+                               '_version' => 1,
+                               'id'       => @parent.label.id,
+                               'text'     => 'new label' } },
                  labelcontroller.hash_response)
 
     refute_equal(old_label, @parent.label)

@@ -94,12 +94,14 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_serialize_view
     view, _refs = serialize_with_references(ParentView.new(@parent1))
 
-    assert_equal({ "_type" => "Parent",
-                   "id" => @parent1.id,
-                   "name" => @parent1.name,
-                   "label" => { "_type" => "Label",
-                                "id" => @parent1.label.id,
-                                "text" => @parent1.label.text },
+    assert_equal({ "_type"    => "Parent",
+                   "_version" => 1,
+                   "id"       => @parent1.id,
+                   "name"     => @parent1.name,
+                   "label"    => { "_type"    => "Label",
+                                   "_version" => 1,
+                                   "id"       => @parent1.label.id,
+                                   "text"     => @parent1.label.text },
                  },
                  view)
   end
@@ -295,9 +297,10 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
-        assert_equal({ 'id'    => @parent.label.id,
-                       '_type' => 'Label',
-                       'text'  => 'l1'},
+        assert_equal({ 'id'       => @parent.label.id,
+                       '_type'    => 'Label',
+                       '_version' => 1,
+                       'text'     => 'l1' },
                      view['something_else'])
         view['something_else']['text'] = 'new l1 text'
       end

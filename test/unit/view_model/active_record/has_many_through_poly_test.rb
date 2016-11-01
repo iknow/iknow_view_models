@@ -172,10 +172,10 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                                            serialize_context: context_with(:tags))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
-    assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', 'name' => 'tag A1' },
-                  { 'id' => @tag_a2.id, '_type' => 'TagA', 'name' => 'tag A2' },
-                  { 'id' => @tag_b1.id, '_type' => 'TagB', 'name' => 'tag B1' },
-                  { 'id' => @tag_b2.id, '_type' => 'TagB', 'name' => 'tag B2' }],
+    assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A1' },
+                  { 'id' => @tag_a2.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A2' },
+                  { 'id' => @tag_b1.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B1' },
+                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' }],
                  tag_data)
   end
 
@@ -261,9 +261,10 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context(include: :something_else)
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
-        assert_equal({refs.keys.first => {'id' => @parent.parents_tags.first.tag.id,
-                                          '_type' => 'TagA',
-                                          'name' => 'tag A name'}}, refs)
+        assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
+                                           '_type'    => 'TagA',
+                                           '_version' => 1,
+                                           'name'     => 'tag A name' }}, refs)
         assert_equal([{ '_ref' => refs.keys.first }],
                      view['something_else'])
 
