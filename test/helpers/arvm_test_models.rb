@@ -87,7 +87,7 @@ class ViewModelBase < ViewModel::ActiveRecord
     super && context.can_view
   end
 
-  def editable?(deserialize_context:)
+  def editable?(deserialize_context:, changed_associations:, deleted:)
     deserialize_context.log_edit_check(self)
     super && deserialize_context.can_edit
   end

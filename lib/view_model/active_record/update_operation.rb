@@ -28,7 +28,7 @@ class ViewModel::ActiveRecord
       self.reposition_to = reposition_to
 
       @run_state = RunState::Pending
-      @association_changed = false
+      @changed_associations = []
       @built = false
     end
 
@@ -46,12 +46,12 @@ class ViewModel::ActiveRecord
       @built
     end
 
-    def association_changed!
-      @association_changed = true
+    def association_changed!(association_name)
+      @changed_associations << association_name
     end
 
-    def association_changed?
-      @association_changed
+    def associations_changed?
+      @changed_associations.present?
     end
 
     # Evaluate a built update tree, applying and saving changes to the models.
@@ -119,8 +119,8 @@ class ViewModel::ActiveRecord
         # current state of the model before it is saved. For example, but
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
-        if model.changed? || association_changed?
-          viewmodel.editable!(deserialize_context: deserialize_context)
+        if model.changed? || associations_changed?
+          viewmodel.editable!(deserialize_context: deserialize_context, changed_associations: @changed_associations)
         end
 
         debug "-> #{debug_name}: Saving"
@@ -236,7 +236,7 @@ class ViewModel::ActiveRecord
       end
 
       if previous_child_viewmodel != referred_viewmodel
-        self.association_changed!
+        self.association_changed!(association_data.association_name)
       end
 
       referred_update
@@ -306,7 +306,7 @@ class ViewModel::ActiveRecord
         end
 
       if previous_child_viewmodel != child_viewmodel
-        self.association_changed!
+        self.association_changed!(association_data.association_name)
         # free previous child if present
         if previous_child_viewmodel.present?
           if association_data.pointer_location == :local
@@ -458,7 +458,7 @@ class ViewModel::ActiveRecord
       # if the new children differ, mark that one of our associations has
       # changed and release any no-longer-attached children
       if child_viewmodels != previous_child_viewmodels
-        self.association_changed!
+        self.association_changed!(association_data.association_name)
         released_child_viewmodels = previous_child_viewmodels - child_viewmodels
         released_child_viewmodels.each do |vm|
           update_context.release_viewmodel(vm, association_data)
@@ -538,7 +538,7 @@ class ViewModel::ActiveRecord
       orphaned_through_viewmodels = previous_through_viewmodels_by_indirect_ref.flat_map { |_, vms| vms }
 
       if new_through_viewmodels != previous_through_viewmodels
-        self.association_changed!
+        self.association_changed!(association_data.association_name)
       end
 
       positions = Array.new(new_through_viewmodels.length)

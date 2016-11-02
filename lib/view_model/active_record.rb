@@ -179,7 +179,7 @@ class ViewModel::ActiveRecord < ViewModel
         through_to             = nil
       end
 
-      vm_association_name    = as || association_name
+      vm_association_name    = (as || association_name).to_s
 
       reflection = model_class.reflect_on_association(model_association_name)
 
@@ -189,9 +189,9 @@ class ViewModel::ActiveRecord < ViewModel
 
       viewmodel_spec = viewmodel || viewmodels
 
-      association_data = AssociationData.new(reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
+      association_data = AssociationData.new(vm_association_name, reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
 
-      _members[vm_association_name.to_s]      = association_data
+      _members[vm_association_name] = association_data
 
       @generated_accessor_module.module_eval do
         define_method vm_association_name do
@@ -412,7 +412,7 @@ class ViewModel::ActiveRecord < ViewModel
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, deleted: true)
       model.destroy!
     end
   end
@@ -435,7 +435,7 @@ class ViewModel::ActiveRecord < ViewModel
     subtree_hashes = Array.wrap(subtree_hashes)
 
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
 
       association_data = self.class._association_data(association_name)
 
@@ -481,7 +481,7 @@ class ViewModel::ActiveRecord < ViewModel
   # or `:delete_all`
   def delete_associated(association_name, associated, deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context)
+      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
 
       association_data = self.class._association_data(association_name)
 
