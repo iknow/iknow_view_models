@@ -180,7 +180,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(view)
     end
 
-    assert_match(/Error parsing collection functional update/, ex.message)
+    assert_match(/Errors parsing collection functional update/, ex.message)
   end
 
   def test_replace_has_many
