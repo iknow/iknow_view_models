@@ -173,11 +173,13 @@ class ViewModel::ActiveRecord
 
       collection_update =
         {
-          'type'        => 'object',
-          'description' => 'collection functional update',
-          'properties'  => {
+          'type'                 => 'object',
+          'description'          => 'collection functional update',
+          'additionalProperties' => false,
+          'required'             => [ViewModel::TYPE_ATTRIBUTE, ACTIONS_ATTRIBUTE],
+          'properties'           => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FUNCTIONAL_UPDATE_TYPE] },
-            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_functional_update_schema }
+            ACTIONS_ATTRIBUTE         => { 'type' => 'array', 'items' => base_functional_update_schema }
             # The ACTIONS_ATTRIBUTE could be accurately expressed as
             #
             #   { 'oneOf' => [append, update, remove] }
@@ -185,7 +187,7 @@ class ViewModel::ActiveRecord
             # but this produces completely unusable error messages.  Instead we
             # specify it must be an array, and defer checking to the code that
             # can determine the schema by inspecting the type field.
-          }
+          },
         }
       COLLECTION_UPDATE = JsonSchema.parse!(collection_update)
     end
