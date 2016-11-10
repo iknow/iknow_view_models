@@ -330,6 +330,30 @@ class ViewModel::ActiveRecord < ViewModel
       self._members.keys
     end
 
+    def dependent_viewmodels(seen = Set.new)
+      return if seen.include?(self)
+
+      seen << self
+
+      _members.each do |name, data|
+        next unless data.is_a?(AssociationData)
+        data.viewmodel_classes.each do |vm|
+          vm.dependent_viewmodels(seen)
+        end
+      end
+
+      seen
+    end
+
+    def deep_schema_version
+      @deep_schema_version ||=
+        begin
+          dependent_viewmodels.each_with_object({}) do |view, h|
+            h[view.view_name] = view.schema_version
+          end
+        end
+    end
+
     # internal
     def _association_data(association_name)
       association_data = self._members[association_name.to_s]
