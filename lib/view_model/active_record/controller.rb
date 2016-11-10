@@ -68,6 +68,10 @@ module ViewModel::ActiveRecord::Controller
     end
   end
 
+  included do
+    etag { self.viewmodel.deep_schema_version }
+  end
+
   private
 
   def viewmodel_id
