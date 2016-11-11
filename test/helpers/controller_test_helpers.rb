@@ -191,6 +191,9 @@ class DummyController
     def rescue_block(type)
       @rescue_blocks.to_a.reverse.detect { |btype, h| type <= btype }.try(&:last)
     end
+
+    def etag(*)
+    end
   end
 end
 
