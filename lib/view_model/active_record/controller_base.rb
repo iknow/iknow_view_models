@@ -37,6 +37,11 @@ module ControllerBase
     end
   end
 
+  # Override render_viewmodel to use the default serialization context from this controller.
+  def render_viewmodel(viewmodel, serialize_context: new_serialize_context, **args)
+    super(viewmodel, serialize_context: serialize_context, **args)
+  end
+
   protected
 
   def new_deserialize_context(*args)
