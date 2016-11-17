@@ -8,41 +8,10 @@ module ControllerBase
 
   protected
 
-  def parse_viewmodel_updates
-    update_hash = _extract_update_data(params.fetch(:data))
-    refs        = _extract_param_hash(params.fetch(:references, {}))
-
-    return update_hash, refs
-  end
-
-  def _extract_update_data(data)
-    if data.is_a?(Array)
-      if data.blank?
-        raise ViewModel::Controller::ApiErrorView.new(status: 400, detail: "No data submitted: #{data.inspect}").to_error
-      end
-      data.map { |el| _extract_param_hash(el) }
-    else
-      _extract_param_hash(data)
-    end
-  end
-
-  def _extract_param_hash(data)
-    case data
-    when Hash
-      data
-    when ActionController::Parameters
-      data.to_unsafe_h
-    else
-      raise ViewModel::Controller::ApiErrorView.new(status: 400, detail: "Invalid data submitted, expected hash: #{data.inspect}").to_error
-    end
-  end
-
   # Override render_viewmodel to use the default serialization context from this controller.
   def render_viewmodel(viewmodel, serialize_context: new_serialize_context, **args)
     super(viewmodel, serialize_context: serialize_context, **args)
   end
-
-  protected
 
   def new_deserialize_context(*args)
     viewmodel.new_deserialize_context(*args)
@@ -76,8 +45,8 @@ module ControllerBase
         raise ArgumentError.new("ViewModel class for Controller '#{self.name}' already set")
       end
 
-      unless type < ViewModel::ActiveRecord
-        raise ArgumentError.new("'#{type.inspect}' is not a valid ViewModel::ActiveRecord")
+      unless type < ViewModel
+        raise ArgumentError.new("'#{type.inspect}' is not a valid ViewModel")
       end
       @viewmodel = type
     end
@@ -85,11 +54,7 @@ module ControllerBase
 
   included do
     delegate :viewmodel, to: 'self.class'
-
-    rescue_from ViewModel::DeserializationError, with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
-    rescue_from ViewModel::SerializationError,   with: ->(ex){ render_exception(ex, ex.http_status, metadata: ex.metadata) }
   end
-
 end
 end
 
