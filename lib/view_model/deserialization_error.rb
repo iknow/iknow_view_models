@@ -1,9 +1,13 @@
 class ViewModel
-  class DeserializationError < StandardError
+  class DeserializationError < ViewModel::Error
     attr_reader :nodes
-    def initialize(msg, nodes = [])
-      super(msg)
+
+    def initialize(detail, nodes = [])
       @nodes = Array.wrap(nodes)
+      super(detail:   detail,
+            status:   self.http_status,
+            code:     self.error_type,
+            metadata: self.metadata)
     end
 
     def http_status
@@ -53,8 +57,8 @@ class ViewModel
       attr_reader :validation_errors
 
       def initialize(msg, nodes, validation_errors = nil)
-        super(msg, nodes)
         @validation_errors = validation_errors
+        super(msg, nodes)
       end
 
       def metadata

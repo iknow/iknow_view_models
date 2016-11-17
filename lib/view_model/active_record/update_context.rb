@@ -236,7 +236,7 @@ class ViewModel::ActiveRecord
         deferred_update.build!(self)
       end
 
-      dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| ref }
+      dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| upd.viewmodel.to_reference }
       if dangling_references.present?
         raise ViewModel::DeserializationError.new("References not referred to from roots", dangling_references)
       end

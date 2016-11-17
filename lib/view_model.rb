@@ -9,13 +9,6 @@ class ViewModel
   TYPE_ATTRIBUTE      = "_type"
   VERSION_ATTRIBUTE   = "_version"
 
-  require 'view_model/deserialization_error'
-  require 'view_model/serialization_error'
-  require 'view_model/references'
-  require 'view_model/reference'
-  require 'view_model/serialize_context'
-  require 'view_model/deserialize_context'
-
   class << self
     attr_accessor :_attributes
     attr_accessor :schema_version
@@ -219,3 +212,11 @@ class ViewModel
     self.class._attributes.map { |attr| self.send(attr) }.hash
   end
 end
+
+require 'view_model/error'
+require 'view_model/deserialization_error'
+require 'view_model/serialization_error'
+require 'view_model/references'
+require 'view_model/reference'
+require 'view_model/serialize_context'
+require 'view_model/deserialize_context'
