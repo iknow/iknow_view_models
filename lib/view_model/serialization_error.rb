@@ -1,19 +1,15 @@
 class ViewModel
-  class SerializationError < StandardError
-    def http_status
+  class SerializationError < ViewModel::AbstractError
+    def status
       400
     end
 
-    def metadata
-      {}
-    end
-
-    def error_type
+    def code
       "Serialization.#{self.class.name.demodulize}"
     end
 
     class Permissions < SerializationError
-      def http_status
+      def status
         403
       end
     end

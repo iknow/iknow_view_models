@@ -1,12 +1,13 @@
 class ViewModel
-  class DeserializationError < StandardError
+  class DeserializationError < ViewModel::AbstractError
     attr_reader :nodes
-    def initialize(msg, nodes = [])
-      super(msg)
+
+    def initialize(detail, nodes = [])
+      super(detail)
       @nodes = Array.wrap(nodes)
     end
 
-    def http_status
+    def status
       400
     end
 
@@ -21,12 +22,12 @@ class ViewModel
       }
     end
 
-    def error_type
+    def code
       "Deserialization.#{self.class.name.demodulize}"
     end
 
     class Permissions < DeserializationError
-      def http_status
+      def status
         403
       end
     end
@@ -35,7 +36,7 @@ class ViewModel
     end
 
     class NotFound < DeserializationError
-      def http_status
+      def status
         404
       end
 
