@@ -1,18 +1,29 @@
-class ViewModel::Error < StandardError
-  attr_reader :status, :detail, :title, :code, :metadata
+class ViewModel::AbstractError < StandardError
+  def initialize(detail)
+    super(detail)
+  end
 
-  def initialize(status: 400, detail: nil, title: nil, code: nil, metadata: {})
+  def detail;   message; end
+  def status;   nil;     end
+  def title;    nil;     end
+  def code;     nil;     end
+  def metadata; {};      end
+
+  def view
+    ViewModel::Error::View.new(self)
+  end
+end
+
+class ViewModel::Error < ViewModel::AbstractError
+  attr_reader :status, :title, :code, :metadata
+
+  def initialize(status: 400, detail: "ViewModel::Error", title: nil, code: nil, metadata: {})
+    super(detail)
+
     @status   = status
-    @detail   = detail
     @title    = title
     @code     = code
     @metadata = metadata
-
-    super(detail || "ViewModel Error")
-  end
-
-  def view
-    View.new(self)
   end
 
   class View < ::ViewModel

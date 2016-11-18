@@ -4,7 +4,7 @@ module ViewModel::Controller
   extend ActiveSupport::Concern
 
   included do
-    rescue_from ViewModel::Error, with: ->(ex) do
+    rescue_from ViewModel::AbstractError, with: ->(ex) do
       render_errors(ex.view, ex.status)
     end
   end
