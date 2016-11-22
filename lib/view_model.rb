@@ -8,6 +8,7 @@ class ViewModel
   ID_ATTRIBUTE        = "id"
   TYPE_ATTRIBUTE      = "_type"
   VERSION_ATTRIBUTE   = "_version"
+  NEW_ATTRIBUTE       = "_new"
 
   class << self
     attr_accessor :_attributes
@@ -46,6 +47,21 @@ class ViewModel
 
       attr_accessor attr
       _attributes << attr
+    end
+
+    # In deserialization, verify and extract metadata from a provided hash.
+    def extract_viewmodel_metadata(hash)
+      ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_UPDATE, hash)
+      id             = hash.delete(ViewModel::ID_ATTRIBUTE)
+      type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
+      schema_version = hash.delete(ViewModel::VERSION_ATTRIBUTE)
+      new            = hash.delete(ViewModel::NEW_ATTRIBUTE) { false }
+      return type_name, schema_version, id, new
+    end
+
+    def extract_reference_metadata(hash)
+      ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_REFERENCE, hash)
+      hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
     # If this viewmodel represents an AR model, what associations does it make
@@ -156,8 +172,12 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
+  def id
+    model.id if model.respond_to?(:id)
+  end
+
   def to_reference
-    ViewModel::Reference.new(self.class, self.try(&:id))
+    ViewModel::Reference.new(self.class, self.id)
   end
 
   # When deserializing, if an error occurs within this viewmodel, what viewmodel
@@ -180,9 +200,15 @@ class ViewModel
   def visible!(context: self.class.new_serialize_context)
     self.access_check_error = nil
     unless visible?(context: context)
-      err = @access_check_error ||
-            SerializationError::Permissions.new("Attempt to view forbidden viewmodel '#{self.class.name}'")
-      raise err
+      raise case
+            when @access_check_error
+              @access_check_error
+            when context.is_a?(DeserializeContext)
+              DeserializationError::Permissions.new("Attempt to deserialize into forbidden viewmodel '#{self.class.view_name}'",
+                                                    self.blame_reference)
+            else
+              SerializationError::Permissions.new("Attempt to serialize forbidden viewmodel '#{self.class.view_name}'")
+            end
     end
   end
 
@@ -194,7 +220,7 @@ class ViewModel
     self.access_check_error = nil
     unless editable?(deserialize_context: deserialize_context, changed_associations: changed_associations, deleted: deleted)
       err = @access_check_error ||
-            DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.name}'",
+            DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.view_name}'",
                                                   self.blame_reference)
       raise err
     end
@@ -216,6 +242,7 @@ end
 require 'view_model/error'
 require 'view_model/deserialization_error'
 require 'view_model/serialization_error'
+require 'view_model/registry'
 require 'view_model/references'
 require 'view_model/reference'
 require 'view_model/serialize_context'

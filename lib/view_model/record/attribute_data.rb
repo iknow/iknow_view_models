@@ -1,4 +1,4 @@
-class ViewModel::ActiveRecord::AttributeData
+class ViewModel::Record::AttributeData
   attr_reader :attribute_viewmodel
 
   def initialize(attribute_viewmodel, optional)

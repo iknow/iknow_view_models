@@ -2,14 +2,14 @@ require "active_support"
 require "active_record"
 
 require "view_model"
+require "view_model/record"
 
 require "cerego_active_record_patches"
 require "lazily"
 require "concurrent"
 
-class ViewModel::ActiveRecord < ViewModel
+class ViewModel::ActiveRecord < ViewModel::Record
   # Defined before requiring components so components can refer to them at parse time
-  NEW_ATTRIBUTE       = "_new"
 
   # for functional updates
   FUNCTIONAL_UPDATE_TYPE = "_update"
@@ -19,96 +19,20 @@ class ViewModel::ActiveRecord < ViewModel
   AFTER_ATTRIBUTE        = "after"
 
   require 'view_model/active_record/collections'
-  require 'view_model/active_record/attribute_data'
   require 'view_model/active_record/association_data'
   require 'view_model/active_record/update_data'
   require 'view_model/active_record/update_context'
   require 'view_model/active_record/update_operation'
   require 'view_model/active_record/visitor'
 
-  # An AR ViewModel wraps a single AR model
-  attribute :model
-
-  @@viewmodel_classes_by_name  = Concurrent::Map.new
-  @@deferred_viewmodel_classes = Concurrent::Array.new
-
   class << self
-    attr_reader :_members, :_list_attribute_name
-    attr_accessor :abstract_class, :synthetic, :unregistered
+    attr_reader   :_list_attribute_name
+    attr_accessor :synthetic
 
     delegate :transaction, to: :model_class
 
-    def for_view_name(name)
-      raise ViewModel::DeserializationError.new("ViewModel name cannot be nil") if name.nil?
-
-      # Resolve names for any deferred viewmodel classes
-      until @@deferred_viewmodel_classes.empty? do
-        vm = @@deferred_viewmodel_classes.pop
-        @@viewmodel_classes_by_name[vm.view_name] = vm unless vm.abstract_class || vm.synthetic || vm.unregistered
-      end
-
-      viewmodel_class = @@viewmodel_classes_by_name[name]
-
-      if viewmodel_class.nil? || !(viewmodel_class < ViewModel::ActiveRecord)
-        raise ViewModel::DeserializationError.new("ViewModel class for view name '#{name}' not found")
-      end
-
-      viewmodel_class
-    end
-
-    def inherited(subclass)
-      super
-
-      # copy ViewModel setup
-      subclass._attributes = self._attributes
-
-      subclass.initialize_members
-
-      # Store the subclass for later view name resolution
-      @@deferred_viewmodel_classes << subclass
-    end
-
-    def initialize_members
-      @_members = {}
-      @abstract_class = false
-      @unregistered = false
-
-      @generated_accessor_module = Module.new
-      include @generated_accessor_module
-    end
-
-    # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, read_only: false, using: nil, optional: false)
-      _members[attr.to_s] = AttributeData.new(using, optional)
-
-      @generated_accessor_module.module_eval do
-        define_method attr do
-          val = model.public_send(attr)
-          val = using.new(val) if using.present?
-          val
-        end
-
-        define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
-          value = self.public_send(attr)
-          json.set! attr do
-            self.class.serialize(value, json, serialize_context: serialize_context)
-          end
-        end
-
-        if read_only
-          define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
-            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)) if using.present?
-            if value != self.public_send(attr)
-              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
-            end
-          end
-        else
-          define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
-            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)).model if using.present?
-            model.public_send("#{attr}=", value)
-          end
-        end
-      end
+    def should_register?
+      super && !synthetic
     end
 
     # Specifies that an attribute refers to an `acts_as_enum` constant.  This
@@ -314,22 +238,6 @@ class ViewModel::ActiveRecord < ViewModel
       DeepPreloader::Spec.new(association_specs)
     end
 
-    # Returns the AR model class wrapped by this viewmodel. If this has not been
-    # set via `model_class_name=`, attempt to automatically resolve based on the
-    # name of this viewmodel.
-    def model_class
-      unless instance_variable_defined?(:@model_class)
-        # try to auto-detect the model class based on our name
-        self.model_class_name = self.view_name
-      end
-
-      @model_class
-    end
-
-    def member_names
-      self._members.keys
-    end
-
     def dependent_viewmodels(seen = Set.new)
       return if seen.include?(self)
 
@@ -361,61 +269,6 @@ class ViewModel::ActiveRecord < ViewModel
       association_data
     end
 
-    private
-
-    # Set the AR model to be wrapped by this viewmodel
-    def model_class_name=(name)
-      type = name.to_s.camelize.safe_constantize
-      raise ArgumentError.new("Could not find model class '#{name}'") if type.nil?
-      self.model_class = type
-    end
-
-    # Set the AR model to be wrapped by this viewmodel
-    def model_class=(type)
-      if instance_variable_defined?(:@model_class)
-        raise ArgumentError.new("Model class for ViewModel '#{self.name}' already set")
-      end
-
-      unless type < ::ActiveRecord::Base
-        raise ArgumentError.new("'#{type.inspect}' is not a valid ActiveRecord model class")
-      end
-      @model_class = type
-    end
-  end
-
-  delegate :model_class, to: 'self.class'
-  delegate :id, to: :model
-
-  def initialize(model)
-    unless model.is_a?(model_class)
-      raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
-    end
-
-    super(model)
-  end
-
-  def self.for_new_model(id: nil)
-    self.new(model_class.new(id: id))
-  end
-
-  # Use ActiveRecord style identity for viewmodels. This allows serialization to
-  # generate a references section by keying on the viewmodel itself.
-  def hash
-    [self.class, self.model].hash
-  end
-
-  def ==(other)
-    self.class == other.class && self.model == other.model
-  end
-
-  alias eql? ==
-
-  def serialize_view(json, serialize_context: self.class.new_serialize_context)
-    json.set!(ViewModel::ID_ATTRIBUTE, model.id)
-    json.set!(ViewModel::TYPE_ATTRIBUTE, self.class.view_name)
-    json.set!(ViewModel::VERSION_ATTRIBUTE, self.class.schema_version)
-
-    serialize_members(json, serialize_context: serialize_context)
   end
 
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
@@ -549,4 +402,6 @@ class ViewModel::ActiveRecord < ViewModel
       associated_viewmodel_class.new(associated)
     end
   end
+
+  self.abstract_class = true
 end

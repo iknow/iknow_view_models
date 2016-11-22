@@ -37,7 +37,7 @@ module ControllerBase
     protected
 
     def viewmodel_name=(name)
-      self.viewmodel = ViewModel::ActiveRecord.for_view_name(name)
+      self.viewmodel = ViewModel::Registry.for_view_name(name)
     end
 
     def viewmodel=(type)

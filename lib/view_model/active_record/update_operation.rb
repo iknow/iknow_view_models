@@ -93,7 +93,7 @@ class ViewModel::ActiveRecord
         valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
         bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
         if bad_keys.present?
-          raise_deserialization_error("Illegal attribute/association(s) #{bad_keys.inspect} for viewmodel #{viewmodel.class.name}")
+          raise_deserialization_error("Illegal attribute/association(s) #{bad_keys.inspect} for viewmodel #{viewmodel.class.view_name}")
         end
 
         attributes.each do |attr_name, serialized_value|

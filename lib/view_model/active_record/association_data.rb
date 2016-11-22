@@ -14,7 +14,7 @@ class ViewModel::ActiveRecord::AssociationData
       @viewmodel_classes = Array.wrap(viewmodel_classes).map! do |v|
         case v
         when String, Symbol
-          ViewModel::ActiveRecord.for_view_name(v.to_s)
+          ViewModel::Registry.for_view_name(v.to_s)
         when Class
           v
         else
@@ -50,7 +50,7 @@ class ViewModel::ActiveRecord::AssociationData
         if model_class.nil?
           raise "Couldn't derive target class for association '#{target_reflection.name}"
         end
-        viewmodel_class = ViewModel::ActiveRecord.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
+        viewmodel_class = ViewModel::Registry.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
         [viewmodel_class]
       end
   end
