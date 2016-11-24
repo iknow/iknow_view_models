@@ -1,3 +1,5 @@
+require 'active_support/core_ext'
+
 class ViewModel
   class SerializeContext
     delegate :add_reference, :has_references?, to: :@references
@@ -7,7 +9,7 @@ class ViewModel
       case includes
       when Array
         includes.each_with_object({}) do |v, new_includes|
-          new_includes[v.to_s] = nil
+          new_includes.merge!(normalize_includes(v))
         end
       when Hash
         includes.each_with_object({}) do |(k,v), new_includes|

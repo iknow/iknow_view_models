@@ -1,10 +1,8 @@
 require 'renum'
-require 'json'
-require 'json_schema'
+require 'view_model/schemas'
 
 class ViewModel::ActiveRecord
   using Collections
-
 
   class FunctionalUpdate
     attr_reader :values
@@ -73,45 +71,12 @@ class ViewModel::ActiveRecord
     attr_accessor :viewmodel_class, :id, :new, :attributes, :associations, :referenced_associations
 
     module Schemas
-      id = { 'oneOf' => [{ 'type' => 'integer' },
-                         { 'type' => 'string', 'format' => 'uuid' }] }
-
-      type = { 'type' => 'string' }
-
-      reference =
-        {
-          'type'                 => 'object',
-          'description'          => 'shared reference',
-          'properties'           => { ViewModel::REFERENCE_ATTRIBUTE => type },
-          'additionalProperties' => false,
-          'required'             => [ViewModel::REFERENCE_ATTRIBUTE],
-        }
-      REFERENCE = JsonSchema.parse!(reference)
-
-      JsonSchema.configure do |c|
-        uuid_format = /\A[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\Z/
-        c.register_format('uuid', ->(value) { uuid_format.match(value) })
-      end
-
-      viewmodel_update =
-        {
-          'type'        => 'object',
-          'description' => 'viewmodel update',
-          'properties'  => { ViewModel::TYPE_ATTRIBUTE    => type,
-                             ViewModel::ID_ATTRIBUTE      => id,
-                             NEW_ATTRIBUTE                => { 'type' => 'boolean' },
-                             ViewModel::VERSION_ATTRIBUTE => { 'type' => 'integer' } },
-          'required'    => [ViewModel::TYPE_ATTRIBUTE]
-        }
-      VIEWMODEL_UPDATE = JsonSchema.parse!(viewmodel_update)
-
-
-      viewmodel_reference =
+      viewmodel_reference_only =
         {
           'type'                 => 'object',
           'description'          => 'viewmodel reference',
-          'properties'           => { ViewModel::TYPE_ATTRIBUTE => type,
-                                      ViewModel::ID_ATTRIBUTE   => id },
+          'properties'           => { ViewModel::TYPE_ATTRIBUTE => { 'type' => 'string' },
+                                      ViewModel::ID_ATTRIBUTE   => ViewModel::Schemas::ID_SCHEMA },
           'additionalProperties' => false,
           'required'             => [ViewModel::TYPE_ATTRIBUTE, ViewModel::ID_ATTRIBUTE]
         }
@@ -125,7 +90,7 @@ class ViewModel::ActiveRecord
                                                       FunctionalUpdate::Update::NAME,
                                                       FunctionalUpdate::Remove::NAME] },
             VALUES_ATTRIBUTE => { 'type'  => 'array',
-                                  'items' => viewmodel_update }
+                                  'items' => ViewModel::Schemas::VIEWMODEL_UPDATE_SCHEMA }
           },
           'required' => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE]
         }
@@ -136,8 +101,8 @@ class ViewModel::ActiveRecord
           'additionalProperties' => false,
           'properties'           => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME] },
-            BEFORE_ATTRIBUTE => viewmodel_reference,
-            AFTER_ATTRIBUTE  => viewmodel_reference
+            BEFORE_ATTRIBUTE => viewmodel_reference_only,
+            AFTER_ATTRIBUTE  => viewmodel_reference_only
           },
         }
       )
@@ -214,15 +179,6 @@ class ViewModel::ActiveRecord
 
     alias new? new
 
-    def self.verify_schema!(schema, value)
-      valid, errors = schema.validate(value)
-      unless valid
-        error_list = errors.map { |e| "#{e.pointer}: #{e.message}" }.join("\n")
-        errors     = 'Error'.pluralize(errors.length)
-        raise ViewModel::DeserializationError.new("#{errors} parsing #{schema.description}:\n#{error_list}")
-      end
-    end
-
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
       valid_reference_keys = referenced_subtree_hashes.keys.to_set
 
@@ -232,8 +188,8 @@ class ViewModel::ActiveRecord
 
       # Construct root UpdateData
       root_updates = root_subtree_hashes.map do |subtree_hash|
-        viewmodel_name, schema_version, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class                         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
+        viewmodel_name, schema_version, id, new = ViewModel.extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class                         = ViewModel::Registry.for_view_name(viewmodel_name)
         verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
       end
@@ -243,8 +199,8 @@ class ViewModel::ActiveRecord
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
-        viewmodel_name, schema_version, id, new = extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class                         = ViewModel::ActiveRecord.for_view_name(viewmodel_name)
+        viewmodel_name, schema_version, id, new = ViewModel.extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class                         = ViewModel::Registry.for_view_name(viewmodel_name)
         verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
 
         UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
@@ -253,20 +209,6 @@ class ViewModel::ActiveRecord
       check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
 
       return root_updates, referenced_updates
-    end
-
-    def self.extract_viewmodel_metadata(hash)
-      verify_schema!(Schemas::VIEWMODEL_UPDATE, hash)
-      id             = hash.delete(ViewModel::ID_ATTRIBUTE)
-      type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
-      schema_version = hash.delete(ViewModel::VERSION_ATTRIBUTE)
-      new            = hash.delete(NEW_ATTRIBUTE) { false }
-      return type_name, schema_version, id, new
-    end
-
-    def self.extract_reference_metadata(hash)
-      verify_schema!(Schemas::REFERENCE, hash)
-      hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
     def self.check_duplicates(arr, type:, &by)
@@ -419,7 +361,7 @@ class ViewModel::ActiveRecord
       hash_data.each do |name, value|
         member_data = self.viewmodel_class._members[name]
         case member_data
-        when AttributeData
+        when ViewModel::Record::AttributeData
           attributes[name] = value
 
         when AssociationData
@@ -433,7 +375,7 @@ class ViewModel::ActiveRecord
 
           when association_data.through?
             referenced_associations[name] = value.map do |ref_value|
-              ref = UpdateData.extract_reference_metadata(ref_value)
+              ref = ViewModel.extract_reference_metadata(ref_value)
               unless valid_reference_keys.include?(ref)
                 raise_deserialization_error("Could not parse unresolvable reference '#{ref}' for association '#{name}'")
               end
@@ -442,7 +384,7 @@ class ViewModel::ActiveRecord
 
           when association_data.shared?
             # Extract and check reference
-            ref = UpdateData.extract_reference_metadata(value)
+            ref = ViewModel.extract_reference_metadata(value)
 
             unless valid_reference_keys.include?(ref)
               raise_deserialization_error("Could not parse unresolvable reference '#{ref}' for association '#{name}'")
@@ -454,7 +396,7 @@ class ViewModel::ActiveRecord
             # Recurse into child
             parse_association = ->(child_hash) do
               child_viewmodel_name, child_schema_version, child_id, child_new =
-                UpdateData.extract_viewmodel_metadata(child_hash)
+                ViewModel.extract_viewmodel_metadata(child_hash)
 
               child_viewmodel_class =
                 association_data.viewmodel_class_for_name(child_viewmodel_name)
@@ -476,12 +418,12 @@ class ViewModel::ActiveRecord
                   CollectionUpdate::Replace.new(children)
 
                 when Hash
-                  UpdateData.verify_schema!(Schemas::COLLECTION_UPDATE, value)
+                  ViewModel::Schemas.verify_schema!(Schemas::COLLECTION_UPDATE, value)
                   functional_updates = value[ACTIONS_ATTRIBUTE].map do |action|
                     type   = FunctionalUpdate.for_type(action[ViewModel::TYPE_ATTRIBUTE])
                     values = action[VALUES_ATTRIBUTE]
 
-                    UpdateData.verify_schema!(type.schema, action)
+                    ViewModel::Schemas.verify_schema!(type.schema, action)
 
                     # There's no reasonable interpretation of a remove update that includes data.
                     # Report it as soon as we detect it.

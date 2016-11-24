@@ -58,8 +58,8 @@ module ViewModel::ActiveRecord::Controller
         include ViewModel::ActiveRecord::CollectionNestedController
       end
 
-      unless owner.is_a?(Class) && owner < ViewModel::ActiveRecord
-        owner = ViewModel::ActiveRecord.for_view_name(owner.to_s.camelize)
+      unless owner.is_a?(Class) && owner < ViewModel::Record
+        owner = ViewModel::Registry.for_view_name(owner.to_s.camelize)
       end
 
       self.owner_viewmodel = owner
