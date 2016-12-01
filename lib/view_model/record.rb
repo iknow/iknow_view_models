@@ -37,7 +37,7 @@ class ViewModel::Record < ViewModel
 
     # Specifies an attribute from the model to be serialized in this view
     def attribute(attr, read_only: false, using: nil, optional: false)
-      _members[attr.to_s] = AttributeData.new(using, optional)
+      _members[attr.to_s] = AttributeData.new(using, optional, read_only)
 
       @generated_accessor_module.module_eval do
         define_method attr do
