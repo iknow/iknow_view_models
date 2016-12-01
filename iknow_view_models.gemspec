@@ -43,6 +43,8 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "minitest-hooks"
 
+  spec.add_development_dependency "persistent_enum"
+
   spec.add_dependency "jbuilder", "~> 2.5.0"
 
 end
