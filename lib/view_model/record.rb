@@ -173,7 +173,7 @@ class ViewModel::Record < ViewModel
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
     json.set!(ViewModel::ID_ATTRIBUTE, model.id) if model.respond_to?(:id)
-    json.set!(ViewModel::TYPE_ATTRIBUTE, self.class.view_name)
+    json.set!(ViewModel::TYPE_ATTRIBUTE, self.view_name)
     json.set!(ViewModel::VERSION_ATTRIBUTE, self.class.schema_version)
 
     serialize_members(json, serialize_context: serialize_context)

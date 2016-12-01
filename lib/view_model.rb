@@ -13,6 +13,7 @@ class ViewModel
   class << self
     attr_accessor :_attributes
     attr_accessor :schema_version
+    attr_reader   :view_aliases
 
     def inherited(subclass)
       subclass.initialize_as_viewmodel
@@ -22,6 +23,7 @@ class ViewModel
       @_attributes    = []
       @schema_version = 1
       @debug_name     = nil
+      @view_aliases   = []
     end
 
     def view_name
@@ -36,6 +38,14 @@ class ViewModel
 
     def view_name=(name)
       @view_name = name
+    end
+
+    def view_names
+      [view_name, *view_aliases]
+    end
+
+    def add_view_alias(as)
+      view_aliases << as
     end
 
     def debug_name=(name)
@@ -215,6 +225,12 @@ class ViewModel
 
   def to_reference
     ViewModel::Reference.new(self.class, self.id)
+  end
+
+  # Delegate view_name to class in most cases. Polymorphic views may wish to
+  # override this to select a specific alias.
+  def view_name
+    self.class.view_name
   end
 
   # When deserializing, if an error occurs within this viewmodel, what viewmodel

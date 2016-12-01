@@ -16,7 +16,12 @@ class ViewModel::Registry
     # Resolve names for any deferred viewmodel classes
     until @deferred_viewmodel_classes.empty? do
       vm = @deferred_viewmodel_classes.pop
-      @viewmodel_classes_by_name[vm.view_name] = vm if vm.should_register?
+
+      if vm.should_register?
+        vm.view_names.each do |name|
+          @viewmodel_classes_by_name[name] = vm
+        end
+      end
     end
 
     viewmodel_class = @viewmodel_classes_by_name[name]
