@@ -1,6 +1,6 @@
 class ViewModel::ActiveRecord::Visitor
   def visit(node)
-    pre_visit(node)
+    return unless pre_visit(node)
 
     class_name = node.class.name.underscore
     visit      = :"visit_#{class_name}"
@@ -30,9 +30,13 @@ class ViewModel::ActiveRecord::Visitor
     post_visit(node)
   end
 
+  # Invoked for all node types before visit, may cancel visit by returning
+  # false.
   def pre_visit(node)
+    true
   end
 
+  # Invoked for all node types after visit.
   def post_visit(node)
   end
 end
