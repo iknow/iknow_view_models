@@ -5,23 +5,6 @@ class ViewModel
     delegate :add_reference, :has_references?, to: :@references
     attr_accessor :include, :prune, :flatten_references
 
-    def normalize_includes(includes)
-      case includes
-      when Array
-        includes.each_with_object({}) do |v, new_includes|
-          new_includes.merge!(normalize_includes(v))
-        end
-      when Hash
-        includes.each_with_object({}) do |(k,v), new_includes|
-          new_includes[k.to_s] = normalize_includes(v)
-        end
-      when nil
-        nil
-      else
-        { includes.to_s => nil }
-      end
-    end
-
     def initialize(include: nil, prune: nil, flatten_references: false)
       @references = References.new
       self.flatten_references = flatten_references
@@ -49,6 +32,17 @@ class ViewModel
       (default || included) && !pruned
     end
 
+    def add_includes(includes)
+      return if includes.blank?
+      self.include ||= {}
+      self.include.deep_merge!(normalize_includes(includes))
+    end
+
+    def add_prunes(prunes)
+      return if prunes.blank?
+      self.prune ||= {}
+      self.prune.deep_merge!(normalize_includes(prunes))
+    end
 
     def serialize_references(json)
       seen = Set.new
@@ -65,6 +59,25 @@ class ViewModel
 
     def serialize_references_to_hash
       Jbuilder.new { |json| serialize_references(json) }.attributes!
+    end
+
+    private
+
+    def normalize_includes(includes)
+      case includes
+      when Array
+        includes.each_with_object({}) do |v, new_includes|
+          new_includes.merge!(normalize_includes(v))
+        end
+      when Hash
+        includes.each_with_object({}) do |(k,v), new_includes|
+          new_includes[k.to_s] = normalize_includes(v)
+        end
+      when nil
+        nil
+      else
+        { includes.to_s => nil }
+      end
     end
   end
 end
