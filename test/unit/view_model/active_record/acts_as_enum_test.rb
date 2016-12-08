@@ -6,7 +6,7 @@ require "minitest/autorun"
 require "view_model/active_record"
 require "persistent_enum"
 
-class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
+class ViewModel::ActiveRecord::ActsAsEnumTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
   def before_all
