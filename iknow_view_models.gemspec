@@ -24,6 +24,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "cerego_active_record_patches"
   spec.add_dependency "acts_as_manual_list"
   spec.add_dependency "deep_preloader"
+  spec.add_dependency "persistent_enum"
 
   spec.add_dependency "lazily"
   spec.add_dependency "renum"
@@ -42,8 +43,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "appraisal"
 
   spec.add_development_dependency "minitest-hooks"
-
-  spec.add_development_dependency "persistent_enum"
 
   spec.add_dependency "jbuilder", "~> 2.5.0"
 
