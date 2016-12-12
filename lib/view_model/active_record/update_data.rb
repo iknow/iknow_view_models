@@ -234,31 +234,26 @@ class ViewModel::ActiveRecord
       self.new(viewmodel.class, viewmodel.id, false, {}, [])
     end
 
-    # Normalised handler for looking at the UpdateData for an association
-    def reduce_association(name, value, empty:, map:, inject:)
+    # Produce a sequence of update datas for a given association update value, in the spirit of Array.wrap.
+    def to_sequence(name, value)
       association_data = self.viewmodel_class._association_data(name)
       case
       when value.nil?
-        empty.()
+        []
       when association_data.collection?
         if association_data.shared?
-          value.map(&map).inject(empty.(), &inject)
+          value
         else
-          value.update_datas.map(&map).inject(empty.(), &inject)
+          value.update_datas
         end
       else
-        inject.(empty.(), map.(value))
+        [value]
       end
     end
 
-    # Normalised handler for looking at UpdateData for an association where the
-    # result is a deeply merged hash
-    def reduce_association_to_hash(name, value, &map)
-      reduce_association(
-        name, value,
-        empty:  ->() { {} },
-        inject: ->(acc, data) { acc.deep_merge(data) },
-        map:    map)
+    # TODO: feels like a library might provide this, can't think of the name
+    def deep_merge_hashes(hashes)
+      hashes.inject({}) { |acc, data| acc.deep_merge(data) }
     end
 
     # Updates in terms of viewmodel associations
@@ -266,36 +261,37 @@ class ViewModel::ActiveRecord
       deps = {}
 
       associations.each do |assoc_name, assoc_update|
-        deps[assoc_name] = reduce_association_to_hash(assoc_name, assoc_update) do |update_data|
+        updated_associations = to_sequence(assoc_name, assoc_update).map do |update_data|
           update_data.updated_associations(referenced_updates)
         end
+        deps[assoc_name] = deep_merge_hashes(updated_associations)
       end
 
       referenced_associations.each do |assoc_name, reference|
-        deps[assoc_name] = reduce_association_to_hash(assoc_name, reference) do |ref|
+        updated_associations = to_sequence(assoc_name, reference).map do |ref|
           referenced_updates[ref].updated_associations(referenced_updates)
         end
+        deps[assoc_name] = deep_merge_hashes(updated_associations)
       end
 
       deps
     end
 
-    def reduce_association_to_preload(name, value, polymorphic, &update_data_map)
-      if polymorphic
-        empty = ->{ DeepPreloader::PolymorphicSpec.new }
-        map   = ->(update_data) {
+    def build_preload_specs(association_data, updates, referenced_updates)
+      if association_data.polymorphic?
+        updates.map do |update_data|
           target_model = update_data.viewmodel_class.model_class
-          DeepPreloader::PolymorphicSpec.new(target_model.name => update_data_map.(update_data))
-        }
+          DeepPreloader::PolymorphicSpec.new(
+            target_model.name => update_data.preload_dependencies(referenced_updates))
+        end
       else
-        empty = ->{ DeepPreloader::Spec.new }
-        map   = update_data_map
+        updates.map { |update_data| update_data.preload_dependencies(referenced_updates) }
       end
+    end
 
-      reduce_association(name, value,
-                         empty:  empty,
-                         inject: ->(a, b){ a.merge!(b) },
-                         map:    map)
+    def merge_preload_specs(association_data, specs)
+      empty = association_data.polymorphic? ? DeepPreloader::PolymorphicSpec.new : DeepPreloader::Spec.new
+      specs.inject(empty) { |acc, spec| acc.merge!(spec) }
     end
 
     # Updates in terms of activerecord associations: used for preloading subtree
@@ -306,9 +302,11 @@ class ViewModel::ActiveRecord
       associations.each do |assoc_name, assoc_update|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
-        assoc_deps = reduce_association_to_preload(assoc_name, assoc_update, association_data.polymorphic?) do |update_data|
-          update_data.preload_dependencies(referenced_updates)
-        end
+        preload_specs = build_preload_specs(association_data,
+                                            to_sequence(assoc_name, assoc_update),
+                                            referenced_updates)
+
+        assoc_deps = merge_preload_specs(association_data, preload_specs)
 
         deps[association_data.direct_reflection.name.to_s] = assoc_deps
       end
@@ -322,10 +320,11 @@ class ViewModel::ActiveRecord
             referenced_updates[reference]
           end
 
-        referenced_deps =
-          reduce_association_to_preload(assoc_name, resolved_updates, association_data.polymorphic?) do |update_data|
-            update_data.preload_dependencies(referenced_updates)
-          end
+        preload_specs = build_preload_specs(association_data,
+                                            to_sequence(assoc_name, resolved_updates),
+                                            referenced_updates)
+
+        referenced_deps = merge_preload_specs(association_data, preload_specs)
 
         if association_data.through?
           referenced_deps = DeepPreloader::Spec.new(association_data.indirect_reflection.name.to_s => referenced_deps)
