@@ -102,11 +102,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                                             ParentsTag.new(tag: @tag_b1, position: 3.0),
                                             ParentsTag.new(tag: @tag_b2, position: 4.0)])
 
-    @parent2 = Parent.create(name: 'p2',
-                             parents_tags: [ParentsTag.new(tag: @tag_a1, position: 1.0),
-                                            ParentsTag.new(tag: @tag_b1, position: 2.0),
-                                            ParentsTag.new(tag: @tag_a1, position: 3.0)])
-
     enable_logging!
   end
 
@@ -117,11 +112,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     assert_equal('p1', @parent1.name)
     assert_equal([@tag_a1, @tag_a2, @tag_b1, @tag_b2],
                  @parent1.parents_tags.order(:position).map(&:tag))
-
-    alter_by_view!(ParentView, @parent2, serialize_context: context_with(:tags)) {}
-    assert_equal('p2', @parent2.name)
-    assert_equal([@tag_a1, @tag_b1, @tag_a1],
-                 @parent2.parents_tags.order(:position).map(&:tag))
   end
 
   def test_loading_batching
@@ -160,10 +150,9 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
     assert_equal(DeepPreloader::Spec.new(
                   'parents_tags' => DeepPreloader::Spec.new(
-                    'tag' => DeepPreloader::PolymorphicSpec.new(
-                      'TagB' => DeepPreloader::Spec.new))),
+                    'tag' => DeepPreloader::PolymorphicSpec.new)),
                  root_updates.first.preload_dependencies(ref_updates),
-                 'mentioning tags causes through association loading')
+                 'mentioning tags causes through association loading, excluding shared')
   end
 
 
@@ -254,7 +243,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       # Compare to non-polymorphic, which will also load the tags
       deps = root_updates.first.preload_dependencies(ref_updates)
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::PolymorphicSpec.new)), deps)
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
+      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
 

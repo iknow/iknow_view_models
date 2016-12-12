@@ -98,16 +98,11 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   def setup
     super
 
-    @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create(name: "tag#{x}") }
+    @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create!(name: "tag#{x}") }
 
     @parent1 = Parent.create(name: 'p1',
                              parents_tags: [ParentsTag.new(tag: @tag1, position: 1.0),
                                             ParentsTag.new(tag: @tag2, position: 2.0)])
-
-    @parent2 = Parent.create(name: 'p2',
-                             parents_tags: [ParentsTag.new(tag: @tag3, position: 1.0),
-                                            ParentsTag.new(tag: @tag3, position: 2.0),
-                                            ParentsTag.new(tag: @tag3, position: 3.0)])
 
     enable_logging!
   end
@@ -129,10 +124,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) {}
     assert_equal('p1', @parent1.name)
     assert_equal([@tag1, @tag2], @parent1.parents_tags.order(:position).map(&:tag))
-
-    alter_by_view!(ParentView, @parent2, serialize_context: context_with(:tags)) {}
-    assert_equal('p2', @parent2.name)
-    assert_equal([@tag3, @tag3, @tag3], @parent2.parents_tags.order(:position).map(&:tag))
   end
 
   def test_eager_includes
@@ -166,7 +157,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       { 'r1' => { '_type' => 'Tag', } })
 
     assert_equal({ 'tags' => {} },
-                 root_updates.first.updated_associations(ref_updates),
+                 root_updates.first.updated_associations,
                  'mentioning tags causes through association loading')
 
   end
@@ -251,12 +242,212 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     assert(d_context.edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
   end
 
-  def test_reordering_multi
-    alter_by_view!(ParentView, @parent2, serialize_context: context_with(:tags)) do |view, refs|
-      view['tags'].reverse!
+  def tags(parent)
+    parent.parents_tags.order(:position).includes(:tag).map(&:tag)
+  end
+
+  def fupdate_tags(parent)
+    tags          = self.tags(parent)
+    actions, refs = yield(tags).values_at(:actions, :refs)
+    op_view       = { '_type' => 'Parent',
+                      'id'    => parent.id,
+                      'tags'  => {
+                        '_type'   => '_update',
+                        'actions' => actions
+                      } }
+    ParentView.deserialize_from_view(op_view, references: refs || {})
+    parent.reload
+  end
+
+  def test_functional_update_append
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'values' => [{ '_ref' => 'new_tag' }] }],
+        :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
+      }
     end
-    assert_equal([@tag3, @tag3, @tag3],
-                 @parent2.parents_tags.order(:position).map(&:tag))
+    assert_equal([c1.name, c2.name, 'new tag'],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_append_before_mid
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'before' => {'_type' => 'Tag', 'id' => c2.id},
+                       'values' => [{ '_ref' => 'new_tag' }] }],
+        :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
+      }
+    end
+    assert_equal([c1.name, 'new tag', c2.name],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_append_before_beginning
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'before' => {'_type' => 'Tag', 'id' => c1.id},
+                       'values' => [{ '_ref' => 'new_tag' }] }],
+        :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
+      }
+    end
+    assert_equal(['new tag', c1.name, c2.name],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_append_before_reorder
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'before' => {'_type' => 'Tag', 'id' => c1.id},
+                       'values' => [{ '_ref' => 'c2' }] }],
+        :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id } }
+      }
+    end
+    assert_equal([c2.name, c1.name],
+                 tags(@parent1).map(&:name))
+  end
+
+
+  def test_functional_update_append_after_mid
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'after' => {'_type' => 'Tag', 'id' => c1.id},
+                       'values' => [{ '_ref' => 'new_tag' }] }],
+        :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
+      }
+    end
+    assert_equal([c1.name, 'new tag', c2.name],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_append_after_end
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'after' => {'_type' => 'Tag', 'id' => c2.id},
+                       'values' => [{ '_ref' => 'new_tag' }] }],
+        :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
+      }
+    end
+    assert_equal([c1.name, c2.name, 'new tag'],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_append_after_reorder
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'append',
+                       'after'  => { '_type' => 'Tag', 'id' => c2.id },
+                       'values' => [{ '_ref' => 'c1' }] }],
+        :refs    => { 'c1' => { '_type' => 'Tag', 'id' => c1.id } }
+      }
+    end
+    assert_equal([c2.name, c1.name],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_remove_success
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'remove',
+                       'values' => [{ '_type' => 'Tag', 'id' => c1.id }] }],
+      }
+    end
+    assert_equal([c2.name],
+                 tags(@parent1).map(&:name))
+  end
+
+  def test_functional_update_remove_stale
+    # remove an entity that's no longer part of the collection
+    c1 = c2 = nil
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      fupdate_tags(@parent1) do |tags|
+        c1, c2 = tags
+        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
+        { :actions => [{ '_type'  => 'remove',
+                         'values' => [{ '_type' => 'Tag', 'id' => c2.id }] }],
+        }
+      end
+    end
+    assert_match(/Stale functional update/, ex.message)
+  end
+
+  def test_functional_update_append_after_corpse
+    # append after something that no longer exists
+    c1 = c2 = nil
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      fupdate_tags(@parent1) do |tags|
+        c1, c2 = tags
+        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
+        { :actions => [{ '_type'  => 'append',
+                         'after'  => { '_type' => 'Tag', 'id' => c2.id },
+                         'values' => [{ '_ref' => 'new_tag' }] }],
+          :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag name' } }
+        }
+      end
+    end
+    assert_match(/insert relative/, ex.message)
+  end
+
+  def test_functional_update_update_success
+    # refer to a shared entity with edits, no collection add/remove
+    c1 = c2 = nil
+    fupdate_tags(@parent1) do |tags|
+      c1, c2 = tags
+      { :actions => [{ '_type'  => 'update',
+                       'values' => [{ '_ref' => 'c1' }] }],
+        :refs    => { 'c1' => { '_type' => 'Tag', 'id' => c1.id, 'name' => 'c1 new name' } }
+      }
+    end
+    assert_equal(['c1 new name', c2.name],
+                 tags(@parent1).map(&:name))
+
+  end
+
+  def test_functional_update_update_stale
+    # update a shared entity that's no longer present
+    c1 = c2 = nil
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      fupdate_tags(@parent1) do |tags|
+        c1, c2 = tags
+        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
+        { :actions => [{ '_type'  => 'update',
+                         'values' => [{ '_ref' => 'c2' }] }],
+          :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id, 'name' => 'c2 new name' } }
+        }
+      end
+    end
+    assert_match(/stale functional update/i, ex.message)
+  end
+
+  def test_functional_update_edit_checks
+    d_context = ParentView.new_deserialize_context
+
+    view = { '_type' => 'Parent',
+             'id'    => @parent1.id,
+             'tags'  => { '_type'   => '_update',
+                          'actions' => [{ '_type'  => 'append',
+                                          'values' => [{ '_ref' => 't_new' }] }] } }
+
+    refs = { 't_new' => { '_type' => 'Tag', 'name' => 'newest tag' } }
+
+    ParentView.deserialize_from_view(view, references: refs,
+                                     deserialize_context: d_context)
+
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
   end
 
   class RenamingTest < ActiveSupport::TestCase
@@ -298,7 +489,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
                    root_updates.first.preload_dependencies(ref_updates))
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations(ref_updates))
+      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
     def test_renamed_roundtrip
@@ -344,9 +535,26 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
            'tags' => [{ '_ref' => 'r1' }] }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
-      assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new('child_tags' => DeepPreloader::Spec.new))),
+      assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
                    root_updates.first.preload_dependencies(ref_updates),
-                   'mentioning tags and child_tags causes through association loading')
+                   'mentioning tags and child_tags causes through association loading, excluding shared')
+    end
+
+    def test_preload_dependencies_functional
+      append_r1 = { '_type'  => 'append',
+                    'values' => [{ '_ref' => 'r1' }] }
+
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+        [{ '_type' => 'Parent',
+           'tags'  => { '_type'   => '_update',
+                        'actions' => [append_r1] } }],
+        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
+
+      assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
+                   root_updates.first.preload_dependencies(ref_updates),
+                   'mentioning tags and child_tags in functional update value causes through association loading, ' \
+                   'excluding shared')
+
     end
 
     def test_updated_associations
@@ -355,10 +563,25 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
            'tags' => [{ '_ref' => 'r1' }] }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
-      assert_equal({ 'tags' => { 'child_tags' => {} } },
-                   root_updates.first.updated_associations(ref_updates),
-                   'mentioning tags causes through association loading')
+      assert_equal({ 'tags' => { } },
+                   root_updates.first.updated_associations,
+                   'mentioning tags and child_tags causes through association loading, excluding shared')
+    end
 
+    def test_updated_associations_functional
+      append_r1 = { '_type'  => 'append',
+                    'values' => [{ '_ref' => 'r1' }] }
+
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+        [{ '_type' => 'Parent',
+           'tags'  => { '_type'   => '_update',
+                        'actions' => [append_r1] } }],
+        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
+
+      assert_equal({ 'tags' => { } },
+                   root_updates.first.updated_associations,
+                   'mentioning tags and child_tags in functional_update causes through association loading, ' \
+                   'excluding shared')
     end
   end
 end

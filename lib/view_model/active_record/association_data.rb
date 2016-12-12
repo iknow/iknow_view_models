@@ -125,8 +125,8 @@ class ViewModel::ActiveRecord::AssociationData
     @through_to.present?
   end
 
-  def through_viewmodel
-    @through_viewmodel ||= begin
+  def direct_viewmodel
+    @direct_viewmodel ||= begin
       raise 'not a through association' unless through?
 
       # Join table viewmodel class
@@ -158,6 +158,6 @@ class ViewModel::ActiveRecord::AssociationData
   end
 
   def indirect_association_data
-    through_viewmodel._association_data(indirect_reflection.name)
+    direct_viewmodel._association_data(indirect_reflection.name)
   end
 end
