@@ -73,6 +73,9 @@ class ViewModel::ActiveRecord
       debug "-> #{debug_name}: Entering"
 
       model.class.transaction do
+        # Give models a chance to interact with the context
+        viewmodel.begin_update(deserialize_context: deserialize_context)
+
         viewmodel.visible!(context: deserialize_context)
 
         # update parent association
@@ -159,6 +162,9 @@ class ViewModel::ActiveRecord
       end
 
       debug "<- #{debug_name}: Leaving"
+
+      # Give models a chance to interact with the context
+      viewmodel.end_update(deserialize_context: deserialize_context)
 
       @run_state = RunState::Run
       viewmodel

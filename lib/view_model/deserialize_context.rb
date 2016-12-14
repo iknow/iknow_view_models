@@ -5,6 +5,7 @@ class ViewModel
     private :parent_context, :parent_viewmodel
 
     def initialize(*)
+      @type_contexts = {}
     end
 
     def parent(idx = 0)
@@ -23,6 +24,20 @@ class ViewModel
       self.dup.tap do |copy|
         copy.initialize_as_child(self, parent_viewmodel)
       end
+    end
+
+    def remove_type_context(type)
+      contents = @type_contexts.delete(type)
+      unless contents
+        raise new ArgumentError.new("Attempt to remove non-existing type context for type '#{type}'")
+      end
+    end
+
+    def type_context(type)
+      unless @type_contexts.has_key?(type)
+        @type_contexts[type] = yield if block_given?
+      end
+      @type_contexts.fetch(type)
     end
 
     protected
