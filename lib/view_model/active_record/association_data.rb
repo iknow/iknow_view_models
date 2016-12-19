@@ -142,6 +142,7 @@ class ViewModel::ActiveRecord::AssociationData
       Class.new(ViewModel::ActiveRecord) do
         self.synthetic = true
         self.model_class = direct_reflection.klass
+        self.debug_name = direct_reflection.klass.name
         association indirect_reflection.name, shared: true, optional: false, viewmodels: viewmodel_classes
         acts_as_list through_order_attr if through_order_attr
       end
