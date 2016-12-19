@@ -4,16 +4,27 @@
 class ViewModel::ActiveRecord
   class UpdateContext
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
-      def release!(deserialize_context:)
+      def initialize(*)
+        super
+        @claimed = false
+      end
+
+      def release!
         model = viewmodel.model
         case association_data.direct_reflection.options[:dependent]
         when :delete
-          viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
           model.delete
         when :destroy
-          viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
           model.destroy
         end
+      end
+
+      def claimed!
+        @claimed = true
+      end
+
+      def claimed?
+        @claimed
       end
     end
 
@@ -34,13 +45,14 @@ class ViewModel::ActiveRecord
       end
 
       def claim_from_pool(key)
-        @released_viewmodels.delete(key)
+        if (entry = @released_viewmodels.delete(key))
+          entry.claimed!
+          entry.viewmodel
+        end
       end
 
-      def release_all!(deserialize_context)
-        @released_viewmodels.each_value do |release_entry|
-          release_entry.release!(deserialize_context: deserialize_context)
-        end
+      def release_all!
+        @released_viewmodels.each_value(&:release!)
       end
     end
 
@@ -151,7 +163,7 @@ class ViewModel::ActiveRecord
         root_update.run!(deserialize_context: deserialize_context)
       end
 
-      @release_pool.release_all!(deserialize_context)
+      @release_pool.release_all!
 
       updated_viewmodels
     end
@@ -230,7 +242,7 @@ class ViewModel::ActiveRecord
           ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_assoc_name)
         else
           deferred_update = @worklist.delete(key)
-          deferred_update.viewmodel = @release_pool.claim_from_pool(key).viewmodel
+          deferred_update.viewmodel = @release_pool.claim_from_pool(key)
         end
 
         deferred_update.build!(self)
@@ -319,7 +331,7 @@ class ViewModel::ActiveRecord
     end
 
     def try_take_released_viewmodel(vm_ref)
-      @release_pool.claim_from_pool(vm_ref).try(&:viewmodel)
+      @release_pool.claim_from_pool(vm_ref)
     end
 
     def release_viewmodel(viewmodel, association_data)

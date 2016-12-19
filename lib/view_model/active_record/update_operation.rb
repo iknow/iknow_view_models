@@ -15,17 +15,19 @@ class ViewModel::ActiveRecord
                   :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
                   :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
                   :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
-                  :reposition_to # if this node participates in a list under its parent, what should its position be?
+                  :reposition_to, # if this node participates in a list under its parent, what should its position be?
+                  :released_children # Set of children that have been released
 
     delegate :attributes, to: :update_data
 
     def initialize(viewmodel, update_data, reparent_to: nil, reposition_to: nil)
-      self.viewmodel     = viewmodel
-      self.update_data   = update_data
-      self.points_to     = {}
-      self.pointed_to    = {}
-      self.reparent_to   = reparent_to
-      self.reposition_to = reposition_to
+      self.viewmodel         = viewmodel
+      self.update_data       = update_data
+      self.points_to         = {}
+      self.pointed_to        = {}
+      self.reparent_to       = reparent_to
+      self.reposition_to     = reposition_to
+      self.released_children = []
 
       @run_state = RunState::Pending
       @changed_associations = []
@@ -156,6 +158,15 @@ class ViewModel::ActiveRecord
 
           debug "<- #{debug_name}: Updated pointed-to association '#{reflection.name}'"
         end
+      end
+
+      if self.released_children.present?
+        debug "-> #{debug_name}: Checking released children permissions"
+        self.released_children.reject(&:claimed?).each do |released_child|
+          debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
+          released_child.viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
+        end
+        debug "<- #{debug_name}: Finished checking released children permissions"
       end
 
       debug "<- #{debug_name}: Leaving"
@@ -331,7 +342,7 @@ class ViewModel::ActiveRecord
             end
           end
 
-          update_context.release_viewmodel(previous_child_viewmodel, association_data)
+          release_viewmodel(previous_child_viewmodel, association_data, update_context)
         end
       end
 
@@ -454,7 +465,7 @@ class ViewModel::ActiveRecord
         self.association_changed!(association_data.association_name)
         released_child_viewmodels = previous_child_viewmodels - child_viewmodels
         released_child_viewmodels.each do |vm|
-          update_context.release_viewmodel(vm, association_data)
+          release_viewmodel(vm, association_data, update_context)
         end
       end
 
@@ -737,10 +748,14 @@ class ViewModel::ActiveRecord
       # not being included in the new Replace list can now be
       # released.
       target_collection.orphaned_members.each do |member|
-        update_context.release_viewmodel(member.direct_viewmodel, association_data)
+        release_viewmodel(member.direct_viewmodel, association_data, update_context)
       end
 
       new_direct_updates
+    end
+
+    def release_viewmodel(viewmodel, association_data, update_context)
+      self.released_children << update_context.release_viewmodel(viewmodel, association_data)
     end
 
     def clear_association_cache(model, reflection)
