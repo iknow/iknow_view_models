@@ -26,25 +26,25 @@ class ViewModel
       end
     end
 
-    def remove_type_context(type)
-      contents = @type_contexts.delete(type)
-      unless contents
-        raise new ArgumentError.new("Attempt to remove non-existing type context for type '#{type}'")
+    def with_type_context(type, context)
+      self.dup.tap do |copy|
+        copy.set_type_context(type, context)
       end
-    end
-
-    def type_context(type)
-      unless @type_contexts.has_key?(type)
-        @type_contexts[type] = yield if block_given?
-      end
-      @type_contexts.fetch(type)
     end
 
     protected
 
+    def initialize_copy
+      @type_contexts = @type_contexts.dup
+    end
+
     def initialize_as_child(parent_context, parent_viewmodel)
       @parent_context   = parent_context
       @parent_viewmodel = parent_viewmodel
+    end
+
+    def set_type_context(type, context)
+      @type_contexts[type] = context
     end
   end
 end
