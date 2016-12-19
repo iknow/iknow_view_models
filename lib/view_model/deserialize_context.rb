@@ -28,23 +28,24 @@ class ViewModel
 
     def with_type_context(type, context)
       self.dup.tap do |copy|
-        copy.set_type_context(type, context)
+        copy.initialize_with_type_context(type, context)
       end
+    end
+
+    def type_context(type)
+      @type_contexts.fetch(type)
     end
 
     protected
 
-    def initialize_copy
+    def initialize_with_type_context(type, context)
       @type_contexts = @type_contexts.dup
+      @type_contexts[type] = context
     end
 
     def initialize_as_child(parent_context, parent_viewmodel)
       @parent_context   = parent_context
       @parent_viewmodel = parent_viewmodel
-    end
-
-    def set_type_context(type, context)
-      @type_contexts[type] = context
     end
   end
 end
