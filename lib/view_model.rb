@@ -219,6 +219,10 @@ class ViewModel
     end
   end
 
+  def context_for_update(deserialize_context:)
+    deserialize_context
+  end
+
   def editable?(deserialize_context: self.class.new_deserialize_context, changed_associations:, deleted:)
     visible?(context: deserialize_context)
   end

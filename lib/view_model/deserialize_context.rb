@@ -5,6 +5,7 @@ class ViewModel
     private :parent_context, :parent_viewmodel
 
     def initialize(*)
+      @type_contexts = {}
     end
 
     def parent(idx = 0)
@@ -25,7 +26,22 @@ class ViewModel
       end
     end
 
+    def with_type_context(type, context)
+      self.dup.tap do |copy|
+        copy.initialize_with_type_context(type, context)
+      end
+    end
+
+    def type_context(type)
+      @type_contexts.fetch(type)
+    end
+
     protected
+
+    def initialize_with_type_context(type, context)
+      @type_contexts = @type_contexts.dup
+      @type_contexts[type] = context
+    end
 
     def initialize_as_child(parent_context, parent_viewmodel)
       @parent_context   = parent_context

@@ -73,6 +73,9 @@ class ViewModel::ActiveRecord
       debug "-> #{debug_name}: Entering"
 
       model.class.transaction do
+        deserialize_context =
+          viewmodel.context_for_update(deserialize_context: deserialize_context)
+
         viewmodel.visible!(context: deserialize_context)
 
         # update parent association
