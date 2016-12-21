@@ -12,8 +12,12 @@ class ViewModel::ActiveRecord
         Collections::count_by(self, &by)
       end
 
-      def duplicates(&by)
+      def duplicates_by(&by)
         count_by(&by).delete_if { |_, count| count == 1 }
+      end
+
+      def duplicates
+        duplicates_by { |x| x }
       end
     end
 
@@ -22,8 +26,12 @@ class ViewModel::ActiveRecord
         Collections::count_by(self, &by)
       end
 
-      def duplicates(&by)
+      def duplicates_by(&by)
         count_by(&by).delete_if { |_, count| count == 1 }
+      end
+
+      def duplicates
+        duplicates_by { |x| x }
       end
     end
   end

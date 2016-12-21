@@ -188,7 +188,7 @@ class ViewModel::ActiveRecord
 
         update =
           if association_data.through?
-            build_updates_for_has_many_through(association_data, reference_string, update_context)
+            build_updates_for_collection_referenced_association(association_data, reference_string, update_context)
           else
             build_update_for_single_referenced_association(association_data, reference_string, update_context)
           end
@@ -384,33 +384,26 @@ class ViewModel::ActiveRecord
 
       child_datas =
         case association_update
-        when CollectionUpdate::Replace
-          association_update.values
+        when OwnedCollectionUpdate::Replace
+          association_update.update_datas
 
-        when CollectionUpdate::Functional
+        when OwnedCollectionUpdate::Functional
           child_datas =
             previous_child_viewmodels.map do |previous_child_viewmodel|
               UpdateData.empty_update_for(previous_child_viewmodel)
             end
 
-          # Each updated child must be unique
-          duplicate_children = association_update
-                                 .update_datas
-                                 .duplicates { |upd| upd.viewmodel_reference if upd.id }
-          if duplicate_children.present?
-            formatted_invalid_ids = duplicate_children.keys.map(&:to_s).join(', ')
-            raise_deserialization_error("Duplicate functional update targets: [#{formatted_invalid_ids}]")
-          end
+          association_update.check_for_duplicates!(update_context, self.viewmodel.blame_reference)
 
-          association_update.values.each do |fupdate|
+          association_update.actions.each do |fupdate|
             case fupdate
             when FunctionalUpdate::Append
               if fupdate.before || fupdate.after
-                moved_refs  = fupdate.values.map(&:viewmodel_reference).to_set
+                moved_refs  = fupdate.contents.map(&:viewmodel_reference).to_set
                 child_datas = child_datas.reject { |child| moved_refs.include?(child.viewmodel_reference) }
 
-                ref   = (fupdate.before || fupdate.after).viewmodel_reference
-                index = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
+                ref         = fupdate.before || fupdate.after
+                index       = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
                 unless index
                   raise ViewModel::DeserializationError::NotFound.new(
                     "Attempted to insert relative to reference that does not exist #{ref}",
@@ -418,20 +411,20 @@ class ViewModel::ActiveRecord
                 end
 
                 index += 1 if fupdate.after
-                child_datas.insert(index, *fupdate.values)
+                child_datas.insert(index, *fupdate.contents)
 
               else
-                child_datas.concat(fupdate.values)
+                child_datas.concat(fupdate.contents)
 
               end
 
             when FunctionalUpdate::Remove
-              removed_refs = Set.new(fupdate.values.map(&:viewmodel_reference))
+              removed_refs = fupdate.removed_vm_refs.to_set
               child_datas.reject! { |child_data| removed_refs.include?(child_data.viewmodel_reference) }
 
             when FunctionalUpdate::Update
               # Already guaranteed that each ref has a single data attached
-              new_datas = fupdate.values.index_by(&:viewmodel_reference)
+              new_datas = fupdate.contents.index_by(&:viewmodel_reference)
 
               child_datas = child_datas.map do |child_data|
                 ref = child_data.viewmodel_reference
@@ -495,82 +488,259 @@ class ViewModel::ActiveRecord
       child_updates
     end
 
-    # TODO name isn't generic like all others; why not _collection_referenced_?
-    def build_updates_for_has_many_through(association_data, reference_strings, update_context)
+
+    class ReferencedCollectionMember
+      attr_reader   :indirect_viewmodel_reference, :direct_viewmodel
+      attr_accessor :ref_string, :position
+
+      def initialize(indirect_viewmodel_reference, direct_viewmodel)
+        @indirect_viewmodel_reference = indirect_viewmodel_reference
+        @direct_viewmodel             = direct_viewmodel
+        if direct_viewmodel.class._list_member?
+          @position = direct_viewmodel._list_attribute
+        end
+      end
+
+      def ==(other)
+        other.class == self.class &&
+          other.indirect_viewmodel_reference == self.indirect_viewmodel_reference
+      end
+
+      alias :eql? :==
+    end
+
+    # Helper class to wrap the previous members of a referenced collection and
+    # provide update operations. No one member may be affected by more than one
+    # update operation. Elements removed from the collection are collected as
+    # `orphaned_members`."
+    class MutableReferencedCollection
+      attr_reader :members, :orphaned_members
+
+      def initialize(association_data, update_context, members)
+        @association_data = association_data
+        @update_context   = update_context
+
+        @members          = members.dup
+        @orphaned_members = []
+
+        @free_members_by_indirect_ref = @members.index_by(&:indirect_viewmodel_reference)
+      end
+
+      def replace(references)
+        members.replace(claim_or_create_references(references))
+
+        # Any unclaimed free members after building the update target are now
+        # orphaned and their direct viewmodels can be released.
+        orphaned_members.concat(free_members_by_indirect_ref.values)
+        free_members_by_indirect_ref.clear
+      end
+
+      def insert_before(relative_to, references)
+        insert_relative(relative_to, 0, references)
+      end
+
+      def insert_after(relative_to, references)
+        insert_relative(relative_to, 1, references)
+      end
+
+      def concat(references)
+        new_members = claim_or_create_references(references)
+        remove_from_members(new_members)
+        members.concat(new_members)
+      end
+
+      def remove(vm_references)
+        removed_members = vm_references.map do |vm_ref|
+          claim_existing_member(vm_ref)
+        end
+        remove_from_members(removed_members)
+        orphaned_members.concat(removed_members)
+      end
+
+      def update(references)
+        claim_existing_references(references)
+      end
+
+      private
+
+      attr_reader :free_members_by_indirect_ref
+      attr_reader :association_data, :update_context
+
+      def insert_relative(relative_vm_ref, offset, references)
+        new_members = claim_or_create_references(references)
+        remove_from_members(new_members)
+
+        index = members.find_index { |m| m.indirect_viewmodel_reference == relative_vm_ref }
+
+        unless index
+          raise ViewModel::DeserializationError::NotFound.new(
+            "Attempted to insert relative to reference that does not exist #{relative_vm_ref}",
+            [relative_vm_ref])
+        end
+
+        members.insert(index + offset, *new_members)
+      end
+
+      # Reclaim existing members corresponding to the specified references, or create new ones if not found.
+      def claim_or_create_references(references)
+        references.map do |ref_string|
+          indirect_vm_ref = update_context.resolve_reference(ref_string).viewmodel_reference
+          claim_or_create_member(indirect_vm_ref, ref_string)
+        end
+      end
+
+      # Reclaim an existing member for an update and set its ref, or create a new one if not found.
+      def claim_or_create_member(indirect_vm_ref, ref_string)
+        member = free_members_by_indirect_ref.delete(indirect_vm_ref) do
+          ReferencedCollectionMember.new(indirect_vm_ref, association_data.direct_viewmodel.for_new_model)
+        end
+        member.ref_string = ref_string
+        member
+      end
+
+      # Reclaim existing members corresponding to the specified references or raise if not found.
+      def claim_existing_references(references)
+        references.each do |ref_string|
+          indirect_vm_ref = update_context.resolve_reference(ref_string).viewmodel_reference
+          claim_existing_member(indirect_vm_ref, ref_string)
+        end
+      end
+
+      # Claim an existing collection member for the update and optionally set its ref.
+      def claim_existing_member(indirect_vm_ref, ref_string = nil)
+        member = free_members_by_indirect_ref.delete(indirect_vm_ref) do
+          raise ViewModel::DeserializationError::NotFound.new(
+            "Stale functional update for association '#{association_data.direct_reflection.name}' - "\
+                  "could not match referenced viewmodel: '#{indirect_vm_ref}'")
+        end
+        member.ref_string = ref_string if ref_string
+        member
+      end
+      def remove_from_members(removed_members)
+        s = removed_members.to_set
+        members.reject! { |m| s.include?(m) }
+      end
+    end
+
+    def build_updates_for_collection_referenced_association(association_data, association_update, update_context)
       model = self.viewmodel.model
+
+      # We have two relationships here.
+      #  - the relationship from us to the join table models:  direct
+      #  - the relationship from the join table to the children: indirect
 
       direct_reflection         = association_data.direct_reflection
       indirect_reflection       = association_data.indirect_reflection
-      through_viewmodel_class   = association_data.through_viewmodel
+      direct_viewmodel_class    = association_data.direct_viewmodel
       indirect_association_data = association_data.indirect_association_data
 
-      viewmodel_reference_for_indirect_model = ->(through_viewmodel) do
-        through_model   = through_viewmodel.model
-        model_class     = through_model.association(indirect_reflection.name).klass
-        model_id        = through_model.public_send(indirect_reflection.foreign_key)
+      indirect_ref_for_direct_viewmodel = ->(direct_viewmodel) do
+        direct_model    = direct_viewmodel.model
+        model_class     = direct_model.association(indirect_reflection.name).klass
+        model_id        = direct_model.public_send(indirect_reflection.foreign_key)
         viewmodel_class = indirect_association_data.viewmodel_class_for_model!(model_class)
         ViewModel::Reference.new(viewmodel_class, model_id)
       end
 
-      previous_through_viewmodels =
-        model.public_send(direct_reflection.name).to_a
-          .map { |m| through_viewmodel_class.new(m) }
-
-      previous_through_viewmodels.sort_by! { |x| x._list_attribute } if through_viewmodel_class._list_member?
-
-      # To try to reduce list position churn in the case of multiple
-      # associations to a single model, we keep the previous_through_children
-      # values sorted, and take the first element from the list each time we
-      # find a reference to it in the update data. Any viewmodels left
-      # afterwards are orphaned.
-      previous_through_viewmodels_by_indirect_ref =
-        previous_through_viewmodels.group_by(&viewmodel_reference_for_indirect_model)
-
-      new_through_viewmodels = reference_strings.map do |ref|
-        target_reference = update_context.resolve_reference(ref).viewmodel_reference
-
-        existing_through_viewmodel =
-          previous_through_viewmodels_by_indirect_ref[target_reference].try(:shift) if target_reference
-
-        existing_through_viewmodel || through_viewmodel_class.for_new_model
+      previous_members = model.public_send(direct_reflection.name).map do |m|
+        direct_vm              = direct_viewmodel_class.new(m)
+        indirect_viewmodel_ref = indirect_ref_for_direct_viewmodel.(direct_vm)
+        ReferencedCollectionMember.new(indirect_viewmodel_ref, direct_vm)
       end
 
-      orphaned_through_viewmodels = previous_through_viewmodels_by_indirect_ref.flat_map { |_, vms| vms }
+      if direct_viewmodel_class._list_member?
+        previous_members.sort_by!(&:position)
+      end
 
-      if new_through_viewmodels != previous_through_viewmodels
+      target_collection = MutableReferencedCollection.new(
+        association_data, update_context, previous_members)
+
+      # All updates to shared collections produce a complete target list of
+      # ReferencedCollectionMembers including a ViewModel::Reference to the
+      # indirect child, and an existing (from previous) or new ViewModel for the
+      # direct child.
+      #
+      # Members participating in the update (all members in the case of Replace,
+      # specified append or update members in the case of Functional) will also
+      # include a reference string for the update operation for the indirect
+      # child, which will be subsequently added to the new UpdateOperation for
+      # the direct child.
+      case association_update
+      when ReferencedCollectionUpdate::Replace
+        target_collection.replace(association_update.references)
+
+      when ReferencedCollectionUpdate::Functional
+        # Collection updates are a list of actions modifying the list
+        # of indirect children.
+        #
+        # The target collection starts out as a copy of the previous collection
+        # members, and is then mutated based on the actions specified. All
+        # members added or modified by actions will have their `ref` set.
+
+        association_update.check_for_duplicates!(update_context, self.viewmodel.blame_reference)
+
+        association_update.actions.each do |fupdate|
+          case fupdate
+          when FunctionalUpdate::Append # Append new members, possibly relative to another member
+            case
+            when fupdate.before
+              target_collection.insert_before(fupdate.before, fupdate.contents)
+            when fupdate.after
+              target_collection.insert_after(fupdate.after, fupdate.contents)
+            else
+              target_collection.concat(fupdate.contents)
+            end
+
+          when FunctionalUpdate::Remove
+            target_collection.remove(fupdate.removed_vm_refs)
+
+          when FunctionalUpdate::Update # Update contents of members already in the collection
+            target_collection.update(fupdate.contents)
+
+          else
+            raise ArgumentError.new("Unknown functional update: '#{fupdate.class}'")
+          end
+        end
+
+      else
+        raise_deserialization_error("Unknown association_update type '#{association_update.class.name}'")
+      end
+
+      # We should now have an updated list of `target_collection_members`, each
+      # of which has a `direct_viewmodel` set, and additionally a `ref_string`
+      # set for those that participated in the update.
+
+      if target_collection.members != previous_members
         self.association_changed!(association_data.association_name)
       end
 
-      positions = Array.new(new_through_viewmodels.length)
-      if through_viewmodel_class._list_member?
-        # It's always fine to use a position, since this is always owned data (no moves, so no positions to ignore.)
-        get_position = ->(index)     { new_through_viewmodels[index]._list_attribute }
-        set_position = ->(index, pos){ positions[index] = pos }
-
-        ActsAsManualList.update_positions((0...new_through_viewmodels.size).to_a, # indexes
-                                          position_getter: get_position,
-                                          position_setter: set_position)
+      if direct_viewmodel_class._list_member?
+        ActsAsManualList.update_positions(target_collection.members)
       end
 
-      new_through_updates = new_through_viewmodels.zip(reference_strings, positions).map do |viewmodel, ref, position|
-        update_data = UpdateData.empty_update_for(viewmodel)
-        update_data.referenced_associations[indirect_reflection.name] = ref # TODO layering violation
+      parent_data = ParentData.new(direct_reflection.inverse_of, self.viewmodel)
 
-        parent_data = ParentData.new(direct_reflection.inverse_of, self.viewmodel)
-        update_context.new_update(viewmodel, update_data,
-                                  reparent_to: parent_data,
-                                  reposition_to: position)
+      new_direct_updates = target_collection.members.map do |member|
+        update_data = UpdateData.empty_update_for(member.direct_viewmodel)
+
+        if (ref = member.ref_string)
+          update_data.referenced_associations[indirect_reflection.name] = ref
+        end
+
+        update_context.new_update(member.direct_viewmodel, update_data,
+                                  reparent_to:   parent_data,
+                                  reposition_to: member.position)
           .build!(update_context)
       end
 
-
-      # Anything left from previous_children is now garbage, and should be
-      # released. We assert it's never going to be reclaimed.
-      orphaned_through_viewmodels.each do |viewmodel|
-        update_context.release_viewmodel(viewmodel, association_data)
+      # Members removed from the collection, either by `Remove` or by
+      # not being included in the new Replace list can now be
+      # released.
+      target_collection.orphaned_members.each do |member|
+        update_context.release_viewmodel(member.direct_viewmodel, association_data)
       end
 
-      new_through_updates
+      new_direct_updates
     end
 
     def clear_association_cache(model, reflection)

@@ -200,7 +200,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
         # Provide information about will was updated
         deserialize_context.updated_associations = root_update_data
-                                                     .map { |upd| upd.updated_associations(referenced_update_data) }
+                                                     .map { |upd| upd.updated_associations }
                                                      .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
         updated_viewmodels =
@@ -236,7 +236,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
         case
         when association_data.through?
-          viewmodel = association_data.through_viewmodel
+          viewmodel = association_data.direct_viewmodel
           children = viewmodel.eager_includes(serialize_context: child_context)
 
         when association_data.polymorphic?
@@ -347,7 +347,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
       # Provide information about what was updated
       deserialize_context.updated_associations = root_update_data
-                                                   .map { |upd| upd.updated_associations(referenced_update_data) }
+                                                   .map { |upd| upd.updated_associations }
                                                    .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
@@ -399,8 +399,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
     case
     when association_data.through?
       # associated here are join_table models; we need to get the far side out
-      if association_data.through_viewmodel._list_member?
-        associated.order(association_data.through_viewmodel._list_attribute_name)
+      if association_data.direct_viewmodel._list_member?
+        associated.order(association_data.direct_viewmodel._list_attribute_name)
       end
 
       associated.map do |through_model|

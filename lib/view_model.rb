@@ -59,6 +59,13 @@ class ViewModel
       return type_name, schema_version, id, new
     end
 
+    def extract_reference_only_metadata(hash)
+      ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_UPDATE, hash)
+      id             = hash.delete(ViewModel::ID_ATTRIBUTE)
+      type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
+      return type_name, id
+    end
+
     def extract_reference_metadata(hash)
       ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_REFERENCE, hash)
       hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
