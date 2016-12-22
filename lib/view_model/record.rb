@@ -37,35 +37,20 @@ class ViewModel::Record < ViewModel
 
     # Specifies an attribute from the model to be serialized in this view
     def attribute(attr, read_only: false, using: nil, optional: false)
-      _members[attr.to_s] = AttributeData.new(using, optional, read_only)
+      attr_data = AttributeData.new(using, optional, read_only)
+      _members[attr.to_s] = attr_data
 
       @generated_accessor_module.module_eval do
         define_method attr do
-          val = model.public_send(attr)
-          val = using.new(val) if using && !val.nil?
-          val
+          _get_attribute(attr, attr_data)
         end
 
         define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
-          value = self.public_send(attr)
-          json.set! attr do
-            serialize_context = serialize_context.for_association(attr.to_s) if using.present?
-            self.class.serialize(value, json, serialize_context: serialize_context)
-          end
+          _serialize_attribute(attr, attr_data, json, serialize_context: serialize_context)
         end
 
-        if read_only
-          define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
-            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)) if using && !value.nil?
-            if value != self.public_send(attr)
-              raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
-            end
-          end
-        else
-          define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
-            value = using.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self)).model if using && !value.nil?
-            model.public_send("#{attr}=", value)
-          end
+        define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
+          _deserialize_attribute(attr, attr_data, value, deserialize_context: deserialize_context)
         end
       end
     end
@@ -204,4 +189,41 @@ class ViewModel::Record < ViewModel
   alias eql? ==
 
   self.abstract_class = true
+
+  private
+
+  def _get_attribute(attr, attr_data)
+    val = model.public_send(attr)
+
+    if attr_data.using_viewmodel? && !val.nil?
+      val = attr_data.attribute_viewmodel.new(val)
+    end
+
+    val
+  end
+
+  def _serialize_attribute(attr, attr_data, json, serialize_context:)
+    value = self.public_send(attr)
+
+    json.set! attr do
+      serialize_context = serialize_context.for_association(attr.to_s) if attr_data.using_viewmodel?
+      self.class.serialize(value, json, serialize_context: serialize_context)
+    end
+  end
+
+  def _deserialize_attribute(attr, attr_data, value, deserialize_context:)
+    if attr_data.using_viewmodel? && !value.nil?
+      value = attr_data.attribute_viewmodel.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self))
+      # When read-only, compare viewmodels rather than underlying representation.
+      value = value.model unless attr_data.read_only?
+    end
+
+    if attr_data.read_only?
+      if value != self.public_send(attr)
+        raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
+      end
+    else
+      model.public_send("#{attr}=", value)
+    end
+  end
 end

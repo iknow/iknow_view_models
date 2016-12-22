@@ -14,4 +14,8 @@ class ViewModel::Record::AttributeData
   def read_only?
     @read_only
   end
+
+  def using_viewmodel?
+    !@attribute_viewmodel.nil?
+  end
 end
