@@ -1,7 +1,8 @@
 class ViewModel::Record::AttributeData
-  attr_reader :attribute_viewmodel
+  attr_reader :name, :attribute_viewmodel
 
-  def initialize(attribute_viewmodel, optional, read_only)
+  def initialize(name, attribute_viewmodel, optional, read_only)
+    @name = name
     @attribute_viewmodel = attribute_viewmodel
     @optional = optional
     @read_only = read_only
