@@ -4,7 +4,11 @@ require 'view_model/schemas'
 # A record viewmodel wraps a single underlying model, exposing a fixed set of
 # real or calculated attributes.
 class ViewModel::Record < ViewModel
+  # All ViewModel::Records have the same underlying ViewModel attribute: the
+  # record model they back on to. We want this to be inherited by subclasses, so
+  # we override ViewModel's :_attributes to close over it.
   attribute :model
+  self.lock_attribute_inheritance
 
   require 'view_model/record/attribute_data'
 
@@ -14,14 +18,11 @@ class ViewModel::Record < ViewModel
 
     def inherited(subclass)
       super
-      # copy ViewModel setup
-      subclass._attributes = self._attributes
-
-      subclass.initialize_members
+      subclass.initialize_as_viewmodel_record
       ViewModel::Registry.register(subclass)
     end
 
-    def initialize_members
+    def initialize_as_viewmodel_record
       @_members       = {}
       @abstract_class = false
       @unregistered   = false
