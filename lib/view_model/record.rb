@@ -37,8 +37,8 @@ class ViewModel::Record < ViewModel
     end
 
     # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, read_only: false, using: nil, optional: false)
-      attr_data = AttributeData.new(attr, using, optional, read_only)
+    def attribute(attr, read_only: false, write_once: false, using: nil, optional: false)
+      attr_data = AttributeData.new(attr, using, optional, read_only, write_once)
       _members[attr.to_s] = attr_data
 
       @generated_accessor_module.module_eval do
@@ -226,11 +226,17 @@ class ViewModel::Record < ViewModel
     end
 
     if attr_data.read_only?
-      if value != self.public_send(attr)
-        raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
+      changed     = (value != self.public_send(attr))
+      first_write = (attr_data.write_once? && model.new_record?)
+      if changed
+        unless first_write
+          raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
+        end
+      else
+        return
       end
-    else
-      model.public_send("#{attr}=", value)
     end
+
+    model.public_send("#{attr}=", value)
   end
 end
