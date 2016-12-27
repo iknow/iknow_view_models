@@ -20,6 +20,8 @@ module ViewModel::Controller
           serialize_context.serialize_references(json)
         end
       end
+
+      yield(json) if block_given?
     end
   end
 
