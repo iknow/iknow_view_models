@@ -12,4 +12,3 @@ gem 'acts_as_manual_list',          git: 'git@github.com:iknow/acts_as_manual_li
 gem 'iknow_params',                 git: 'git@github.com:iknow/iknow_params',                 branch: 'master'
 gem 'cerego_active_record_patches', git: 'git@github.com:iknow/cerego_active_record_patches', branch: 'master'
 gem 'deep_preloader',               git: 'git@github.com:iknow/deep_preloader',               branch: 'master'
-gem 'persistent_enum',              git: 'git@github.com:iknow/persistent_enum',              branch: 'master'
