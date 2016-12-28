@@ -25,7 +25,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
                                                                  references: refs,
                                                                  deserialize_context: deserialize_context)
 
-      association_view = updated_owner_view.read_association(association_name)
+      association_view = updated_owner_view.public_send(association_name)
 
       ViewModel.preload_for_serialization(association_view, serialize_context: serialize_context)
       render_viewmodel(association_view, serialize_context: serialize_context)
