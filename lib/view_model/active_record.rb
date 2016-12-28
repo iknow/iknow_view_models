@@ -245,7 +245,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
     # internal
     def _association_data(association_name)
       association_data = self._members[association_name.to_s]
-      raise ArgumentError.new("Invalid association") unless association_data.is_a?(AssociationData)
+      raise ArgumentError.new("Invalid association '#{association_name}'") unless association_data.is_a?(AssociationData)
       association_data
     end
 

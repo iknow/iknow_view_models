@@ -4,11 +4,11 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
   protected
 
-  def show_association(serialize_context: new_serialize_context)
+  def show_association(scope: nil, serialize_context: new_serialize_context)
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
       owner_view.visible!(context: serialize_context)
-      associated_views = owner_view.load_associated(association_name)
+      associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
       associated_views = yield(associated_views) if block_given?
 
@@ -21,11 +21,11 @@ module ViewModel::ActiveRecord::NestedControllerBase
     owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      updated_owner_view = owner_viewmodel.deserialize_from_view(owner_update_hash(update_hash),
-                                                                 references: refs,
-                                                                 deserialize_context: deserialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
 
-      association_view = updated_owner_view.public_send(association_name)
+      association_view = owner_view.replace_associated(association_name, update_hash,
+                                                       references: refs,
+                                                       deserialize_context: deserialize_context)
 
       ViewModel.preload_for_serialization(association_view, serialize_context: serialize_context)
       render_viewmodel(association_view, serialize_context: serialize_context)
@@ -42,6 +42,10 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
       render_viewmodel(empty_update, serialize_context: serialize_context)
     end
+  end
+
+  def association_data
+    owner_viewmodel._association_data(association_name)
   end
 
   def owner_update_hash(update)
