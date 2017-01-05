@@ -76,19 +76,19 @@ module ActionDispatch
             if shallow_nesting_depth > 1
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
-                put    '', action: :append           unless except.include?(:append)
+                put    '', action: :append, as: ''   unless except.include?(:append)
                 delete '', action: :disassociate_all unless except.include?(:disassociate_all)
               end
 
               scope shallow: false do
-                delete '', action: :disassociate     unless except.include?(:disassociate)
+                delete '', action: :disassociate, as: '' unless except.include?(:disassociate)
               end
 
               # Add top level `create` route to manipulate existing viewmodels
               # without providing parent context
               shallow_scope do
                 collection do
-                  post '', action: :create unless except.include?(:create) || !add_shallow_routes
+                  post '', action: :create, as: '' unless except.include?(:create) || !add_shallow_routes
                 end
               end
 
