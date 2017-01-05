@@ -450,6 +450,128 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     assert(d_context.edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
   end
 
+  def test_replace_associated
+    old_tags = tags(@parent1)
+
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    nc = pv.replace_associated(:tags,
+                               [{ '_type' => 'Tag', 'name' => 'new_tag' }],
+                               deserialize_context: context)
+
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(TagView,  nil)]
+
+    assert_equal(Set.new(expected_edit_checks),
+                 context.edit_checks.to_set)
+
+    assert_equal(1, nc.size)
+    assert(nc[0].is_a?(TagView))
+    assert_equal('new_tag', nc[0].name)
+
+    @parent1.reload
+    assert_equal(['new_tag'], tags(@parent1).map(&:name))
+  end
+
+  def test_delete_associated_has_many
+    t1, t2 = tags(@parent1)
+
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    pv.delete_associated(:tags, t1.id,
+                         deserialize_context: context)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)].to_set
+
+    assert_equal(expected_edit_checks,
+                 context.edit_checks.to_set)
+
+    @parent1.reload
+    assert_equal([t2], tags(@parent1))
+  end
+
+  def test_append_associated_move_has_many
+    pv = ParentView.new(@parent1)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)].to_set
+
+    # insert before
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' => @tag2.id },
+                         before: ViewModel::Reference.new(TagView, @tag1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+
+    assert_equal([@tag2, @tag1],
+                 tags(@parent1))
+
+    # insert after
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' => @tag2.id },
+                         after: ViewModel::Reference.new(TagView, @tag1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([@tag1, @tag2],
+                 tags(@parent1))
+
+    # append
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' => @tag1.id },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+
+    assert_equal([@tag2, @tag1],
+                 tags(@parent1))
+  end
+
+    def test_append_associated_insert_has_many
+    pv = ParentView.new(@parent1)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)].to_set
+
+    # insert before
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' => @tag3.id },
+                         before: ViewModel::Reference.new(TagView, @tag1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([@tag3, @tag1, @tag2],
+                 tags(@parent1))
+
+    @parent1.parents_tags.where(tag_id: @tag3.id).destroy_all
+
+    # insert after
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' =>  @tag3.id },
+                         after: ViewModel::Reference.new(TagView, @tag1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([@tag1, @tag3, @tag2],
+                 tags(@parent1))
+
+    @parent1.parents_tags.where(tag_id: @tag3.id).destroy_all
+
+    # append
+    pv.append_associated(:tags,
+                         { '_type' => 'Tag', 'id' => @tag3.id },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+
+    assert_equal([@tag1, @tag2, @tag3],
+                 tags(@parent1))
+  end
+
   class RenamingTest < ActiveSupport::TestCase
     include ARVMTestUtilities
 
