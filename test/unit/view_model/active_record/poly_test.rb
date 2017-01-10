@@ -78,9 +78,9 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_create_has_one_from_view
       p1_view = {
-        "_type" => "PolyParentOne",
+        '$type' => "PolyParentOne",
         "text"  => "p",
-        "child" => { "_type" => "Child", "text" => "c" }
+        "child" => { '$type' => "Child", "text" => "c" }
       }
       p1v = PolyParentOneView.deserialize_from_view(p1_view)
       p1 = p1v.model
@@ -92,9 +92,9 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_create_has_many_from_view
       p2_view = {
-        "_type" => "PolyParentTwo",
+        '$type' => "PolyParentTwo",
         "num"   => "2",
-        "children" => [{ "_type" => "Child", "text" => "c1" }, { "_type" => "Child", "text" => "c2" }]
+        "children" => [{ '$type' => "Child", "text" => "c1" }, { '$type' => "Child", "text" => "c2" }]
       }
       p2v = PolyParentTwoView.deserialize_from_view(p2_view)
       p2 = p2v.model
@@ -203,9 +203,9 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_create_from_view
       view = {
-        "_type"    => "Parent",
+        '$type'    => "Parent",
         "name"     => "p",
-        "poly"     => { "_type" => "PolyTwo", "text" => "pol" }
+        "poly"     => { '$type' => "PolyTwo", "text" => "pol" }
       }
 
       pv = ParentView.deserialize_from_view(view)
@@ -225,12 +225,12 @@ module ViewModel::ActiveRecord::PolyTest
     def test_serialize_view
       view, _refs = serialize_with_references(ParentView.new(@parent1))
 
-      assert_equal({ "_type"    => "Parent",
-                     "_version" => 1,
+      assert_equal({ '$type'    => "Parent",
+                     '$version' => 1,
                      "id"       => @parent1.id,
                      "name"     => @parent1.name,
-                     "poly"     => { "_type"    => @parent1.poly_type,
-                                     "_version" => 1,
+                     "poly"     => { '$type'    => @parent1.poly_type,
+                                     '$version' => 1,
                                      "id"       => @parent1.poly.id,
                                      "number"   => @parent1.poly.number }
                    },
@@ -241,11 +241,11 @@ module ViewModel::ActiveRecord::PolyTest
     def test_invalid_type_lookup_with_version
       ex = assert_raises do
         ParentView.deserialize_from_view(
-          { '_type' => 'Parent',
-            '_new'  => true,
+          { '$type' => 'Parent',
+            '$new'  => true,
             'poly' => {
-              '_type'    => 'SomethingThatsNotActuallyAType',
-              '_version' => 1,
+              '$type'    => 'SomethingThatsNotActuallyAType',
+              '$version' => 1,
             } })
         end
         assert_match(/\binvalid\b.+\bviewmodel type\b/i, ex.message)
@@ -255,7 +255,7 @@ module ViewModel::ActiveRecord::PolyTest
       old_poly = @parent1.poly
 
       alter_by_view!(ParentView, @parent1) do |view, refs|
-        view['poly'] = { '_type' => 'PolyTwo', 'text' => 'hi' }
+        view['poly'] = { '$type' => 'PolyTwo', 'text' => 'hi' }
       end
 
       assert_instance_of(PolyTwo, @parent1.poly)
@@ -297,7 +297,7 @@ module ViewModel::ActiveRecord::PolyTest
       end
 
       def test_dependencies
-        root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+        root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent', 'something_else' => nil }])
         assert_equal(DeepPreloader::Spec.new('poly' => DeepPreloader::PolymorphicSpec.new), root_updates.first.preload_dependencies(ref_updates))
         assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
       end
@@ -305,11 +305,11 @@ module ViewModel::ActiveRecord::PolyTest
       def test_renamed_roundtrip
         alter_by_view!(ParentView, @parent) do |view, refs|
           assert_equal({ 'id'       => @parent.id,
-                         '_type'    => 'PolyOne',
-                         '_version' => 1,
+                         '$type'    => 'PolyOne',
+                         '$version' => 1,
                          'number'   => 42 },
                        view['something_else'])
-          view['something_else'] = {'_type' => 'PolyTwo', 'text' => 'hi'}
+          view['something_else'] = {'$type' => 'PolyTwo', 'text' => 'hi'}
         end
 
         assert_equal('hi', @parent.poly.text)

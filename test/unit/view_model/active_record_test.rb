@@ -58,7 +58,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      '$type'    => "Parent",
       "name"     => "p",
     }
 
@@ -73,10 +73,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_from_view_with_explicit_id
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "id"    => 9999,
       "name"  => "p",
-      "_new"  => true
+      '$new'  => true
     }
     pv = ParentView.deserialize_from_view(view)
     p = pv.model
@@ -88,9 +88,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_explicit_id_raises_with_id
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "id"    => 9999,
-      "_new"  => true
+      '$new'  => true
     }
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
@@ -101,10 +101,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_read_only_raises_with_id
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "one"   => 2,
       "id"    => 9999,
-      "_new"  => true
+      '$new'  => true
     }
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
@@ -124,7 +124,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_editability_checks_create
     context = ViewModelBase.new_deserialize_context
-    ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
+    ParentView.deserialize_from_view({'$type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
     assert_equal([ViewModel::Reference.new(ParentView, nil)], context.edit_checks)
   end
@@ -134,7 +134,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::DeserializationError) do
       # create
-      ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
+      ParentView.deserialize_from_view({ '$type' => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
@@ -150,8 +150,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_create_multiple
-    view = [{'_type' => 'Parent', 'name' => 'newp1'},
-            {'_type' => 'Parent', 'name' => 'newp2'}]
+    view = [{'$type' => 'Parent', 'name' => 'newp1'},
+            {'$type' => 'Parent', 'name' => 'newp2'}]
 
     result = ParentView.deserialize_from_view(view)
 
@@ -162,8 +162,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_update_duplicate_specification
     view = [
-      {'_type' => 'Parent', 'id' => @parent1.id},
-      {'_type' => 'Parent', 'id' => @parent1.id},
+      {'$type' => 'Parent', 'id' => @parent1.id},
+      {'$type' => 'Parent', 'id' => @parent1.id},
     ]
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
@@ -182,15 +182,15 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view({ "target" => [] })
     end
-    assert_match(/"_type" wasn't supplied/, ex.message)
+    assert_match(/"\$type" wasn't supplied/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      ParentView.deserialize_from_view({ "_type" => "Invalid" })
+      ParentView.deserialize_from_view({ '$type' => "Invalid" })
     end
     assert_match(/incorrect root viewmodel type/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError) do
-      ParentView.deserialize_from_view({ "_type" => "NotAViewmodelType" })
+      ParentView.deserialize_from_view({ '$type' => "NotAViewmodelType" })
     end
     assert_match(/ViewModel\b.*\bnot found/, ex.message)
   end
@@ -222,7 +222,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_edit_missing_root
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "id"    => 9999
     }
 
@@ -353,7 +353,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
        l = List.create!(car: 1)
 
        alter_by_view!(ListView, l) do |view, refs|
-         view["cdr"] = { "_type" => "List", "car" => 2 }
+         view["cdr"] = { '$type' => "List", "car" => 2 }
        end
 
        l_edits = edit_check(ViewModel::Reference.new(ListView, l.id))
@@ -368,7 +368,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
        l2 = l.cdr
 
        alter_by_view!(ListView, l) do |view, refs|
-         view["cdr"] = { "_type" => "List", "car" => 2 }
+         view["cdr"] = { '$type' => "List", "car" => 2 }
        end
 
        l_edits = edit_check(ViewModel::Reference.new(ListView, l.id))
@@ -439,15 +439,15 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     def test_serialize_view
       view, _refs = serialize_with_references(PairView.new(@pair))
 
-      assert_equal({ "_type"    => "Pair",
-                     "_version" => 1,
+      assert_equal({ '$type'    => "Pair",
+                     '$version' => 1,
                      "id"       => @pair.id,
                      "pair"     => { "a" => 1, "b" => 2 } },
                    view)
     end
 
     def test_create
-      view = { "_type" => "Pair", "pair" => { "a" => 3, "b" => 4 } }
+      view = { '$type' => "Pair", "pair" => { "a" => 3, "b" => 4 } }
       pv = PairView.deserialize_from_view(view)
       assert_equal([3,4], pv.model.pair)
     end
@@ -503,11 +503,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       end
 
       assert_equal({},
-                   updated_by_view.({ '_type' => 'Parent',
+                   updated_by_view.({ '$type' => 'Parent',
                                       'name' => 'p' }))
 
       assert_equal({ 'children' => {} },
-                   updated_by_view.({ '_type' => 'Parent',
+                   updated_by_view.({ '$type' => 'Parent',
                                       'name' => 'p',
                                       'children' => [] }))
     end
@@ -554,11 +554,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     def test_deserialize_context
       view = {
-        "_type" => "List",
+        '$type' => "List",
         "id"    => 1000,
-        "_new"  => true,
+        '$new'  => true,
         "child" => {
-          "_type" => "List",
+          '$type' => "List",
         }}
 
       ref_error = assert_raises(RefError) do

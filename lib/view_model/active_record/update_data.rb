@@ -425,8 +425,8 @@ class ViewModel::ActiveRecord
                                     viewmodel_reference_only] })
 
       # Referenced updates are special:
-      #  - Append requires `_ref` hashes
-      #  - Update requires `_ref` hashes
+      #  - Append requires `$ref` hashes
+      #  - Update requires `$ref` hashes
       #  - Remove requires vm refs (type/id)
       # Checked in code (ReferencedCollectionUpdate::Builder.parse_*_values)
 
@@ -484,10 +484,10 @@ class ViewModel::ActiveRecord
     end
 
     def [](name)
-      case name
-      when :id
+      case name.to_s
+      when ViewModel::ID_ATTRIBUTE
         id
-      when :_type
+      when ViewModel::TYPE_ATTRIBUTE
         viewmodel_class.view_name
       else
         attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) }}
@@ -495,8 +495,8 @@ class ViewModel::ActiveRecord
     end
 
     def has_key?(name)
-      case name
-      when :id, :_type
+      case name.to_s
+      when ViewModel::ID_ATTRIBUTE, ViewModel::TYPE_ATTRIBUTE
         true
       else
         attributes.has_key?(name) || associations.has_key?(name) || referenced_associations.has_key?(name)

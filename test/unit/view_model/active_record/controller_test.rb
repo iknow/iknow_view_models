@@ -50,12 +50,12 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_create
     data = {
-        '_type'    => 'Parent',
+        '$type'    => 'Parent',
         'name'     => 'p2',
-        'label'    => { '_type' => 'Label', 'text' => 'l' },
-        'target'   => { '_type' => 'Target', 'text' => 't' },
-        'children' => [{ '_type' => 'Child', 'name' => 'c1' },
-                       { '_type' => 'Child', 'name' => 'c2' }]
+        'label'    => { '$type' => 'Label', 'text' => 'l' },
+        'target'   => { '$type' => 'Target', 'text' => 't' },
+        'children' => [{ '$type' => 'Child', 'name' => 'c1' },
+                       { '$type' => 'Child', 'name' => 'c2' }]
     }
 
     parentcontroller = ParentController.new(data: data)
@@ -87,7 +87,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_update
     data = { 'id'    => @parent.id,
-             '_type' => 'Parent',
+             '$type' => 'Parent',
              'name'  => 'new' }
 
     parentcontroller = ParentController.new(id: @parent.id, data: data)
@@ -122,13 +122,13 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal({ 'errors' => [{ 'status' => 404,
                                   'detail' => "Couldn't find Parent with 'id'=9999",
                                   'code'   => "Deserialization.NotFound",
-                                  'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]}}]},
+                                  'meta' => { 'nodes' => [{ '$type' => "Parent", 'id' => 9999 }]}}]},
                  parentcontroller.hash_response)
   end
 
   def test_create_invalid_shallow_validation
-    data = { '_type'    => 'Parent',
-             'children' => [{ '_type' => 'Child',
+    data = { '$type'    => 'Parent',
+             'children' => [{ '$type' => 'Child',
                               'age'   => 42 }] }
 
     parentcontroller = ParentController.new(data: data)
@@ -137,14 +137,14 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal({ 'errors' => [{ 'status' => 400,
                                   'detail' => 'Validation failed: Age must be less than 42',
                                   'code'   => "Deserialization.Validation",
-                                  'meta' => { 'nodes' => [{ '_type' => "Child", 'id' => nil }],
+                                  'meta' => { 'nodes' => [{ '$type' => "Child", 'id' => nil }],
                                               'validation_errors' => { 'age' => ["must be less than 42"]}}}] },
                  parentcontroller.hash_response)
   end
 
   def test_create_invalid_shallow_constraint
-    data = { '_type'    => 'Parent',
-             'children' => [{ '_type' => 'Child',
+    data = { '$type'    => 'Parent',
+             'children' => [{ '$type' => 'Child',
                               'age'   => 1 }] }
     parentcontroller = ParentController.new(data: data)
     parentcontroller.invoke(:create)
@@ -162,7 +162,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal({ 'errors' => [{ 'status' => 404,
                                   'detail' => "Couldn't find Parent with 'id'=9999",
                                   'code'   => "Deserialization.NotFound",
-                                  'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
+                                  'meta' => { "nodes" => [{'$type' => "Parent", "id" => 9999}]}}] },
                  parentcontroller.hash_response)
     assert_equal(404, parentcontroller.status)
   end
@@ -181,7 +181,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_nested_collection_append_one
-    data = { '_type' => 'Child', 'name' => 'c3' }
+    data = { '$type' => 'Child', 'name' => 'c3' }
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
     childcontroller.invoke(:append)
@@ -196,8 +196,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_nested_collection_append_many
-    data = [{ '_type' => 'Child', 'name' => 'c3' },
-            { '_type' => 'Child', 'name' => 'c4' }]
+    data = [{ '$type' => 'Child', 'name' => 'c3' },
+            { '$type' => 'Child', 'name' => 'c4' }]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
     childcontroller.invoke(:append)
@@ -216,8 +216,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     # Parent.children
     old_children = @parent.children
 
-    data = [{'_type' => 'Child', 'name' => 'newc1'},
-            {'_type' => 'Child', 'name' => 'newc2'}]
+    data = [{'$type' => 'Child', 'name' => 'newc1'},
+            {'$type' => 'Child', 'name' => 'newc2'}]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
     childcontroller.invoke(:create)
@@ -284,7 +284,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     old_child = @parent.children.first
 
     data = { 'id' => old_child.id,
-             '_type' => 'Child',
+             '$type' => 'Child',
              'name' => 'new_name' }
 
     childcontroller = ChildController.new(data: data)
@@ -317,7 +317,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_replace_from_parent
     old_label = @parent.label
 
-    data = {'_type' => 'Label', 'text' => 'new label'}
+    data = {'$type' => 'Label', 'text' => 'new label'}
     labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
     labelcontroller.invoke(:create)
 
@@ -325,8 +325,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal({ 'data' => { '_type'    => 'Label',
-                               '_version' => 1,
+    assert_equal({ 'data' => { '$type'    => 'Label',
+                               '$version' => 1,
                                'id'       => @parent.label.id,
                                'text'     => 'new label' } },
                  labelcontroller.hash_response)
@@ -365,7 +365,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_update
     old_label = @parent.label
 
-    data = {'_type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
+    data = {'$type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
     labelcontroller = LabelController.new(data: data)
     labelcontroller.invoke(:create)
 
