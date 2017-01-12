@@ -59,6 +59,7 @@ class ViewModel
     def lock_attribute_inheritance
       _attributes.tap do |attrs|
         define_singleton_method(:_attributes) { attrs }
+        attrs.freeze
       end
     end
 
