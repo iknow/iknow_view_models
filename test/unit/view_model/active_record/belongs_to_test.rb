@@ -211,6 +211,30 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
   end
 
+
+  def test_moved_child_is_not_delete_checked
+    # move from p1 to p3
+    d_context = ParentView.new_deserialize_context
+
+    target_label = Label.create
+    from_parent  = Parent.create(name: 'from', label: target_label)
+    to_parent    = Parent.create(name: 'p3')
+
+    alter_by_view!(
+      ParentView, [from_parent, to_parent],
+      deserialize_context: d_context
+    ) do |(from, to), refs|
+      from['label'] = nil
+      to['label']   = update_hash_for(LabelView, target_label)
+    end
+
+    assert_equal(target_label, to_parent.label, 'target label moved')
+    assert_equal([ViewModel::Reference.new(ParentView, from_parent.id),
+                  ViewModel::Reference.new(ParentView, to_parent.id)],
+                 d_context.edit_checks,
+                 "only parents are edit checked; child was not")
+  end
+
   def test_implicit_release_invalid_belongs_to
     taken_label_ref = update_hash_for(LabelView, @parent1.label)
     ex = assert_raises(ViewModel::DeserializationError) do

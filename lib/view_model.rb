@@ -37,6 +37,14 @@ class ViewModel
       @view_name = name
     end
 
+    def debug_name=(name)
+      @debug_name = name
+    end
+
+    def debug_name
+      @debug_name || view_name
+    end
+
     # ViewModels are typically going to be pretty simple structures. Make it a
     # bit easier to define them: attributes specified this way are given
     # accessors and assigned in order by the default constructor.
