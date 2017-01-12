@@ -89,14 +89,6 @@ class ViewModel::Record < ViewModel
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
       viewmodel.visible!(context: deserialize_context)
 
-      if view_hash.present?
-        # we don't necessarily have a model that can tell us after the fact
-        # whether we changed anything, so need to edit check if any attributes
-        # are provided. This doesn't allow for idempotent uploads with partial
-        # privileges, as offered by VM::AR.
-        viewmodel.editable!(deserialize_context: deserialize_context)
-      end
-
       if (bad_attrs = view_hash.keys - self.member_names).present?
         raise ViewModel::DeserializationError.new("Illegal attribute(s) #{bad_attrs.inspect} for viewmodel #{self.view_name}",
                                                   viewmodel.blame_reference)
@@ -107,6 +99,9 @@ class ViewModel::Record < ViewModel
           viewmodel.public_send("deserialize_#{attr}", view_hash[attr], deserialize_context: deserialize_context)
         end
       end
+
+      viewmodel.editable!(deserialize_context: deserialize_context, changed_attributes: viewmodel.changed_attributes)
+      viewmodel.clear_changed_attributes!
     end
 
     def resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)
@@ -150,12 +145,16 @@ class ViewModel::Record < ViewModel
 
   delegate :model_class, to: 'self.class'
 
+  attr_reader :changed_attributes
+
   def initialize(model)
     unless model.is_a?(model_class)
       raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
     end
 
     super(model)
+
+    @changed_attributes = []
   end
 
   def self.for_new_model(id: nil)
@@ -175,6 +174,14 @@ class ViewModel::Record < ViewModel
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
     end
+  end
+
+  def attribute_changed!(attr_name)
+    @changed_attributes << attr_name.to_s
+  end
+
+  def clear_changed_attributes!
+    @changed_attributes = []
   end
 
   # Use ActiveRecord style identity for viewmodels. This allows serialization to
@@ -221,22 +228,22 @@ class ViewModel::Record < ViewModel
 
     if attr_data.using_viewmodel? && !value.nil?
       value = attr_data.attribute_viewmodel.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self))
-      # When read-only, compare viewmodels rather than underlying representation.
-      value = value.model unless attr_data.read_only?
     end
 
-    if attr_data.read_only?
-      changed     = (value != self.public_send(attr))
-      first_write = (attr_data.write_once? && model.new_record?)
-      if changed
-        unless first_write
-          raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
-        end
-      else
-        return
+    # Detect changes with ==. In the case of `using_viewmodel?`, this compares viewmodels.
+    if value != self.public_send(attr)
+      if attr_data.read_only? && !(attr_data.write_once? && model.new_record?)
+        raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
       end
-    end
 
-    model.public_send("#{attr}=", value)
+      attribute_changed!(attr)
+
+      if attr_data.using_viewmodel? && !value.nil?
+        # Extract model from target viewmodel to save
+        value = value.model
+      end
+
+      model.public_send("#{attr}=", value)
+    end
   end
 end

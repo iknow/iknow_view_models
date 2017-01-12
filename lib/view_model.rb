@@ -232,13 +232,13 @@ class ViewModel
     end
   end
 
-  def editable?(deserialize_context: self.class.new_deserialize_context, changed_associations:, deleted:)
+  def editable?(deserialize_context: self.class.new_deserialize_context, changed_attributes:, changed_associations:, deleted:)
     visible?(context: deserialize_context)
   end
 
-  def editable!(deserialize_context: self.class.new_deserialize_context, changed_associations: [], deleted: false)
+  def editable!(deserialize_context: self.class.new_deserialize_context, changed_attributes: [], changed_associations: [], deleted: false)
     self.access_check_error = nil
-    unless editable?(deserialize_context: deserialize_context, changed_associations: changed_associations, deleted: deleted)
+    unless editable?(deserialize_context: deserialize_context, changed_attributes: changed_attributes, changed_associations: changed_associations, deleted: deleted)
       err = @access_check_error ||
             DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.view_name}'",
                                                   self.blame_reference)

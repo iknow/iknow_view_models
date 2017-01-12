@@ -265,9 +265,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           attribute   :car
           association :cdr
 
-          def editable?(deserialize_context:, changed_associations:, deleted:)
+          def editable?(deserialize_context:, changed_attributes:, changed_associations:, deleted:)
             EditCheckTests.add_edit_check(self.to_reference,
-                                          [model.changes.keys, changed_associations, deleted])
+                                          [changed_attributes, changed_associations, deleted])
             super
           end
         end
