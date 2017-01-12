@@ -15,8 +15,12 @@ class ViewModel
     attr_accessor :schema_version
 
     def inherited(subclass)
-      subclass._attributes = []
-      subclass.schema_version = 1
+      subclass.initialize_as_viewmodel
+    end
+
+    def initialize_as_viewmodel
+      @_attributes     = []
+      @schema_version = 1
     end
 
     def view_name
@@ -47,6 +51,16 @@ class ViewModel
 
       attr_accessor attr
       _attributes << attr
+    end
+
+    # An abstract viewmodel may want to define attributes to be shared by their
+    # subclasses. Redefine `_attributes` to close over the current class's
+    # _attributes and ignore children.
+    def lock_attribute_inheritance
+      _attributes.tap do |attrs|
+        define_singleton_method(:_attributes) { attrs }
+        attrs.freeze
+      end
     end
 
     # In deserialization, verify and extract metadata from a provided hash.
@@ -219,13 +233,13 @@ class ViewModel
     end
   end
 
-  def editable?(deserialize_context: self.class.new_deserialize_context, changed_associations:, deleted:)
+  def editable?(deserialize_context: self.class.new_deserialize_context, changed_attributes:, changed_associations:, deleted:)
     visible?(context: deserialize_context)
   end
 
-  def editable!(deserialize_context: self.class.new_deserialize_context, changed_associations: [], deleted: false)
+  def editable!(deserialize_context: self.class.new_deserialize_context, changed_attributes: [], changed_associations: [], deleted: false)
     self.access_check_error = nil
-    unless editable?(deserialize_context: deserialize_context, changed_associations: changed_associations, deleted: deleted)
+    unless editable?(deserialize_context: deserialize_context, changed_attributes: changed_attributes, changed_associations: changed_associations, deleted: deleted)
       err = @access_check_error ||
             DeserializationError::Permissions.new("Attempt to edit forbidden viewmodel '#{self.class.view_name}'",
                                                   self.blame_reference)

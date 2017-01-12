@@ -35,48 +35,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
       super && !synthetic
     end
 
-    # Specifies that an attribute refers to an `acts_as_enum`
-    # constant.  This provides special serialization behaviour to
-    # ensure that the constant's string value is serialized rather
-    # than the model object. Attribute must already be declared using
-    # `attribute`.
-    def acts_as_enum(*attrs)
-      attrs.each do |attr|
-        attribute_data = _members[attr.to_s]
-
-        unless attribute_data
-          raise ArgumentError.new("acts_as_enum attribute '#{attr}' was not declared as an attribute.")
-        end
-
-        @generated_accessor_module.module_eval do
-          redefine_method("serialize_#{attr}") do |json, serialize_context: self.class.new_serialize_context|
-            value = self.public_send(attr)
-            json.set! attr do
-              self.class.serialize(value.try(:enum_constant), json, serialize_context: serialize_context)
-            end
-          end
-
-          if attribute_data.read_only?
-            redefine_method("deserialize_#{attr}") do |value, deserialize_context: self.class.deserialize_context|
-              # We don't know what the enum is here, so we compare by enum_constant
-              # TODO is this rails try (which should by try!), if so, why isn't everything `try!`?
-              if value != self.public_send(attr).try(:enum_constant)
-                raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
-              end
-            end
-          else
-            redefine_method("deserialize_#{attr}") do |value, deserialize_context: self.class.deserialize_context|
-              begin
-                model.public_send("#{attr}=", value)
-              rescue NameError
-                raise ViewModel::DeserializationError.new("Invalid enumeration constant '#{value}'", self.blame_reference)
-              end
-            end
-          end
-        end
-      end
-    end
-
     # Specifies that the model backing this viewmodel is a member of an
     # `acts_as_manual_list` collection.
     def acts_as_list(attr = :position)

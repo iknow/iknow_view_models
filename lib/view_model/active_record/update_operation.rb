@@ -120,7 +120,7 @@ class ViewModel::ActiveRecord
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
         if model.changed? || associations_changed?
-          viewmodel.editable!(deserialize_context: deserialize_context, changed_associations: @changed_associations)
+          viewmodel.editable!(deserialize_context: deserialize_context, changed_attributes: model.changed, changed_associations: @changed_associations)
         end
 
         debug "-> #{debug_name}: Saving"

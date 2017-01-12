@@ -6,7 +6,11 @@ require "view_model/record"
 
 class ViewModel::RecordTest < ActiveSupport::TestCase
 
-  Model = Struct.new(:simple, :overridden, :readonly, :recursive, :optional)
+  Model = Struct.new(:simple, :overridden, :readonly, :writeonce, :recursive, :optional) do
+    def new_record?
+      writeonce.nil?
+    end
+  end
 
   class ModelView < ViewModel::Record
     self.model_class = Model
@@ -15,6 +19,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     attribute :simple
     attribute :overridden
     attribute :readonly,  read_only: true
+    attribute :writeonce, read_only: true, write_once: true
     attribute :recursive, using: ModelView
     attribute :optional,  optional: true
 
@@ -49,7 +54,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
   end
 
   def setup
-    @model = Model.new("simple", 2, "readonly", Model.new("child"), "optional")
+    @model = Model.new("simple", 2, "readonly", "writeonce", Model.new("child"), "optional")
 
     @view = {
       "_type"      => "Model",
@@ -58,6 +63,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       "overridden" => 4,
       "optional"   => "optional",
       "readonly"   => "readonly",
+      "writeonce"  => "writeonce",
       "recursive"  => {
         "_type"      => "Model",
         "_version"   => 1,
@@ -65,6 +71,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         "overridden" => nil,
         "optional"   => nil,
         "readonly"   => nil,
+        "writeonce"  => nil,
         "recursive"  => nil
       }
     }
@@ -107,6 +114,18 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     ctx = ModelView::DeserializeContext.new(targets: [@model, @model.recursive])
 
     @view["readonly"] = "change"
+    ex = assert_raises(ViewModel::DeserializationError) do
+      ModelView.deserialize_from_view(@view, deserialize_context: ctx)
+    end
+
+    assert_match(/Cannot edit read only/, ex.message)
+  end
+
+  def test_update_write_once
+    # Prime our simplistic `resolve_viewmodel` with the desired models to update
+    ctx = ModelView::DeserializeContext.new(targets: [@model, @model.recursive])
+
+    @view["writeonce"] = "change"
     ex = assert_raises(ViewModel::DeserializationError) do
       ModelView.deserialize_from_view(@view, deserialize_context: ctx)
     end
