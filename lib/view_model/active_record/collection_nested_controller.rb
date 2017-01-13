@@ -10,6 +10,7 @@ require 'view_model/active_record/nested_controller_base'
 
 ## Inherits the following routes to manipulate children directly:
 # POST   /children      #create -- create or update without parent
+# GET    /children      #index  -- list all child models regardless of parent
 # GET    /children/:id  #show
 # DELETE /children/:id  #destroy
 module ViewModel::ActiveRecord::CollectionNestedController
@@ -18,7 +19,11 @@ module ViewModel::ActiveRecord::CollectionNestedController
 
   # List items associated with the owner
   def index(scope: nil, serialize_context: new_serialize_context, &block)
-    show_association(scope: scope, serialize_context: serialize_context, &block)
+    if owner_viewmodel_id(required: false).nil?
+      super(scope: scope, serialize_context: serialize_context, &block)
+    else
+      show_association(scope: scope, serialize_context: serialize_context, &block)
+    end
   end
 
   # Deserialize items of the associated type and associate them with the owner,

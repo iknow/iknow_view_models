@@ -89,6 +89,7 @@ module ActionDispatch
               shallow_scope do
                 collection do
                   post '', action: :create, as: '' unless except.include?(:create) || !add_shallow_routes
+                  get  '', action: :index          unless except.include?(:index)  || !add_shallow_routes
                 end
               end
 
