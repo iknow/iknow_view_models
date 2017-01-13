@@ -50,6 +50,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
 
       ViewModel.preload_for_serialization(assoc_view, serialize_context: serialize_context)
       render_viewmodel(assoc_view, serialize_context: serialize_context)
+      assoc_view
     end
   end
 

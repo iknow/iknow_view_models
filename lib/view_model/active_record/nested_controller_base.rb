@@ -13,6 +13,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
       associated_views = yield(associated_views) if block_given?
 
       render_viewmodel(associated_views, serialize_context: serialize_context)
+      associated_views
     end
   end
 
@@ -28,6 +29,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
       ViewModel.preload_for_serialization(association_view, serialize_context: serialize_context)
       render_viewmodel(association_view, serialize_context: serialize_context)
+      association_view
     end
   end
 

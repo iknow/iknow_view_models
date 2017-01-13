@@ -16,6 +16,7 @@ module ViewModel::ActiveRecord::Controller
       view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
       view = yield(view) if block_given?
       render_viewmodel(view, serialize_context: serialize_context)
+      view
     end
   end
 
@@ -24,6 +25,7 @@ module ViewModel::ActiveRecord::Controller
       views = viewmodel.load(scope: scope, serialize_context: serialize_context)
       views = yield(views) if block_given?
       render_viewmodel(views, serialize_context: serialize_context)
+      views
     end
   end
 
@@ -37,6 +39,7 @@ module ViewModel::ActiveRecord::Controller
 
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
       render_viewmodel(view, serialize_context: serialize_context)
+      view
     end
   end
 
