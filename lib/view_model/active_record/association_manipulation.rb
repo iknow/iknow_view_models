@@ -112,6 +112,21 @@ module AssociationManipulation
         end
       end
 
+      # Ensure that previous parents (other than this model) will be edit-checked.
+      unless association_data.through?
+        inverse_assoc_name = direct_reflection.inverse_of.name
+
+        update_context.root_updates.dup.each do |update|
+          update_model    = update.viewmodel.model
+          parent_model_id = update_model.read_attribute(update_model
+                                                          .association(inverse_assoc_name)
+                                                          .reflection.foreign_key)
+          next if parent_model_id == self.id
+
+          update_context.ensure_parent_edit_assertion_update(update.viewmodel, self.class, inverse_assoc_name)
+        end
+      end
+
       updated_viewmodels = update_context.run!(deserialize_context: deserialize_context)
 
       if association_data.through?

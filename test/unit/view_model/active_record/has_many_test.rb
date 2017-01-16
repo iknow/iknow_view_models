@@ -311,8 +311,23 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          { '_type' => 'Child', 'id' => c3.id },
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-
     assert_equal([c1, c2, c3],
+                 @parent1.children.order(:position))
+
+    # move from another parent
+    p2c1 = @parent2.children.order(:position).first
+
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => p2c1.id },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ParentView, @parent2.id),
+                            ViewModel::Reference.new(ChildView, p2c1.id)].to_set
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([c1, c2, c3, p2c1],
                  @parent1.children.order(:position))
   end
 
