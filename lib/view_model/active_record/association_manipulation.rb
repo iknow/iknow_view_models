@@ -92,8 +92,7 @@ module AssociationManipulation
       update_context = UpdateContext.build!(root_update_data, referenced_update_data, root_type: direct_viewmodel_class)
 
       # Provide information about what was updated
-      deserialize_context.updated_associations = root_update_data
-                                                   .map { |upd| upd.updated_associations }
+      deserialize_context.updated_associations = root_update_data.map(&:updated_associations)
                                                    .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
       # Set new parent
