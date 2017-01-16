@@ -69,11 +69,13 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     enable_logging!
   end
 
-  def test_find_associated
-    parentview = ParentView.find(@parent1.id)
-    child = @parent1.children.first
-    childview = parentview.find_associated(:children, child.id)
-    assert_equal(child, childview.model)
+  def test_load_associated
+    parentview = ParentView.new(@parent1)
+
+    childviews = parentview.load_associated(:children)
+    assert_equal(3, childviews.size)
+    assert_equal(["p1c1", "p1c2", "p1c3"],
+                 childviews.map(&:name))
   end
 
   def test_serialize_view
@@ -133,7 +135,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::DeserializationError) do
       # destroy child
-      ParentView.new(@parent1).delete_associated(:target, ChildView.new(@parent1.children.first), deserialize_context: no_edit_context)
+      ParentView.new(@parent1).delete_associated(:children, ChildView.new(@parent1.children.first), deserialize_context: no_edit_context)
     end
   end
 
@@ -194,6 +196,32 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal([], Child.where(id: old_children.map(&:id)))
   end
 
+  def test_replace_associated_has_many
+    old_children = @parent1.children
+
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    nc = pv.replace_associated(:children,
+                               [{ '_type' => 'Child', 'name' => 'new_child' }],
+                               deserialize_context: context)
+
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView,  nil)] +
+                           old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) }
+
+    assert_equal(Set.new(expected_edit_checks),
+                 context.edit_checks.to_set)
+
+    assert_equal(1, nc.size)
+    assert_equal('new_child', nc[0].name)
+
+    @parent1.reload
+    assert_equal(['new_child'], @parent1.children.map(&:name))
+    assert_equal([], Child.where(id: old_children.map(&:id)))
+  end
+
   def test_remove_has_many
     old_children = @parent1.children
     _, context = alter_by_view!(ParentView, @parent1) do |view, refs|
@@ -208,6 +236,26 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_equal([], @parent1.children, 'no children associated with parent1')
     assert(Child.where(id: old_children.map(&:id)).blank?, 'all children deleted')
+  end
+
+  def test_delete_associated_has_many
+    c1, c2, c3 = @parent1.children.order(:position).to_a
+
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    pv.delete_associated(:children, c1.id,
+                         deserialize_context: context)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView,  c1.id)].to_set
+
+    assert_equal(expected_edit_checks,
+                 context.edit_checks.to_set)
+
+    @parent1.reload
+    assert_equal([c2, c3], @parent1.children.order(:position))
+    assert(Child.where(id: c1.id).blank?, 'old child deleted')
   end
 
   def test_edit_has_many
@@ -226,6 +274,105 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal([c2, c3, Child.find_by_name('new_c')],
                  @parent1.children.order(:position))
     assert(Child.where(id: c1.id).blank?)
+  end
+
+  def test_append_associated_move_has_many
+    c1, c2, c3 = @parent1.children.order(:position).to_a
+    pv = ParentView.new(@parent1)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView, c3.id)].to_set
+
+    # insert before
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => c3.id },
+                         before: ViewModel::Reference.new(ChildView, c1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+
+    assert_equal([c3, c1, c2],
+                 @parent1.children.order(:position))
+
+    # insert after
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => c3.id },
+                         after: ViewModel::Reference.new(ChildView, c1.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([c1, c3, c2],
+                 @parent1.children.order(:position))
+
+    # append
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => c3.id },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal([c1, c2, c3],
+                 @parent1.children.order(:position))
+
+    # move from another parent
+    p2c1 = @parent2.children.order(:position).first
+
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => p2c1.id },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ParentView, @parent2.id),
+                            ViewModel::Reference.new(ChildView, p2c1.id)].to_set
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    assert_equal([c1, c2, c3, p2c1],
+                 @parent1.children.order(:position))
+  end
+
+    def test_append_associated_insert_has_many
+    c1, c2, c3 = @parent1.children.order(:position).to_a
+    pv = ParentView.new(@parent1)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView, nil)].to_set
+
+    # insert before
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'name' => 'new1' },
+                         before: ViewModel::Reference.new(ChildView, c2.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    n1 = Child.find_by_name("new1")
+
+    assert_equal([c1, n1, c2, c3],
+                 @parent1.children.order(:position))
+
+    # insert after
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'name' => 'new2' },
+                         after: ViewModel::Reference.new(ChildView, c2.id),
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+
+    n2 = Child.find_by_name("new2")
+
+    assert_equal([c1, n1, c2, n2, c3],
+                 @parent1.children.order(:position))
+
+    # append
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'name' => 'new3' },
+                         deserialize_context: (context = ParentView.new_deserialize_context))
+
+    n3 = Child.find_by_name("new3")
+
+    assert_equal([c1, n1, c2, n2, c3, n3],
+                 @parent1.children.order(:position))
   end
 
   def test_edit_implicit_list_position
@@ -431,17 +578,17 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_has_many_remove_existing_association
     child = @parent1.children[1]
 
-    cv = ChildView.new(child)
-
-    ParentView.new(@parent1).delete_associated(:children, cv)
+    ParentView.new(@parent1).delete_associated(:children, child.id)
 
     @parent1.reload
 
-    # Child should have been moved to the end (and edited)
+    # Child should have been removed
     assert_equal(2, @parent1.children.size)
     c1, c2 = @parent1.children.order(:position)
     assert_equal("p1c1", c1.name)
     assert_equal("p1c3", c2.name)
+
+    assert_equal(0, Child.where(id: child.id).size)
   end
 
   def test_move_and_edit_child_to_new

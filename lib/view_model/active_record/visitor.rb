@@ -18,7 +18,7 @@ class ViewModel::ActiveRecord::Visitor
       # customization
       node.class._members.each do |name, member_data|
         next unless member_data.is_a?(ViewModel::ActiveRecord::AssociationData)
-        children = Array.wrap(node.read_association(name))
+        children = Array.wrap(node._read_association(name))
         children.each do |child|
           self.visit(child)
         end
