@@ -50,7 +50,8 @@ module AssociationManipulation
     association_data = self.class._association_data(association_name)
 
     if association_data.through?
-      association_references = convert_updates_to_references(subtree_hashes, references)
+      association_references = convert_updates_to_references(subtree_hashes)
+      references.merge!(association_references)
       subtree_hashes = association_references.map { |ref, upd| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
     end
 
@@ -199,7 +200,8 @@ module AssociationManipulation
     indirect_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
 
     # Convert associated update data to references
-    indirect_references = convert_updates_to_references(indirect_update_data, referenced_update_data)
+    indirect_references = convert_updates_to_references(indirect_update_data)
+    referenced_update_data.merge!(indirect_references)
 
     # Find any existing models for the direct association: need to re-use any
     # existing join-table entries, to maintain single membership of each
@@ -230,16 +232,10 @@ module AssociationManipulation
     return direct_update_data, referenced_update_data
   end
 
-  def convert_updates_to_references(indirect_update_data, referenced_update_data)
-    indirect_references = {}
-
-    indirect_update_data.each_with_index do |update, i|
+  def convert_updates_to_references(indirect_update_data)
+    indirect_update_data.each.with_index.with_object({}) do |(update, i), indirect_references|
       indirect_references["__append_ref_#{i}"] = update
     end
-
-    referenced_update_data.merge!(indirect_references)
-
-    indirect_references
   end
 
   # TODO: this functionality could reasonably be extracted into `acts_as_manual_list`.
