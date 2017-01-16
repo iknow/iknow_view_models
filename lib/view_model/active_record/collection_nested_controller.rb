@@ -85,7 +85,10 @@ module ViewModel::ActiveRecord::CollectionNestedController
     if id
       if association_data.polymorphic?
         type_name = parse_param("#{name}_type")
-        type = ViewModel::Registry.for_view_name(type_name)
+        type = association_data.viewmodel_class_for_name(type_name)
+        if type.nil?
+          raise ViewModel::DeserializationError.new("Invalid '#{name}_type' for association: #{type_name}")
+        end
       else
         type = owner_viewmodel.viewmodel_class
       end
