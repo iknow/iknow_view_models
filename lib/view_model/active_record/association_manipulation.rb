@@ -181,7 +181,8 @@ module AssociationManipulation
       end
 
       vm = direct_viewmodel.new(models.first)
-      vm.destroy!(deserialize_context: deserialize_context)
+      vm.editable!(deserialize_context: deserialize_context, deleted: true)
+      association.delete(vm.model)
     end
   end
 
