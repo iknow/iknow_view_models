@@ -93,6 +93,11 @@ class ViewModel
       hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
+    def is_update_hash?(hash)
+      hash.has_key?(ViewModel::ID_ATTRIBUTE) &&
+        !hash.has_key?(ViewModel::ActiveRecord::NEW_ATTRIBUTE)
+    end
+
     # If this viewmodel represents an AR model, what associations does it make
     # use of? Returns a includes spec appropriate for DeepPreloader, either as
     # AR-style nested hashes or DeepPreloader::Spec.
