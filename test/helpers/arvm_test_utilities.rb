@@ -47,7 +47,7 @@ module ARVMTestUtilities
   # Construct an update hash that references an existing model. Does not include
   # any of the model's attributes or association.
   def update_hash_for(viewmodel_class, model)
-    refhash = {'_type' => viewmodel_class.view_name, 'id' => model.id}
+    refhash = {'$type' => viewmodel_class.view_name, 'id' => model.id}
     yield(refhash) if block_given?
     refhash
   end

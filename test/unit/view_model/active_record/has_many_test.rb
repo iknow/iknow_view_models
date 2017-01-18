@@ -82,12 +82,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view, _refs = serialize_with_references(ParentView.new(@parent1))
 
 
-    assert_equal({ "_type"    => "Parent",
-                   "_version" => 1,
+    assert_equal({ '$type'    => "Parent",
+                   '$version' => 1,
                    "id"       => @parent1.id,
                    "name"     => @parent1.name,
-                   "children" => @parent1.children.map { |child| { "_type"    => "Child",
-                                                                   "_version" => 1,
+                   "children" => @parent1.children.map { |child| { '$type'    => "Child",
+                                                                   '$version' => 1,
                                                                    "id"       => child.id,
                                                                    "name"     => child.name } } },
                  view)
@@ -103,10 +103,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      '$type'    => "Parent",
       "name"     => "p",
-      "children" => [{ "_type" => "Child", "name" => "c1" },
-                     { "_type" => "Child", "name" => "c2" }]
+      "children" => [{ '$type' => "Child", "name" => "c1" },
+                     { '$type' => "Child", "name" => "c2" }]
     }
 
     pv = ParentView.deserialize_from_view(view)
@@ -130,7 +130,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::DeserializationError) do
       # append child
-      ParentView.new(@parent1).append_associated(:children, { "_type" => "Child", "text" => "hi" }, deserialize_context: no_edit_context)
+      ParentView.new(@parent1).append_associated(:children, { '$type' => "Child", "text" => "hi" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::DeserializationError) do
@@ -140,16 +140,16 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   end
 
   def test_create_has_many_empty
-    view = { '_type' => 'Parent', 'name' => 'p', 'children' => [] }
+    view = { '$type' => 'Parent', 'name' => 'p', 'children' => [] }
     pv = ParentView.deserialize_from_view(view)
     assert(pv.model.children.blank?)
   end
 
   def test_create_has_many
-    view = { '_type'    => 'Parent',
+    view = { '$type'    => 'Parent',
              'name'     => 'p',
-             'children' => [{ '_type' => 'Child', 'name' => 'c1' },
-                            { '_type' => 'Child', 'name' => 'c2' }] }
+             'children' => [{ '$type' => 'Child', 'name' => 'c1' },
+                            { '$type' => 'Child', 'name' => 'c2' }] }
 
     context = ViewModelBase::new_deserialize_context
     pv = ParentView.deserialize_from_view(view, deserialize_context: context)
@@ -163,7 +163,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_nil_multiple_association
     view = {
-       "_type" => "Parent",
+       '$type' => "Parent",
       "children" => nil
     }
     ex = assert_raises(ViewModel::DeserializationError) do
@@ -175,8 +175,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_non_array_multiple_association
     view = {
-      "_type" => "Parent",
-      "children" => { '_type' => 'Child', 'name' => 'c1' }
+      '$type' => "Parent",
+      "children" => { '$type' => 'Child', 'name' => 'c1' }
     }
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
@@ -189,7 +189,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     old_children = @parent1.children
 
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['children'] = [{ '_type' => 'Child', 'name' => 'new_child' }]
+      view['children'] = [{ '$type' => 'Child', 'name' => 'new_child' }]
     end
 
     assert_equal(['new_child'], @parent1.children.map(&:name))
@@ -203,7 +203,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     context = ParentView.new_deserialize_context
 
     nc = pv.replace_associated(:children,
-                               [{ '_type' => 'Child', 'name' => 'new_child' }],
+                               [{ '$type' => 'Child', 'name' => 'new_child' }],
                                deserialize_context: context)
 
 
@@ -262,7 +262,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     c1, c2, c3 = @parent1.children.order(:position).to_a
     _, context = alter_by_view!(ParentView, @parent1) do |view, refs|
       view['children'].shift
-      view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
+      view['children'] << { '$type' => 'Child', 'name' => 'new_c' }
     end
 
     assert_equal({ ViewModel::Reference.new(ParentView, @parent1.id) => 1,
@@ -285,7 +285,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # insert before
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'id' => c3.id },
+                         { '$type' => 'Child', 'id' => c3.id },
                          before: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
@@ -297,7 +297,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # insert after
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'id' => c3.id },
+                         { '$type' => 'Child', 'id' => c3.id },
                          after: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
@@ -308,7 +308,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # append
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'id' => c3.id },
+                         { '$type' => 'Child', 'id' => c3.id },
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
     assert_equal([c1, c2, c3],
@@ -340,7 +340,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # insert before
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'name' => 'new1' },
+                         { '$type' => 'Child', 'name' => 'new1' },
                          before: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
@@ -353,7 +353,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # insert after
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'name' => 'new2' },
+                         { '$type' => 'Child', 'name' => 'new2' },
                          after: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
@@ -366,7 +366,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # append
     pv.append_associated(:children,
-                         { '_type' => 'Child', 'name' => 'new3' },
+                         { '$type' => 'Child', 'name' => 'new3' },
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
     n3 = Child.find_by_name("new3")
@@ -380,7 +380,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     alter_by_view!(ParentView, @parent1) do |view, refs|
       view['children'].reverse!
-      view['children'].insert(1, { '_type' => 'Child', 'name' => 'new_c' })
+      view['children'].insert(1, { '$type' => 'Child', 'name' => 'new_c' })
     end
 
     assert_equal([c3, Child.find_by_name('new_c'), c2, c1],
@@ -389,9 +389,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_edit_missing_child
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "children" => [{
-                       "_type" => "Child",
+                       '$type' => "Child",
                        "id"    => 9999
                      }]
     }
@@ -409,13 +409,13 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     moved_child_ref = update_hash_for(ChildView, moved_child)
 
-    view = { '_type'    => 'Parent',
+    view = { '$type'    => 'Parent',
              'name'     => 'new_p',
              'children' => [moved_child_ref,
-                            { '_type' => 'Child', 'name' => 'new' }] }
+                            { '$type' => 'Child', 'name' => 'new' }] }
 
     retained_children = old_children - [moved_child]
-    release_view = { '_type'    => 'Parent',
+    release_view = { '$type'    => 'Parent',
                      'id'       => @parent1.id,
                      'children' => retained_children.map { |c| update_hash_for(ChildView, c) } }
 
@@ -442,10 +442,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     moved_child_ref = update_hash_for(ChildView, moved_child)
 
-    view = { '_type'    => 'Parent',
+    view = { '$type'    => 'Parent',
              'name'     => 'new_p',
              'children' => [moved_child_ref,
-                            { '_type' => 'Child', 'name' => 'new' }] }
+                            { '$type' => 'Child', 'name' => 'new' }] }
 
     deserialize_context = ViewModelBase.new_deserialize_context
 
@@ -473,7 +473,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_implicit_release_has_many
     old_children = @parent1.children.order(:position)
-    view = {'_type'    => 'Parent',
+    view = {'$type'    => 'Parent',
             'name'     => 'newp',
             'children' => old_children.map { |x| update_hash_for(ChildView, x) }}
 
@@ -493,7 +493,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(
-        [{ '_type'    => 'Parent',
+        [{ '$type'    => 'Parent',
            'name'     => 'newp',
            'children' => old_children_refs },
          update_hash_for(ParentView, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
@@ -508,7 +508,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view['children'] << ChildView.new(moved_child).to_hash
 
     retained_children = old_children - [moved_child]
-    release_view = { '_type' => 'Parent', 'id' => @parent1.id,
+    release_view = { '$type' => 'Parent', 'id' => @parent1.id,
                      'children' => retained_children.map { |c| update_hash_for(ChildView, c) }}
 
     ParentView.deserialize_from_view([view, release_view])
@@ -526,7 +526,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   end
 
   def test_has_many_append_child
-    ParentView.new(@parent1).append_associated(:children, { "_type" => "Child", "name" => "new" })
+    ParentView.new(@parent1).append_associated(:children, { '$type' => "Child", "name" => "new" })
 
     @parent1.reload
 
@@ -559,7 +559,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     p1c2 = @parent1.children[1]
     assert_equal(2, p1c2.position)
 
-    ParentView.new(@parent2).append_associated("children", { "_type" => "Child", "id" => p1c2.id })
+    ParentView.new(@parent2).append_associated("children", { '$type' => "Child", "id" => p1c2.id })
 
     @parent1.reload
     @parent2.reload
@@ -597,15 +597,15 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     child_view = ChildView.new(child).to_hash
     child_view["name"] = "changed"
 
-    view = { "_type" => "Parent",
+    view = { '$type' => "Parent",
              "name" => "new_p",
-             "children" => [child_view, { "_type" => "Child", "name" => "new" }]}
+             "children" => [child_view, { '$type' => "Child", "name" => "new" }]}
 
     # TODO this is as awkward here as it is in the application
-    release_view = { "_type" => "Parent",
+    release_view = { '$type' => "Parent",
                      "id" => @parent1.id,
-                     "children" => [{ "_type" => "Child", "id" => @parent1.children[0].id },
-                                    { "_type" => "Child", "id" => @parent1.children[2].id }]}
+                     "children" => [{ '$type' => "Child", "id" => @parent1.children[0].id },
+                                    { '$type' => "Child", "id" => @parent1.children[2].id }]}
 
     pv = ParentView.deserialize_from_view([view, release_view])
     new_parent = pv.first.model
@@ -633,9 +633,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view = ParentView.new(@parent2).to_hash
     view["children"] << old_child_view
 
-    release_view = {"_type" => "Parent", "id" => @parent1.id,
-                    "children" => [{"_type" => "Child", "id" => @parent1.children[0].id},
-                                   {"_type" => "Child", "id" => @parent1.children[2].id}]}
+    release_view = {'$type' => "Parent", "id" => @parent1.id,
+                    "children" => [{'$type' => "Child", "id" => @parent1.children[0].id},
+                                   {'$type' => "Child", "id" => @parent1.children[2].id}]}
 
     ParentView.deserialize_from_view([view, release_view])
 
@@ -662,13 +662,13 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append
     children_before = @parent1.children.order(:position).pluck(:id)
-    append_view     = { '_type'    => 'Parent',
+    append_view     = { '$type'    => 'Parent',
                         'id'       => @parent1.id,
                         'children' => {
-                          '_type'   => '_update',
-                          'actions' => [{ '_type'  => 'append',
-                                          'values' => [{ '_type' => 'Child' },
-                                                       { '_type' => 'Child' }] }] } }
+                          '$type'   => '$update',
+                          'actions' => [{ '$type'  => 'append',
+                                          'values' => [{ '$type' => 'Child' },
+                                                       { '$type' => 'Child' }] }] } }
     result          = ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -680,14 +680,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append_before_mid
     c1, c2, c3  = @parent1.children.order(:position)
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'before' => { '_type' => 'Child', 'id' => c2.id },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'before' => { '$type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -697,13 +697,13 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append_before_reorder
     c1, c2, c3  = @parent1.children.order(:position)
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'before' => { '_type' => 'Child', 'id' => c2.id },
-                                      'values' => [{ '_type' => 'Child', 'id' => c3.id }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'before' => { '$type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '$type' => 'Child', 'id' => c3.id }] }] } }
     ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -713,14 +713,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append_before_beginning
     c1, c2, c3  = @parent1.children.order(:position)
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'before' => { '_type' => 'Child', 'id' => c1.id },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'before' => { '$type' => 'Child', 'id' => c1.id },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -731,14 +731,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_functional_update_append_before_corpse
     _, c2, _ = @parent1.children.order(:position)
     c2.destroy
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'before' => { '_type' => 'Child', 'id' => c2.id },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'before' => { '$type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(append_view)
     end
@@ -746,14 +746,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append_after_mid
     c1, c2, c3  = @parent1.children.order(:position)
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'after'  => { '_type' => 'Child', 'id' => c2.id },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'after'  => { '$type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -763,14 +763,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_append_after_end
     c1, c2, c3  = @parent1.children.order(:position)
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'after'  => { '_type' => 'Child', 'id' => c3.id, },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'after'  => { '$type' => 'Child', 'id' => c3.id, },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     ParentView.deserialize_from_view(append_view)
     @parent1.reload
 
@@ -781,14 +781,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_functional_update_append_after_corpse
     _, c2, _ = @parent1.children.order(:position)
     c2.destroy
-    append_view = { '_type'    => 'Parent',
+    append_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'append',
-                                      'after'  => { '_type' => 'Child', 'id' => c2.id },
-                                      'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
-                                                   { '_type' => 'Child', 'name' => 'new c2' }] }] } }
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'append',
+                                      'after'  => { '$type' => 'Child', 'id' => c2.id },
+                                      'values' => [{ '$type' => 'Child', 'name' => 'new c1' },
+                                                   { '$type' => 'Child', 'name' => 'new c2' }] }] } }
     assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(append_view)
     end
@@ -796,12 +796,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_remove_success
     c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
-    remove_view         = { '_type'    => 'Parent',
+    remove_view         = { '$type'    => 'Parent',
                             'id'       => @parent1.id,
                             'children' => {
-                              '_type'   => '_update',
-                              'actions' => [{ '_type'  => 'remove',
-                                              'values' => [{ '_type' => 'Child', 'id' => c2_id }] }] } }
+                              '$type'   => '$update',
+                              'actions' => [{ '$type'  => 'remove',
+                                              'values' => [{ '$type' => 'Child', 'id' => c2_id }] }] } }
     ParentView.deserialize_from_view(remove_view)
     @parent1.reload
 
@@ -810,12 +810,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_remove_failure
     c_id        = @parent1.children.pluck(:id).first
-    remove_view = { '_type'    => 'Parent',
+    remove_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
-                      'actions' => [{ '_type'  => 'remove',
-                                      'values' => [{ '_type' => 'Child',
+                      '$type'   => '$update',
+                      'actions' => [{ '$type'  => 'remove',
+                                      'values' => [{ '$type' => 'Child',
                                                      'id'    => c_id,
                                                      'name'  => 'remove and update disallowed' }] }] } }
 
@@ -823,17 +823,17 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(remove_view)
     end
 
-    assert_match(/Removed entities must have only _type and id fields/, ex.message)
+    assert_match(/Removed entities must have only \$type and id fields/, ex.message)
   end
 
   def test_functional_update_update_success
     c1_id, c2_id, c3_id = @parent1.children.pluck(:id)
-    update_view         = { '_type'    => 'Parent',
+    update_view         = { '$type'    => 'Parent',
                             'id'       => @parent1.id,
                             'children' => {
-                              '_type'   => '_update',
-                              'actions' => [{ '_type'  => 'update',
-                                              'values' => [{ '_type' => 'Child',
+                              '$type'   => '$update',
+                              'actions' => [{ '$type'  => 'update',
+                                              'values' => [{ '$type' => 'Child',
                                                              'id'    => c2_id,
                                                              'name'  => 'Functionally Updated Child' }] }] } }
     ParentView.deserialize_from_view(update_view)
@@ -845,12 +845,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_update_failure
     cnew                = Child.create(parent: Parent.create).id
-    update_view         = { '_type'    => 'Parent',
+    update_view         = { '$type'    => 'Parent',
                             'id'       => @parent1.id,
                             'children' => {
-                              '_type'   => '_update',
-                              'actions' => [{ '_type'  => 'update',
-                                              'values' => [{ '_type' => 'Child', 'id' => cnew }] }] } }
+                              '$type'   => '$update',
+                              'actions' => [{ '$type'  => 'update',
+                                              'values' => [{ '$type' => 'Child', 'id' => cnew }] }] } }
 
     ex = assert_raises(ViewModel::DeserializationError::NotFound) do
       ParentView.deserialize_from_view(update_view)
@@ -861,15 +861,15 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_functional_update_duplicate_refs
     child_id    = @parent1.children.pluck(:id).first
-    update_view = { '_type'    => 'Parent',
+    update_view = { '$type'    => 'Parent',
                     'id'       => @parent1.id,
                     'children' => {
-                      '_type'   => '_update',
+                      '$type'   => '$update',
                       # remove and append the same child
-                      'actions' => [{ '_type'  => 'remove',
-                                      'values' => [{ '_type' => 'Child', 'id' => child_id }] },
-                                    { '_type'  => 'append',
-                                      'values' => [{ '_type' => 'Child', 'id' => child_id }] }] } }
+                      'actions' => [{ '$type'  => 'remove',
+                                      'values' => [{ '$type' => 'Child', 'id' => child_id }] },
+                                    { '$type'  => 'append',
+                                      'values' => [{ '$type' => 'Child', 'id' => child_id }] }] } }
 
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(update_view)
@@ -912,7 +912,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('children' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies(ref_updates))
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
@@ -920,8 +920,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal([{ 'id'       => @parent.children.first.id,
-                        '_type'    => 'Child',
-                        '_version' => 1,
+                        '$type'    => 'Child',
+                        '$version' => 1,
                         'name'     => 'c1' }],
                      view['something_else'])
         view['something_else'][0]['name'] = 'new c1 name'

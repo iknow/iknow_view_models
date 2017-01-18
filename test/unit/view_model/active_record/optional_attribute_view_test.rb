@@ -31,8 +31,8 @@ class ViewModel::ActiveRecord::AttributeViewTest < ActiveSupport::TestCase
     super
     @thing = Thing.create!(a: 1, b: 2)
 
-    @skel = { "_type"    => "Thing",
-              "_version" => 1,
+    @skel = { '$type'    => "Thing",
+              '$version' => 1,
               "id"       => @thing.id }
   end
 

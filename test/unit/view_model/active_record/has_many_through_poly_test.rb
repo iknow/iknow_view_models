@@ -139,14 +139,14 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     # TODO not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
-    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
+    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent' }])
     assert_equal(DeepPreloader::Spec.new,
                  root_updates.first.preload_dependencies(ref_updates),
                  'nothing loaded by default')
 
-    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent',
-                                                                                  'tags' => [{ '_ref' => 'r1' }] }],
-                                                                               { 'r1' => { '_type' => 'TagB' } })
+    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent',
+                                                                                  'tags' => [{ '$ref' => 'r1' }] }],
+                                                                               { 'r1' => { '$type' => 'TagB' } })
 
     assert_equal(DeepPreloader::Spec.new(
                   'parents_tags' => DeepPreloader::Spec.new(
@@ -160,20 +160,20 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     view, refs = serialize_with_references(ParentView.new(@parent1),
                                            serialize_context: context_with(:tags))
 
-    tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
-    assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A1' },
-                  { 'id' => @tag_a2.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A2' },
-                  { 'id' => @tag_b1.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B1' },
-                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' }],
+    tag_data = view['tags'].map { |hash| refs[hash['$ref']] }
+    assert_equal([{ 'id' => @tag_a1.id, '$type' => 'TagA', '$version' => 1, 'name' => 'tag A1' },
+                  { 'id' => @tag_a2.id, '$type' => 'TagA', '$version' => 1, 'name' => 'tag A2' },
+                  { 'id' => @tag_b1.id, '$type' => 'TagB', '$version' => 1, 'name' => 'tag B1' },
+                  { 'id' => @tag_b2.id, '$type' => 'TagB', '$version' => 1, 'name' => 'tag B2' }],
                  tag_data)
   end
 
   def test_create_has_many_through
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      refs.delete_if { |_, ref_hash| ref_hash['_type'] == 'Tag' }
-      refs['t1'] = { '_type' => 'TagA', 'name' => 'new tagA' }
-      refs['t2'] = { '_type' => 'TagB', 'name' => 'new tagB' }
-      view['tags'] = [{ '_ref' => 't1' }, { '_ref' => 't2' }]
+      refs.delete_if { |_, ref_hash| ref_hash['$type'] == 'Tag' }
+      refs['t1'] = { '$type' => 'TagA', 'name' => 'new tagA' }
+      refs['t2'] = { '$type' => 'TagB', 'name' => 'new tagB' }
+      view['tags'] = [{ '$ref' => 't1' }, { '$ref' => 't2' }]
     end
 
     new_tag_a = TagA.find_by_name('new tagA')
@@ -239,7 +239,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent', 'something_else' => [] }])
       # Compare to non-polymorphic, which will also load the tags
       deps = root_updates.first.preload_dependencies(ref_updates)
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::PolymorphicSpec.new)), deps)
@@ -251,15 +251,15 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       context = ParentView.new_serialize_context(include: :something_else)
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
         assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
-                                           '_type'    => 'TagA',
-                                           '_version' => 1,
+                                           '$type'    => 'TagA',
+                                           '$version' => 1,
                                            'name'     => 'tag A name' }}, refs)
-        assert_equal([{ '_ref' => refs.keys.first }],
+        assert_equal([{ '$ref' => refs.keys.first }],
                      view['something_else'])
 
         refs.clear
-        refs['new'] = {'_type' => 'TagB', 'name' => 'tag B name'}
-        view['something_else'] = [{'_ref' => 'new'}]
+        refs['new'] = {'$type' => 'TagB', 'name' => 'tag B name'}
+        view['something_else'] = [{'$ref' => 'new'}]
       end
 
       assert_equal('tag B name', @parent.parents_tags.first.tag.name)

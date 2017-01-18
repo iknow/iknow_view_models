@@ -60,22 +60,22 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
 
     target_ref = refs.keys.first
 
-    assert_equal({ '_type'    => 'Parent',
+    assert_equal({ '$type'    => 'Parent',
                    'id'       => @parent_with_a.id,
-                   '_version' => 5,
+                   '$version' => 5,
                    'child'    => {
-                     '_type'    => 'ChildA',
+                     '$type'    => 'ChildA',
                      'id'       => @parent_with_a.child.id,
-                     '_version' => 10,
+                     '$version' => 10,
                    },
-                   'target'   => { '_ref' => target_ref } },
+                   'target'   => { '$ref' => target_ref } },
                  data)
 
     assert_equal({ target_ref =>
                      {
-                       '_type'    => 'Target',
+                       '$type'    => 'Target',
                        'id'       => @parent_with_a.target.id,
-                       '_version' => 20
+                       '$version' => 20
                      } },
                  refs)
   end
@@ -83,9 +83,9 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   def test_regular_version_verification
     ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
       ParentView.deserialize_from_view(
-        { '_type'    => 'Parent',
-          '_new'     => true,
-          '_version' => 99 },)
+        { '$type'    => 'Parent',
+          '$new'     => true,
+          '$version' => 99 },)
     end
     assert_match(/schema version/, ex.message)
   end
@@ -93,11 +93,11 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   def test_polymorphic_version_verification
     ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
       ParentView.deserialize_from_view(
-        { '_type' => 'Parent',
-          '_new'  => true,
+        { '$type' => 'Parent',
+          '$new'  => true,
           'child' => {
-            '_type'    => 'ChildA',
-            '_version' => 99,
+            '$type'    => 'ChildA',
+            '$version' => 99,
           } })
     end
     assert_match(/schema version/, ex.message)
@@ -106,14 +106,14 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   def test_shared_parse_version_verification
     ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
       ParentView.deserialize_from_view(
-        { '_type'  => 'Parent',
-          '_new'   => true,
-          'target' => { '_ref' => 't1' },
+        { '$type'  => 'Parent',
+          '$new'   => true,
+          'target' => { '$ref' => 't1' },
         },
         references: { 't1' => {
-          '_type'    => 'Target',
-          '_new'     => true,
-          '_version' => 99,
+          '$type'    => 'Target',
+          '$new'     => true,
+          '$version' => 99,
         } })
     end
     assert_match(/schema version/, ex.message)

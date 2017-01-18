@@ -94,12 +94,12 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_serialize_view
     view, _refs = serialize_with_references(ParentView.new(@parent1))
 
-    assert_equal({ "_type"    => "Parent",
-                   "_version" => 1,
+    assert_equal({ '$type'    => "Parent",
+                   '$version' => 1,
                    "id"       => @parent1.id,
                    "name"     => @parent1.name,
-                   "label"    => { "_type"    => "Label",
-                                   "_version" => 1,
+                   "label"    => { '$type'    => "Label",
+                                   '$version' => 1,
                                    "id"       => @parent1.label.id,
                                    "text"     => @parent1.label.text },
                  },
@@ -117,9 +117,9 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      '$type'    => "Parent",
       "name"     => "p",
-      "label"    => { "_type" => "Label", "text" => "l" },
+      "label"    => { '$type' => "Label", "text" => "l" },
     }
 
     pv = ParentView.deserialize_from_view(view)
@@ -135,13 +135,13 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   end
 
   def test_create_belongs_to_nil
-    view = { '_type' => 'Parent', 'name' => 'p', 'label' => nil }
+    view = { '$type' => 'Parent', 'name' => 'p', 'label' => nil }
     pv = ParentView.deserialize_from_view(view)
     assert_nil(pv.model.label)
   end
 
   def test_create_invalid_child_type
-    view = { '_type' => 'Parent', 'name' => 'p', 'label' => { '_type' => 'Parent', 'name' => 'q' } }
+    view = { '$type' => 'Parent', 'name' => 'p', 'label' => { '$type' => 'Parent', 'name' => 'q' } }
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(view)
     end
@@ -152,7 +152,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     @parent1.update(label: nil)
 
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+      view['label'] = { '$type' => 'Label', 'text' => 'cheese' }
     end
 
     assert_equal('cheese', @parent1.label.text)
@@ -162,7 +162,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     old_label = @parent1.label
 
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+      view['label'] = { '$type' => 'Label', 'text' => 'cheese' }
     end
 
     assert_equal('cheese', @parent1.label.text)
@@ -239,7 +239,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     taken_label_ref = update_hash_for(LabelView, @parent1.label)
     ex = assert_raises(ViewModel::DeserializationError) do
       ParentView.deserialize_from_view(
-        [{ '_type' => 'Parent',
+        [{ '$type' => 'Parent',
            'name'  => 'newp',
            'label' => taken_label_ref }])
     end
@@ -260,7 +260,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
       old_label = owner.deleted
 
       alter_by_view!(OwnerView, owner) do |ov, refs|
-        ov['deleted'] = { '_type' => 'Label', 'text' => 'two' }
+        ov['deleted'] = { '$type' => 'Label', 'text' => 'two' }
       end
 
       assert_equal('two', owner.deleted.text)
@@ -273,7 +273,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
       old_label = owner.ignored
 
       alter_by_view!(OwnerView, owner) do |ov, refs|
-        ov['ignored'] = { '_type' => 'Label', 'text' => 'two' }
+        ov['ignored'] = { '$type' => 'Label', 'text' => 'two' }
       end
       assert_equal('two', owner.ignored.text)
       refute_equal(old_label, owner.ignored)
@@ -314,7 +314,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent', 'something_else' => nil }])
       assert_equal(DeepPreloader::Spec.new('label' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies(ref_updates))
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
@@ -322,8 +322,8 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({ 'id'       => @parent.label.id,
-                       '_type'    => 'Label',
-                       '_version' => 1,
+                       '$type'    => 'Label',
+                       '$version' => 1,
                        'text'     => 'l1' },
                      view['something_else'])
         view['something_else']['text'] = 'new l1 text'

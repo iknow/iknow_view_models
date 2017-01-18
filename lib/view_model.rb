@@ -4,11 +4,11 @@ require 'jbuilder'
 require 'deep_preloader'
 
 class ViewModel
-  REFERENCE_ATTRIBUTE = "_ref"
+  REFERENCE_ATTRIBUTE = "$ref"
   ID_ATTRIBUTE        = "id"
-  TYPE_ATTRIBUTE      = "_type"
-  VERSION_ATTRIBUTE   = "_version"
-  NEW_ATTRIBUTE       = "_new"
+  TYPE_ATTRIBUTE      = "$type"
+  VERSION_ATTRIBUTE   = "$version"
+  NEW_ATTRIBUTE       = "$new"
 
   class << self
     attr_accessor :_attributes

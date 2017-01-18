@@ -30,7 +30,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
 
         def self.pre_parse_translations(viewmodel_reference, hash, translations)
           raise "type check" unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
-          hash["translations"] = translations.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
+          hash["translations"] = translations.map { |lang, text| { '$type' => "Translation", "language" => lang, "translation" => text } }
         end
 
         def resolve_translations(update_datas, previous_translation_views)
@@ -77,8 +77,8 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
 
     @text1_view = {
       "id"           => @text1.id,
-      "_type"        => "Text",
-      "_version"     => 1,
+      '$type'        => "Text",
+      '$version'     => 1,
       "text"         => "dog",
       "translations" => {
         "ja" => "犬",
@@ -162,7 +162,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
           raise "nopes" if members.present?
           nil
         else
-          members.merge("_type" => viewmodel.view_name)
+          members.merge('$type' => viewmodel.view_name)
         end
       end
 
@@ -225,8 +225,8 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @simplesection = Section.create(name: "simple1")
     @simplesection_view = {
       "id"           => @simplesection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
+      '$type'        => "Section",
+      '$version'     => 1,
       "section_type" => "Simple",
       "name"         => "simple1"
     }
@@ -234,8 +234,8 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @quizsection = Section.create(name: "quiz1", section_data: QuizSection.new(quiz_name: "qq"))
     @quizsection_view = {
       "id"           => @quizsection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
+      '$type'        => "Section",
+      '$version'     => 1,
       "section_type" => "Quiz",
       "name"         => "quiz1",
       "quiz_name"    => "qq"
@@ -244,8 +244,8 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     @vocabsection = Section.create(name: "vocab1", section_data: VocabSection.new(vocab_word: "dog"))
     @vocabsection_view = {
       "id"           => @vocabsection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
+      '$type'        => "Section",
+      '$version'     => 1,
       "section_type" => "Vocab",
       "name"         => "vocab1",
       "vocab_word"   => "dog"

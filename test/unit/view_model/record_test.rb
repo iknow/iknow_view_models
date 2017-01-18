@@ -57,16 +57,16 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     @model = Model.new("simple", 2, "readonly", "writeonce", Model.new("child"), "optional")
 
     @view = {
-      "_type"      => "Model",
-      "_version"   => 1,
+      '$type'      => "Model",
+      '$version'   => 1,
       "simple"     => "simple",
       "overridden" => 4,
       "optional"   => "optional",
       "readonly"   => "readonly",
       "writeonce"  => "writeonce",
       "recursive"  => {
-        "_type"      => "Model",
-        "_version"   => 1,
+        '$type'      => "Model",
+        '$version'   => 1,
         "simple"     => "child",
         "overridden" => nil,
         "optional"   => nil,

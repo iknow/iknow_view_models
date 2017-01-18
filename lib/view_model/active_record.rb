@@ -12,7 +12,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   # Defined before requiring components so components can refer to them at parse time
 
   # for functional updates
-  FUNCTIONAL_UPDATE_TYPE = "_update"
+  FUNCTIONAL_UPDATE_TYPE = "$update"
   ACTIONS_ATTRIBUTE      = "actions"
   VALUES_ATTRIBUTE       = "values"
   BEFORE_ATTRIBUTE       = "before"

@@ -76,9 +76,9 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      '$type'    => "Parent",
       "name"     => "p",
-      "target"   => { "_type" => "Target", "text" => "t" },
+      "target"   => { '$type' => "Target", "text" => "t" },
     }
 
     pv = ParentView.deserialize_from_view(view)
@@ -96,12 +96,12 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_serialize_view
     view, _refs = serialize_with_references(ParentView.new(@parent1))
-    assert_equal({ "_type"    => "Parent",
-                   "_version" => 1,
+    assert_equal({ '$type'    => "Parent",
+                   '$version' => 1,
                    "id"       => @parent1.id,
                    "name"     => @parent1.name,
-                   "target"   => { "_type"    => "Target",
-                                   "_version" => 1,
+                   "target"   => { '$type'    => "Target",
+                                   '$version' => 1,
                                    "id"       => @parent1.target.id,
                                    "text"     => @parent1.target.text } },
                  view)
@@ -132,7 +132,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   end
 
   def test_has_one_create_nil
-    view = { '_type' => 'Parent', 'name' => 'p', 'target' => nil }
+    view = { '$type' => 'Parent', 'name' => 'p', 'target' => nil }
     pv = ParentView.deserialize_from_view(view)
     assert_nil(pv.model.target)
   end
@@ -141,7 +141,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     @parent1.update(target: nil)
 
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['target'] = { '_type' => 'Target', 'text' => 't' }
+      view['target'] = { '$type' => 'Target', 'text' => 't' }
     end
 
     assert_equal('t', @parent1.target.text)
@@ -240,7 +240,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_bad_single_association
     view = {
-      "_type" => "Parent",
+      '$type' => "Parent",
       "target" => []
     }
     ex = assert_raises(ViewModel::DeserializationError) do
@@ -283,7 +283,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
+      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '$type' => 'Parent', 'something_else' => nil }])
       assert_equal(DeepPreloader::Spec.new('target' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies(ref_updates))
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
@@ -291,8 +291,8 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       alter_by_view!(ParentView, @parent) do |view, refs|
         assert_equal({ 'id'       => @parent.target.id,
-                       '_type'    => 'Target',
-                       '_version' => 1,
+                       '$type'    => 'Target',
+                       '$version' => 1,
                        'text'     => 'target text' },
                      view['something_else'])
         view['something_else']['text'] = 'target new text'
