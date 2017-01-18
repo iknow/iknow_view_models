@@ -227,6 +227,10 @@ class ViewModel
 
   attr_writer :access_check_error
 
+  def has_access_check_error?
+    @access_check_error.present?
+  end
+
   def visible?(context: self.class.new_serialize_context)
     true
   end
