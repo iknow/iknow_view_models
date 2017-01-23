@@ -20,17 +20,29 @@ class ViewModel
       if (ref = @ref_by_value[value]).present?
         ref
       else
-        ref = new_ref!
+        ref = new_ref!(value)
         @ref_by_value[value] = ref
         @value_by_ref[ref] = value
         ref
       end
     end
 
+    def clear!
+      @ref_by_value.clear
+      @value_by_ref.clear
+    end
+
     private
 
-    def new_ref!
-      'ref%06d' % (@last_ref += 1)
+    # Ensure stable reference ids for the same (persisted) viewmodels.
+    def new_ref!(viewmodel)
+      vm_ref = viewmodel.to_reference
+      if vm_ref.model_id
+        hash = Digest::SHA256.base64digest("#{vm_ref.viewmodel_class.name}.#{vm_ref.model_id}")
+        "ref:h:#{hash}"
+      else
+        'ref:i:%06d' % (@last_ref += 1)
+      end
     end
   end
 end

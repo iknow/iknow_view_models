@@ -44,6 +44,13 @@ class ViewModel
       self.prune.deep_merge!(normalize_includes(prunes))
     end
 
+    # Return viewmodels referenced during serialization and clear @references.
+    def extract_referenced_views!
+      refs = @references.each.to_h
+      @references.clear!
+      refs
+    end
+
     def serialize_references(json)
       seen = Set.new
       while seen.size != @references.size
