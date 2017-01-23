@@ -19,8 +19,9 @@ class ViewModel
     end
 
     def initialize_as_viewmodel
-      @_attributes     = []
+      @_attributes    = []
       @schema_version = 1
+      @debug_name     = nil
     end
 
     def view_name

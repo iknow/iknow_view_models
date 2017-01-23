@@ -163,7 +163,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_nil_multiple_association
     view = {
-       "_type" => "Parent",
+      "_type" => "Parent",
       "children" => nil
     }
     ex = assert_raises(ViewModel::DeserializationError) do
@@ -331,7 +331,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                  @parent1.children.order(:position))
   end
 
-    def test_append_associated_insert_has_many
+  def test_append_associated_insert_has_many
     c1, c2, c3 = @parent1.children.order(:position).to_a
     pv = ParentView.new(@parent1)
 
