@@ -358,7 +358,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
     assert_equal({ 'data' => nil }, labelcontroller.hash_response)
 
-    assert_equal(nil, @parent.label)
+    assert_nil(@parent.label)
     assert_predicate(Label.where(id: old_label.id), :empty?)
   end
 
@@ -403,7 +403,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, targetcontroller.status, targetcontroller.hash_response)
     assert_equal({ 'data' => nil }, targetcontroller.hash_response)
 
-    assert_equal(nil, @parent.target)
+    assert_nil(@parent.target)
     assert_predicate(Target.where(id: old_target.id), :empty?)
   end
 

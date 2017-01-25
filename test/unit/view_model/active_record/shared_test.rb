@@ -225,7 +225,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
       refs.delete(category_ref)
       p1view['category'] = nil
     end
-    assert_equal(nil, @parent1.category)
+    assert_nil(@parent1.category)
     assert(Category.where(id: @category1.id).present?)
   end
 

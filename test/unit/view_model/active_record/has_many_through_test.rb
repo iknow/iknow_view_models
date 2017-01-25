@@ -151,7 +151,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_updated_associations
-    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+    root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
       [{ '_type' => 'Parent',
          'tags' => [{ '_ref' => 'r1' }] }],
       { 'r1' => { '_type' => 'Tag', } })
@@ -451,8 +451,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_replace_associated
-    old_tags = tags(@parent1)
-
     pv = ParentView.new(@parent1)
     context = ParentView.new_deserialize_context
 
@@ -531,7 +529,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                  tags(@parent1))
   end
 
-    def test_append_associated_insert_has_many
+  def test_append_associated_insert_has_many
     pv = ParentView.new(@parent1)
 
     expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)].to_set
@@ -680,7 +678,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     def test_updated_associations
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
            'tags' => [{ '_ref' => 'r1' }] }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
@@ -694,7 +692,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       append_r1 = { '_type'  => 'append',
                     'values' => [{ '_ref' => 'r1' }] }
 
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
            'tags'  => { '_type'   => '_update',
                         'actions' => [append_r1] } }],

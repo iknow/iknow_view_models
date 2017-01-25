@@ -282,7 +282,7 @@ module AssociationManipulation
       end_pos   = nil
     end
 
-    new_positions = ActsAsManualList.select_positions(start_pos, end_pos, append_count)
+    ActsAsManualList.select_positions(start_pos, end_pos, append_count)
   end
 
   def check_association_type!(association_data, type)
