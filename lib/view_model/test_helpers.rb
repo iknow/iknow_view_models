@@ -1,6 +1,7 @@
 ##
 # Helpers useful for writing tests for viewmodel implementations
 module ViewModel::TestHelpers
+  require 'view_model/test_helpers/arvm_builder'
   extend ActiveSupport::Concern
 
   def serialize_with_references(serializable, serialize_context: ViewModel.new_serialize_context)
