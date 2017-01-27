@@ -204,6 +204,7 @@ module AssociationManipulation
       vm.editable!(deserialize_context: deserialize_context)
       vm.valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       association.delete(vm.model)
+      vm
     end
   end
 
