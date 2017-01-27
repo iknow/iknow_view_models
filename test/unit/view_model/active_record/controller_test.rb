@@ -220,7 +220,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
             {'_type' => 'Child', 'name' => 'newc2'}]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
-    childcontroller.invoke(:create)
+    childcontroller.invoke(:replace)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
 
@@ -234,7 +234,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     data = [{ "name" => "nc" }]
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
-    childcontroller.invoke(:create)
+    childcontroller.invoke(:replace)
 
     assert_equal(400, childcontroller.status)
   end
