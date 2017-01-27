@@ -3,7 +3,7 @@ require 'view_model/active_record/nested_controller_base'
 
 # Contributes the following routes:
 # PUT    /parents/:parent_id/children            #append  -- deserialize (possibly existing) children and append to collection
-# POST   /parents/:parent_id/children            #create  -- deserialize (possibly existing) children, replacing existing collection
+# POST   /parents/:parent_id/children            #replace -- deserialize (possibly existing) children, replacing existing collection
 # GET    /parents/:parent_id/children            #index   -- list collection
 # DELETE /parents/:parent_id/children/:child_id  #disassociate -- delete relationship between parent/child (possibly garbage-collecting child)
 # DELETE /parents/:parent_id/children            #disassociate_all -- delete relationship from parent to all children
@@ -28,12 +28,8 @@ module ViewModel::ActiveRecord::CollectionNestedController
 
   # Deserialize items of the associated type and associate them with the owner,
   # replacing previously associated items.
-  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    if owner_viewmodel_id(required: false).nil?
-      super(serialize_context: serialize_context, deserialize_context: deserialize_context)
-    else
-      write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
-    end
+  def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
   end
 
   def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)

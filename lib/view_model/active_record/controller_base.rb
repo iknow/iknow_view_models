@@ -76,7 +76,8 @@ module ActionDispatch
             if shallow_nesting_depth > 1
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
-                put    '', action: :append, as: ''   unless except.include?(:append)
+                put    '', action: :append,  as: ''  unless except.include?(:append)
+                post   '', action: :replace          unless except.include?(:replace)
                 delete '', action: :disassociate_all unless except.include?(:disassociate_all)
               end
 

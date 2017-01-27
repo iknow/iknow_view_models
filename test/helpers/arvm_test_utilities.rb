@@ -33,7 +33,7 @@ module ARVMTestUtilities
   end
 
   def build_viewmodel(name, &block)
-    @viewmodels << ARVMBuilder.new(name, &block)
+    @viewmodels << ViewModel::TestHelpers::ARVMBuilder.new(name, &block)
   end
 
   def serialize_with_references(serializable, serialize_context: ViewModelBase.new_serialize_context)
