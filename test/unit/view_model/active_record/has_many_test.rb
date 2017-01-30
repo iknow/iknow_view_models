@@ -156,7 +156,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_equal({ ViewModel::Reference.new(ParentView, nil) => 1,
                    ViewModel::Reference.new(ChildView,  nil) => 2 },
-                 count_all(context.edit_checks))
+                 count_all(context.valid_edit_checks))
 
     assert_equal(%w(c1 c2), pv.model.children.map(&:name))
   end
@@ -212,7 +212,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                            old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) }
 
     assert_equal(Set.new(expected_edit_checks),
-                 context.edit_checks.to_set)
+                 context.valid_edit_checks.to_set)
 
     assert_equal(1, nc.size)
     assert_equal('new_child', nc[0].name)
@@ -232,7 +232,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                            old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) }
 
     assert_equal(Set.new(expected_edit_checks),
-                 context.edit_checks.to_set)
+                 context.valid_edit_checks.to_set)
 
     assert_equal([], @parent1.children, 'no children associated with parent1')
     assert(Child.where(id: old_children.map(&:id)).blank?, 'all children deleted')
@@ -251,7 +251,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                             ViewModel::Reference.new(ChildView,  c1.id)].to_set
 
     assert_equal(expected_edit_checks,
-                 context.edit_checks.to_set)
+                 context.valid_edit_checks.to_set)
 
     @parent1.reload
     assert_equal([c2, c3], @parent1.children.order(:position))
@@ -269,7 +269,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                    ViewModel::Reference.new(ChildView,  c1.id)       => 1, # deleted child
                    ViewModel::Reference.new(ChildView,  nil)         => 1, # created child
                  },
-                 count_all(context.edit_checks))
+                 count_all(context.valid_edit_checks))
 
     assert_equal([c2, c3, Child.find_by_name('new_c')],
                  @parent1.children.order(:position))
@@ -289,7 +289,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          before: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
 
 
     assert_equal([c3, c1, c2],
@@ -301,7 +301,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
 
     assert_equal([c1, c3, c2],
                  @parent1.children.order(:position))
@@ -325,7 +325,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                             ViewModel::Reference.new(ParentView, @parent2.id),
                             ViewModel::Reference.new(ChildView, p2c1.id)].to_set
 
-    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
 
     assert_equal([c1, c2, c3, p2c1],
                  @parent1.children.order(:position))
@@ -344,7 +344,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          before: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
 
     n1 = Child.find_by_name("new1")
 
@@ -357,7 +357,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
 
     n2 = Child.find_by_name("new2")
 
@@ -458,7 +458,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                    ViewModel::Reference.new(ChildView,  nil)            => 1,
                    ViewModel::Reference.new(ChildView,  moved_child.id) => 1,
                    ViewModel::Reference.new(ParentView, @parent1.id)    => 1 },
-                 count_all(deserialize_context.edit_checks))
+                 count_all(deserialize_context.valid_edit_checks))
 
     # child should be removed from old parent
     @parent1.reload

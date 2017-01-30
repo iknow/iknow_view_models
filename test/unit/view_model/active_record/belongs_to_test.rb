@@ -231,8 +231,8 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal(target_label, to_parent.label, 'target label moved')
     assert_equal([ViewModel::Reference.new(ParentView, from_parent.id),
                   ViewModel::Reference.new(ParentView, to_parent.id)],
-                 d_context.edit_checks,
-                 "only parents are edit checked; child was not")
+                 d_context.valid_edit_checks,
+                 "only parents are checked for change; child was not")
   end
 
   def test_implicit_release_invalid_belongs_to

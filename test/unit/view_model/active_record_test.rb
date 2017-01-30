@@ -126,7 +126,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     context = ViewModelBase.new_deserialize_context
     ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
-    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.edit_checks)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.valid_edit_checks)
   end
 
   def test_editability_raises
@@ -265,9 +265,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           attribute   :car
           association :cdr
 
-          def editable?(deserialize_context:, changed_attributes:, changed_associations:, deleted:)
+          def valid_edit?(deserialize_context:, changes:)
             EditCheckTests.add_edit_check(self.to_reference,
-                                          [changed_attributes, changed_associations, deleted])
+                                          [changes.changed_attributes, changes.changed_associations, changes.deleted])
             super
           end
         end
