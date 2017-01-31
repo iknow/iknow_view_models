@@ -175,6 +175,7 @@ class ViewModel::ActiveRecord
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
           vm = released_child.viewmodel
+          vm.visible!(context: deserialize_context)
           vm.editable!(deserialize_context: deserialize_context)
           vm.valid_edit!(deserialize_context: deserialize_context,
                          changes: ViewModel::DeserializeContext::Changes.new(deleted: true))

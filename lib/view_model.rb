@@ -248,7 +248,7 @@ class ViewModel
   # and if found false, an error must be raised if an edit is later attempted.
   # To be overridden by viewmodel implementations.
   def editable?(deserialize_context: self.class.new_deserialize_context)
-    visible?(context: deserialize_context)
+    true
   end
 
   # Check that the attempted changes to this record are permitted in the given

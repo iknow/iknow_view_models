@@ -78,6 +78,7 @@ module AssociationManipulation
     subtree_hashes   = Array.wrap(subtree_hashes)
 
     model_class.transaction do
+      visible!(context: deserialize_context)
       editable!(deserialize_context: deserialize_context)
       valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
@@ -160,6 +161,7 @@ module AssociationManipulation
     target_ref = ViewModel::Reference.new(type || association_data.viewmodel_class, associated_id)
 
     model_class.transaction do
+      visible!(context: deserialize_context)
       editable!(deserialize_context: deserialize_context)
       valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
@@ -198,6 +200,7 @@ module AssociationManipulation
       end
 
       vm = direct_viewmodel.new(models.first)
+      vm.visible!(context: deserialize_context)
       vm.editable!(deserialize_context: deserialize_context)
       vm.valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       association.delete(vm.model)
