@@ -94,13 +94,20 @@ class ViewModel::Record < ViewModel
                                                   viewmodel.blame_reference)
       end
 
+      viewmodel.save_editable!(deserialize_context: deserialize_context)
+
       _members.each do |attr, _|
         if view_hash.has_key?(attr)
           viewmodel.public_send("deserialize_#{attr}", view_hash[attr], deserialize_context: deserialize_context)
         end
       end
 
-      viewmodel.editable!(deserialize_context: deserialize_context, changed_attributes: viewmodel.changed_attributes)
+      if viewmodel.changed_attributes.present?
+        viewmodel.was_editable!
+        viewmodel.valid_edit!(deserialize_context: deserialize_context,
+                              changes: ViewModel::DeserializeContext::Changes.new(changed_attributes: viewmodel.changed_attributes))
+      end
+
       viewmodel.clear_changed_attributes!
     end
 

@@ -269,7 +269,9 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context, deleted: true)
+      visible!(context: deserialize_context)
+      editable!(deserialize_context: deserialize_context)
+      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       model.destroy!
     end
   end

@@ -4,6 +4,26 @@ class ViewModel
     attr_reader :parent_context, :parent_viewmodel
     private :parent_context, :parent_viewmodel
 
+    class Changes
+      attr_reader :changed_attributes, :changed_associations, :deleted
+
+      def initialize(changed_attributes: [], changed_associations: [], deleted: false)
+        @changed_attributes   = changed_attributes
+        @changed_associations = changed_associations
+        @deleted              = deleted
+      end
+
+      def deleted?
+        deleted
+      end
+
+      def contained_to?(associations: [], attributes: [])
+        !deleted? &&
+          changed_associations.all? { |assoc| associations.include?(assoc) } &&
+          changed_attributes.all? { |attr| attributes.include?(attr) }
+      end
+    end
+
     def initialize(*)
     end
 

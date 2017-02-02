@@ -77,6 +77,11 @@ class ViewModel::ActiveRecord
       model.class.transaction do
         viewmodel.visible!(context: deserialize_context)
 
+        # Check that the record is eligible to be edited before any changes are
+        # made. A failure here becomes an error once we've detected a change
+        # being made.
+        viewmodel.save_editable!(deserialize_context: deserialize_context)
+
         # update parent association
         if reparent_to.present?
           debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
@@ -122,7 +127,12 @@ class ViewModel::ActiveRecord
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
         if model.changed? || associations_changed?
-          viewmodel.editable!(deserialize_context: deserialize_context, changed_attributes: model.changed, changed_associations: @changed_associations)
+          viewmodel.was_editable!
+
+          viewmodel.valid_edit!(deserialize_context: deserialize_context,
+                                changes: ViewModel::DeserializeContext::Changes.new(
+                                  changed_attributes: model.changed,
+                                  changed_associations: @changed_associations))
         end
 
         debug "-> #{debug_name}: Saving"
@@ -164,7 +174,12 @@ class ViewModel::ActiveRecord
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          released_child.viewmodel.editable!(deserialize_context: deserialize_context, deleted: true)
+          child_context = deserialize_context.for_child(viewmodel)
+          child_vm = released_child.viewmodel
+          child_vm.visible!(context: child_context)
+          child_vm.editable!(deserialize_context: child_context)
+          child_vm.valid_edit!(deserialize_context: child_context,
+                               changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end

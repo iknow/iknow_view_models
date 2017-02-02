@@ -30,19 +30,24 @@ class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
 
   module ContextAccessLogging
-    attr_accessor :edit_checks, :visible_checks
+    attr_accessor :editable_checks, :valid_edit_checks, :visible_checks
 
     def initialize(**args)
       super
 
       # force existence of these objects, so when we get cloned in context we
       # get aliased.
-      @edit_checks    = []
-      @visible_checks = []
+      @editable_checks   = []
+      @valid_edit_checks = []
+      @visible_checks    = []
     end
 
-    def log_edit_check(viewmodel)
-      edit_checks << viewmodel.to_reference
+    def log_editable_check(viewmodel)
+      editable_checks << viewmodel.to_reference
+    end
+
+    def log_valid_edit_check(viewmodel)
+      valid_edit_checks << viewmodel.to_reference
     end
 
     def log_visible_check(viewmodel)
@@ -52,13 +57,13 @@ class ViewModelBase < ViewModel::ActiveRecord
 
   class DeserializeContext < ViewModel::DeserializeContext
     include ContextAccessLogging
-    attr_accessor :can_edit
-    attr_accessor :can_view
+    attr_accessor :can_edit, :can_change, :can_view
 
-    def initialize(can_edit: true, can_view: true, **rest)
+    def initialize(can_edit: true, can_view: true, can_change: true, **rest)
       super(**rest)
-      self.can_edit = can_edit
-      self.can_view = can_view
+      self.can_edit   = can_edit
+      self.can_change = can_change
+      self.can_view   = can_view
     end
   end
 
@@ -87,9 +92,13 @@ class ViewModelBase < ViewModel::ActiveRecord
     super && context.can_view
   end
 
-  def editable?(deserialize_context:, changed_attributes:, changed_associations:, deleted:)
-    deserialize_context.log_edit_check(self)
+  def editable?(deserialize_context:)
+    deserialize_context.log_editable_check(self)
     super && deserialize_context.can_edit
   end
 
+  def valid_edit?(deserialize_context:, changes:)
+    deserialize_context.log_valid_edit_check(self)
+    super && deserialize_context.can_change
+  end
 end

@@ -78,7 +78,9 @@ module AssociationManipulation
     subtree_hashes   = Array.wrap(subtree_hashes)
 
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
+      visible!(context: deserialize_context)
+      editable!(deserialize_context: deserialize_context)
+      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
       if association_data.through?
         raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -159,7 +161,9 @@ module AssociationManipulation
     target_ref = ViewModel::Reference.new(type || association_data.viewmodel_class, associated_id)
 
     model_class.transaction do
-      editable!(deserialize_context: deserialize_context, changed_associations: [association_name])
+      visible!(context: deserialize_context)
+      editable!(deserialize_context: deserialize_context)
+      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
       association = self.model.association(direct_reflection.name)
       association_scope = association.association_scope
@@ -196,7 +200,9 @@ module AssociationManipulation
       end
 
       vm = direct_viewmodel.new(models.first)
-      vm.editable!(deserialize_context: deserialize_context, deleted: true)
+      vm.visible!(context: deserialize_context)
+      vm.editable!(deserialize_context: deserialize_context)
+      vm.valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       association.delete(vm.model)
     end
   end

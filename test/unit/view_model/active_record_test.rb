@@ -120,33 +120,65 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       no_view_context = ViewModelBase.new_serialize_context(can_view: false)
       parentview.to_hash(serialize_context: no_view_context)
     end
+
+    assert_raises(ViewModel::DeserializationError) do
+      no_view_context = ViewModelBase.new_deserialize_context(can_view: false)
+      ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
+                                       deserialize_context: no_view_context)
+    end
   end
 
   def test_editability_checks_create
     context = ViewModelBase.new_deserialize_context
     ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
-    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.edit_checks)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.valid_edit_checks)
   end
 
   def test_editability_raises
     no_edit_context = ViewModelBase.new_deserialize_context(can_edit: false)
 
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError) do
       # create
       ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
     end
+    assert_match(/forbidden viewmodel/, ex.message)
 
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError) do
       # edit
       v = ParentView.new(@parent1).to_hash.merge("name" => "p2")
       ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
+    assert_match(/forbidden viewmodel/, ex.message)
 
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError) do
       # destroy
       ParentView.new(@parent1).destroy!(deserialize_context: no_edit_context)
     end
+    assert_match(/forbidden viewmodel/, ex.message)
+  end
+
+  def test_valid_edit_raises
+    no_edit_context = ViewModelBase.new_deserialize_context(can_change: false)
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      # create
+      ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
+    end
+    assert_match(/illegal changes/, ex.message)
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      # edit
+      v = ParentView.new(@parent1).to_hash.merge("name" => "p2")
+      ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
+    end
+    assert_match(/illegal changes/, ex.message)
+
+    ex = assert_raises(ViewModel::DeserializationError) do
+      # destroy
+      ParentView.new(@parent1).destroy!(deserialize_context: no_edit_context)
+    end
+    assert_match(/illegal changes/, ex.message)
   end
 
   def test_create_multiple
@@ -265,9 +297,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           attribute   :car
           association :cdr
 
-          def editable?(deserialize_context:, changed_attributes:, changed_associations:, deleted:)
+          def valid_edit?(deserialize_context:, changes:)
             EditCheckTests.add_edit_check(self.to_reference,
-                                          [changed_attributes, changed_associations, deleted])
+                                          [changes.changed_attributes, changes.changed_associations, changes.deleted])
             super
           end
         end

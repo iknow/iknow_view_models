@@ -35,7 +35,7 @@ module ViewModel::TestHelpers
         data, references: refs, deserialize_context: deserialize_context)
 
       result.each do |vm|
-        assert_model_represents_database(vm.model)
+        assert_consistent_record(vm)
       end
 
       result = result.first unless model.is_a?(Array)
@@ -47,6 +47,21 @@ module ViewModel::TestHelpers
   end
 
   private
+
+  def assert_consistent_record(viewmodel, been_there: Set.new)
+    return if been_there.include?(viewmodel.model)
+    been_there << viewmodel.model
+
+    if viewmodel.is_a?(ViewModel::ActiveRecord)
+      assert_model_represents_database(viewmodel.model, been_there: been_there)
+    elsif viewmodel.is_a?(ViewModel::Record)
+      viewmodel.class._members.each do |name, attribute_data|
+        if attribute_data.attribute_viewmodel
+          assert_consistent_record(viewmodel.send(name), been_there: been_there)
+        end
+      end
+    end
+  end
 
   def assert_model_represents_database(model, been_there: Set.new)
     return if been_there.include?(model)
