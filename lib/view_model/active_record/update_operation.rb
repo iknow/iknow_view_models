@@ -174,11 +174,12 @@ class ViewModel::ActiveRecord
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          vm = released_child.viewmodel
-          vm.visible!(context: deserialize_context)
-          vm.editable!(deserialize_context: deserialize_context)
-          vm.valid_edit!(deserialize_context: deserialize_context,
-                         changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+          child_context = deserialize_context.for_child(viewmodel)
+          child_vm = released_child.viewmodel
+          child_vm.visible!(context: child_context)
+          child_vm.editable!(deserialize_context: child_context)
+          child_vm.valid_edit!(deserialize_context: child_context,
+                               changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end
