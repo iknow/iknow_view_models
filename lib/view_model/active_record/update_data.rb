@@ -119,7 +119,7 @@ class ViewModel::ActiveRecord
           functional_update_type.new(functional_updates)
 
         else
-          raise ViewModel::DeserializationError(
+          raise ViewModel::DeserializationError.new(
                   "Could not parse non-array value for collection association '#{association_data}'",
                   blame_reference)
         end
