@@ -684,7 +684,11 @@ class ViewModel::ActiveRecord
             if association_data.collection?
               raise_deserialization_error("Invalid collection update value 'nil' for association '#{name}'")
             end
-            associations[name] = nil
+            if association_data.shared?
+              referenced_associations[name] = nil
+            else
+              associations[name] = nil
+            end
 
           when association_data.through?
             referenced_associations[name] =
