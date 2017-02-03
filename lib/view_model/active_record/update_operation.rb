@@ -104,7 +104,14 @@ class ViewModel::ActiveRecord
         end
 
         attributes.each do |attr_name, serialized_value|
-          viewmodel.public_send("deserialize_#{attr_name}", serialized_value, deserialize_context: deserialize_context)
+          # Note that the VM::AR deserialization tree asserts ownership over any
+          # references it's provided, and so they're intentionally not passed on
+          # to attribute deserialization for use by their `using:` viewmodels. A
+          # (better?) alternative would be to provide them as reference-only
+          # hashes, to indicate that no modification can be permitted.
+          viewmodel.public_send("deserialize_#{attr_name}", serialized_value,
+                                references: {},
+                                deserialize_context: deserialize_context)
         end
 
         # Update points-to associations before save

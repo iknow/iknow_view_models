@@ -50,8 +50,8 @@ class ViewModel::Record < ViewModel
           _serialize_attribute(attr_data, json, serialize_context: serialize_context)
         end
 
-        define_method "deserialize_#{attr}" do |value, deserialize_context: self.class.new_deserialize_context|
-          _deserialize_attribute(attr_data, value, deserialize_context: deserialize_context)
+        define_method "deserialize_#{attr}" do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
+          _deserialize_attribute(attr_data, value, references: references, deserialize_context: deserialize_context)
         end
       end
     end
@@ -98,7 +98,7 @@ class ViewModel::Record < ViewModel
 
       _members.each do |attr, _|
         if view_hash.has_key?(attr)
-          viewmodel.public_send("deserialize_#{attr}", view_hash[attr], deserialize_context: deserialize_context)
+          viewmodel.public_send("deserialize_#{attr}", view_hash[attr], references: references, deserialize_context: deserialize_context)
         end
       end
 
@@ -230,11 +230,11 @@ class ViewModel::Record < ViewModel
     end
   end
 
-  def _deserialize_attribute(attr_data, value, deserialize_context:)
+  def _deserialize_attribute(attr_data, value, references:, deserialize_context:)
     attr = attr_data.name
 
     if attr_data.using_viewmodel? && !value.nil?
-      value = attr_data.attribute_viewmodel.deserialize_from_view(value, deserialize_context: deserialize_context.for_child(self))
+      value = attr_data.attribute_viewmodel.deserialize_from_view(value, references: references, deserialize_context: deserialize_context.for_child(self))
     end
 
     # Detect changes with ==. In the case of `using_viewmodel?`, this compares viewmodels.

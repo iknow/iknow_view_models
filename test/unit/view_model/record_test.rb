@@ -27,7 +27,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       json.overridden model.overridden.try { |o| o * 2 }
     end
 
-    def deserialize_overridden(value, deserialize_context:)
+    def deserialize_overridden(value, references:, deserialize_context:)
       model.overridden = value.try { |v| Integer(v) / 2 }
     end
 

@@ -441,7 +441,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
         json.b array[1]
       end
 
-      def self.deserialize_from_view(hash_data, deserialize_context:)
+      def self.deserialize_from_view(hash_data, references: {}, deserialize_context:)
         array = [hash_data["a"], hash_data["b"]]
         self.new(array)
       end
@@ -573,7 +573,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           association :child
           attribute :explode
           # Escape deserialization with the parent context
-          define_method(:deserialize_explode) do |val, deserialize_context: |
+          define_method(:deserialize_explode) do |val, references:, deserialize_context: |
             raise RefError.new(deserialize_context.parent_ref) if val
           end
         end

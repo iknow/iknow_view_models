@@ -141,7 +141,7 @@ class ViewModel
     end
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
-    def deserialize_from_view(hash_data, deserialize_context: new_deserialize_context)
+    def deserialize_from_view(hash_data, references: {}, deserialize_context: new_deserialize_context)
       raise DeserializationError.new("Deserialization not defined for '#{self.name}'", self.blame_reference)
     end
 
