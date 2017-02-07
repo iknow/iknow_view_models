@@ -218,25 +218,26 @@ class ViewModel::ActiveRecord < ViewModel::Record
       DeepPreloader::Spec.new(association_specs)
     end
 
-    def dependent_viewmodels(seen = Set.new)
+    def dependent_viewmodels(seen = Set.new, include_shared: true)
       return if seen.include?(self)
 
       seen << self
 
       _members.each do |name, data|
         next unless data.is_a?(AssociationData)
+        next unless include_shared || !data.shared?
         data.viewmodel_classes.each do |vm|
-          vm.dependent_viewmodels(seen)
+          vm.dependent_viewmodels(seen, include_shared: include_shared)
         end
       end
 
       seen
     end
 
-    def deep_schema_version
-      @deep_schema_version ||=
+    def deep_schema_version(include_shared: true)
+      (@deep_schema_version ||= {})[include_shared] ||=
         begin
-          dependent_viewmodels.each_with_object({}) do |view, h|
+          dependent_viewmodels(include_shared: include_shared).each_with_object({}) do |view, h|
             h[view.view_name] = view.schema_version
           end
         end
