@@ -8,8 +8,8 @@ class ViewModel
     def initialize(include: nil, prune: nil, flatten_references: false)
       @references = References.new
       self.flatten_references = flatten_references
-      self.include = normalize_includes(include)
-      self.prune   = normalize_includes(prune)
+      self.include = self.class.normalize_includes(include)
+      self.prune   = self.class.normalize_includes(prune)
     end
 
     def for_association(association_name)
@@ -35,13 +35,13 @@ class ViewModel
     def add_includes(includes)
       return if includes.blank?
       self.include ||= {}
-      self.include.deep_merge!(normalize_includes(includes))
+      self.include.deep_merge!(self.class.normalize_includes(includes))
     end
 
     def add_prunes(prunes)
       return if prunes.blank?
       self.prune ||= {}
-      self.prune.deep_merge!(normalize_includes(prunes))
+      self.prune.deep_merge!(self.class.normalize_includes(prunes))
     end
 
     # Return viewmodels referenced during serialization and clear @references.
@@ -68,9 +68,7 @@ class ViewModel
       Jbuilder.new { |json| serialize_references(json) }.attributes!
     end
 
-    private
-
-    def normalize_includes(includes)
+    def self.normalize_includes(includes)
       case includes
       when Array
         includes.each_with_object({}) do |v, new_includes|
