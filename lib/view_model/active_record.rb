@@ -127,19 +127,31 @@ class ViewModel::ActiveRecord < ViewModel::Record
       assocs.each { |assoc| association(assoc, **args) }
     end
 
-    ## Load an instance of the viewmodel by id
-    def find(id, scope: nil, eager_include: true, serialize_context: new_serialize_context)
+    ## Load instances of the viewmodel by id(s)
+    def find(ids, scope: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = self.model_class.all
       find_scope = find_scope.merge(scope) if scope
 
-      ref = ViewModel::Reference.new(self, id)
-      model = ViewModel::DeserializationError::NotFound.wrap_lookup(ref) do
-        find_scope.find(id)
+      find_all = ids.is_a?(Array)
+      ids = Array.wrap(ids)
+
+      models = find_scope.where(id: ids).to_a
+
+      if models.size < ids.size
+        missing_ids = ids - models.map(&:id)
+        raise ViewModel::DeserializationError::NotFound.new(
+                "Couldn't find #{self.model_class.name}(s) with id(s)=#{missing_ids.inspect}",
+                missing_ids.map { |id| ViewModel::Reference.new(self, id) } )
       end
 
-      vm = self.new(model)
-      ViewModel.preload_for_serialization(vm, serialize_context: serialize_context) if eager_include
-      vm
+      vms = models.map { |m| self.new(m) }
+      ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
+
+      if find_all
+        vms
+      else
+        vms.first
+      end
     end
 
     ## Load instances of the viewmodel by scope
