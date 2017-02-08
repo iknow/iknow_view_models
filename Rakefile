@@ -17,3 +17,5 @@ desc "Open a Pry console with the test helpers"
 task 'test_console:pry' do
   ruby %{-r bundler/setup -Ilib  -e 'load "test/helpers/arvm_test_models.rb"' -r pry -e 'Pry.start'}
 end
+
+task :default => :test
