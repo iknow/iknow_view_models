@@ -47,6 +47,19 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     assert_equal(@parent1, parentview.model)
   end
 
+  def test_find_multiple
+    pv1, pv2 = ParentView.find([@parent1.id, @parent2.id])
+    assert_equal(@parent1, pv1.model)
+    assert_equal(@parent2, pv2.model)
+  end
+
+  def test_find_errors
+    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+      ParentView.find([@parent1.id, 9999])
+    end
+    assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
+  end
+
   def test_load
     parentviews = ParentView.load
     assert_equal(2, parentviews.size)
