@@ -4,7 +4,6 @@ require "active_record"
 require "view_model"
 require "view_model/record"
 
-require "cerego_active_record_patches"
 require "lazily"
 require "concurrent"
 
