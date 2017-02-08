@@ -86,7 +86,9 @@ module ARVMTestUtilities
   end
 
   def enable_logging!
-    ActiveRecord::Base.logger = Logger.new(STDERR)
+    if ENV["DEBUG"]
+      ActiveRecord::Base.logger = Logger.new(STDERR)
+    end
   end
 
 
