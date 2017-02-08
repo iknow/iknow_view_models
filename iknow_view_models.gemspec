@@ -10,8 +10,8 @@ Gem::Specification.new do |spec|
   spec.email         = ["edge@iknow.jp"]
   spec.summary       = %q{ViewModels provide a means of encapsulating a collection of related data and specifying its JSON serialization.}
   spec.description   = %q{}
-  spec.homepage      = ""
-  spec.license       = "Proprietary"
+  spec.homepage      = "https://github.com/iknow/cerego_view_models"
+  spec.license       = "MIT"
 
   spec.files         = `git ls-files -z`.split("\x0")
   spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }
