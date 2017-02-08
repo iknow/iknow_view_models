@@ -21,6 +21,15 @@ class ViewModel
       end
     end
 
+    # Context for serializing references: prunes/includes from the main root
+    # aren't meaningful for referenced roots.
+    def for_references
+      self.dup.tap do |copy|
+        copy.include = nil
+        copy.prune   = nil
+      end
+    end
+
     def includes_member?(member_name, default)
       member_name = member_name.to_s
 
@@ -52,12 +61,14 @@ class ViewModel
     end
 
     def serialize_references(json)
+      reference_context = self.for_references
+
       seen = Set.new
       while seen.size != @references.size
         @references.each do |ref, value|
           if seen.add?(ref)
             json.set!(ref) do
-              ViewModel.serialize(value, json, serialize_context: self)
+              ViewModel.serialize(value, json, serialize_context: reference_context)
             end
           end
         end
