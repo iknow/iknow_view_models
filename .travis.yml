@@ -1,0 +1,16 @@
+dist: trusty
+language: ruby
+rvm:
+  - 2.3
+
+services:
+  - postgresql
+
+before_script:
+  - psql -c 'CREATE DATABASE iknow_view_models;' -U postgres
+
+addons:
+  postgresql: "9.6"
+
+notifications:
+  email: false
