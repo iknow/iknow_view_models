@@ -266,4 +266,23 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
 
     assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
+
+  def test_dependent_viewmodels
+    deps = ParentView.dependent_viewmodels
+    assert_equal([ParentView, CategoryView].to_set, deps)
+
+    deps = ParentView.dependent_viewmodels(include_shared: false)
+    assert_equal([ParentView].to_set, deps)
+  end
+
+  def test_deep_schema_version
+    vers = ParentView.deep_schema_version
+    assert_equal({ ParentView.view_name   => ParentView.schema_version,
+                   CategoryView.view_name => CategoryView.schema_version },
+                 vers)
+
+    vers = ParentView.deep_schema_version(include_shared: false)
+    assert_equal({ ParentView.view_name => ParentView.schema_version },
+                 vers)
+  end
 end
