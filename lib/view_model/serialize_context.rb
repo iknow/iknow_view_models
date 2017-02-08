@@ -8,8 +8,8 @@ class ViewModel
     def initialize(include: nil, prune: nil, flatten_references: false)
       @references = References.new
       self.flatten_references = flatten_references
-      self.include = normalize_includes(include)
-      self.prune   = normalize_includes(prune)
+      self.include = self.class.normalize_includes(include)
+      self.prune   = self.class.normalize_includes(prune)
     end
 
     def for_association(association_name)
@@ -18,6 +18,15 @@ class ViewModel
       self.dup.tap do |copy|
         copy.include = include.try { |i| i[association_name] }
         copy.prune   = prune.try   { |p| p[association_name] }
+      end
+    end
+
+    # Context for serializing references: prunes/includes from the main root
+    # aren't meaningful for referenced roots.
+    def for_references
+      self.dup.tap do |copy|
+        copy.include = nil
+        copy.prune   = nil
       end
     end
 
@@ -35,13 +44,13 @@ class ViewModel
     def add_includes(includes)
       return if includes.blank?
       self.include ||= {}
-      self.include.deep_merge!(normalize_includes(includes))
+      self.include.deep_merge!(self.class.normalize_includes(includes))
     end
 
     def add_prunes(prunes)
       return if prunes.blank?
       self.prune ||= {}
-      self.prune.deep_merge!(normalize_includes(prunes))
+      self.prune.deep_merge!(self.class.normalize_includes(prunes))
     end
 
     # Return viewmodels referenced during serialization and clear @references.
@@ -52,12 +61,14 @@ class ViewModel
     end
 
     def serialize_references(json)
+      reference_context = self.for_references
+
       seen = Set.new
       while seen.size != @references.size
         @references.each do |ref, value|
           if seen.add?(ref)
             json.set!(ref) do
-              ViewModel.serialize(value, json, serialize_context: self)
+              ViewModel.serialize(value, json, serialize_context: reference_context)
             end
           end
         end
@@ -68,9 +79,7 @@ class ViewModel
       Jbuilder.new { |json| serialize_references(json) }.attributes!
     end
 
-    private
-
-    def normalize_includes(includes)
+    def self.normalize_includes(includes)
       case includes
       when Array
         includes.each_with_object({}) do |v, new_includes|

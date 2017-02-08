@@ -120,7 +120,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(404, parentcontroller.status)
     assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent with 'id'=9999",
+                                  'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                                   'code'   => "Deserialization.NotFound",
                                   'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]}}]},
                  parentcontroller.hash_response)
@@ -160,7 +160,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller.invoke(:destroy)
 
     assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent with 'id'=9999",
+                                  'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                                   'code'   => "Deserialization.NotFound",
                                   'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
                  parentcontroller.hash_response)
