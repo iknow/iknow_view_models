@@ -190,7 +190,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       end
     end
 
-    def eager_includes(serialize_context: new_serialize_context)
+    def eager_includes(serialize_context: new_serialize_context, include_shared: true)
       # When serializing, we need to (recursively) include all intrinsic
       # associations and also those optional (incl. shared) associations
       # specified in the serialize_context.
@@ -206,24 +206,26 @@ class ViewModel::ActiveRecord < ViewModel::Record
       _members.each do |assoc_name, association_data|
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
+        next if !include_shared && association_data.shared?
+
         child_context = serialize_context.for_association(assoc_name)
 
         case
         when association_data.through?
           viewmodel = association_data.direct_viewmodel
-          children = viewmodel.eager_includes(serialize_context: child_context)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_shared: include_shared)
 
         when association_data.polymorphic?
           children_by_klass = {}
           association_data.viewmodel_classes.each do |vm_class|
             klass = vm_class.model_class.name
-            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context)
+            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_shared: include_shared)
           end
           children = DeepPreloader::PolymorphicSpec.new(children_by_klass)
 
         else
           viewmodel = association_data.viewmodel_class
-          children = viewmodel.eager_includes(serialize_context: child_context)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_shared: include_shared)
         end
 
         association_specs[association_data.direct_reflection.name.to_s] = children

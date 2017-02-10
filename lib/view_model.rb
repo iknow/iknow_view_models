@@ -102,7 +102,7 @@ class ViewModel
     # If this viewmodel represents an AR model, what associations does it make
     # use of? Returns a includes spec appropriate for DeepPreloader, either as
     # AR-style nested hashes or DeepPreloader::Spec.
-    def eager_includes(serialize_context: new_serialize_context)
+    def eager_includes(serialize_context: new_serialize_context, include_shared: true)
       {}
     end
 
@@ -165,10 +165,10 @@ class ViewModel
       schema_version == self.schema_version
     end
 
-    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context)
+    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_shared: true)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|
         DeepPreloader.preload(views.map(&:model),
-                              type.eager_includes(serialize_context: serialize_context))
+                              type.eager_includes(serialize_context: serialize_context, include_shared: include_shared))
       end
     end
   end
