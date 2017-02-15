@@ -12,43 +12,49 @@ module ViewModel::ActiveRecord::Controller
   include ViewModel::ActiveRecord::ControllerBase
 
   def show(scope: nil, serialize_context: new_serialize_context)
-    viewmodel.transaction do
+    view = nil
+    pre_rendered = viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
       view = yield(view) if block_given?
-      render_viewmodel(view, serialize_context: serialize_context)
-      view
+      prerender_viewmodel(view, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    view
   end
 
   def index(scope: nil, serialize_context: new_serialize_context)
-    viewmodel.transaction do
+    views = nil
+    pre_rendered = viewmodel.transaction do
       views = viewmodel.load(scope: scope, serialize_context: serialize_context)
       views = yield(views) if block_given?
-      render_viewmodel(views, serialize_context: serialize_context)
-      views
+      prerender_viewmodel(views, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    views
   end
 
   def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     update_hash, refs = parse_viewmodel_updates
 
-    viewmodel.transaction do
+    view = nil
+    pre_rendered = viewmodel.transaction do
       view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
 
       serialize_context.add_includes(deserialize_context.updated_associations)
 
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
-      render_viewmodel(view, serialize_context: serialize_context)
-      view
+      prerender_viewmodel(view, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    view
   end
 
   def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     viewmodel.transaction do
       view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
       view.destroy!(deserialize_context: deserialize_context)
-      render_viewmodel(nil)
     end
+    render_viewmodel(nil)
   end
 
   class_methods do

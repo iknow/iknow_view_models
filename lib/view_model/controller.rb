@@ -9,8 +9,13 @@ module ViewModel::Controller
     end
   end
 
-  def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
-    render_jbuilder(status: status) do |json|
+  def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context), &block)
+    prerender = prerender_viewmodel(viewmodel, serialize_context: serialize_context, &block)
+    finish_render_viewmodel(prerender, status: status)
+  end
+
+  def prerender_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
+    Jbuilder.encode do |json|
       json.data do
         ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
       end
@@ -23,6 +28,10 @@ module ViewModel::Controller
 
       yield(json) if block_given?
     end
+  end
+
+  def finish_render_viewmodel(pre_rendered, status: nil)
+    render_json_string(pre_rendered, status: status)
   end
 
   def render_errors(error_views, status = 500)
@@ -71,12 +80,10 @@ module ViewModel::Controller
       yield json
     end
 
-    ## jbuilder prevents this from working
-    ##  - https://github.com/rails/jbuilder/issues/317
-    ##  - https://github.com/rails/rails/issues/23923
+    render_json_string(response, status: status)
+  end
 
-    # render(json: response, status: status)
-
-    render(plain: response, status: status, content_type: 'application/json')
+  def render_json_string(response, status:)
+    render(json: response, status: status)
   end
 end
