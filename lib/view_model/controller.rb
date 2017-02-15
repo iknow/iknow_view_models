@@ -84,12 +84,6 @@ module ViewModel::Controller
   end
 
   def render_json_string(response, status:)
-    ## jbuilder prevents this from working
-    ##  - https://github.com/rails/jbuilder/issues/317
-    ##  - https://github.com/rails/rails/issues/23923
-
-    # render(json: response, status: status)
-
-    render(plain: response, status: status, content_type: 'application/json')
+    render(json: response, status: status)
   end
 end
