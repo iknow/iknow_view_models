@@ -5,20 +5,22 @@ module ViewModel::ActiveRecord::NestedControllerBase
   protected
 
   def show_association(scope: nil, serialize_context: new_serialize_context)
-    owner_viewmodel.transaction do
+    associated_views = nil
+    pre_rendered = owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
       owner_view.visible!(context: serialize_context)
       associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
       associated_views = yield(associated_views) if block_given?
-
-      render_viewmodel(associated_views, serialize_context: serialize_context)
-      associated_views
+      prerender_viewmodel(associated_views, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    associated_views
   end
 
   def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    owner_viewmodel.transaction do
+    association_view = nil
+    pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
@@ -28,20 +30,17 @@ module ViewModel::ActiveRecord::NestedControllerBase
                                                        deserialize_context: deserialize_context)
 
       ViewModel.preload_for_serialization(association_view, serialize_context: serialize_context)
-      render_viewmodel(association_view, serialize_context: serialize_context)
-      association_view
+      prerender_viewmodel(association_view, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    association_view
   end
 
   def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    owner_viewmodel.transaction do
-      empty_update = collection ? [] : nil
-
-      owner_viewmodel.deserialize_from_view(owner_update_hash(empty_update),
-                                            deserialize_context: deserialize_context)
-
-      render_viewmodel(empty_update, serialize_context: serialize_context)
-    end
+    empty_update = collection ? [] : nil
+    owner_viewmodel.deserialize_from_view(owner_update_hash(empty_update),
+                                          deserialize_context: deserialize_context)
+    render_viewmodel(empty_update, serialize_context: serialize_context)
   end
 
   def association_data

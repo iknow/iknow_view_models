@@ -39,7 +39,8 @@ module ViewModel::ActiveRecord::CollectionNestedController
   # Deserialize items of the associated type and append them to the owner's
   # collection.
   def append(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    owner_viewmodel.transaction do
+    assoc_view = nil
+    pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
       before = parse_relative_position(:before)
@@ -60,9 +61,10 @@ module ViewModel::ActiveRecord::CollectionNestedController
                                                 deserialize_context: deserialize_context)
 
       ViewModel.preload_for_serialization(assoc_view, serialize_context: serialize_context)
-      render_viewmodel(assoc_view, serialize_context: serialize_context)
-      assoc_view
+      prerender_viewmodel(assoc_view, serialize_context: serialize_context)
     end
+    finish_render_viewmodel(pre_rendered)
+    assoc_view
   end
 
   def disassociate(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
