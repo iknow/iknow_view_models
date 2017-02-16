@@ -206,7 +206,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
       _members.each do |assoc_name, association_data|
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
-        next if !include_shared && association_data.shared?
 
         child_context = serialize_context.for_association(assoc_name)
 
@@ -214,6 +213,9 @@ class ViewModel::ActiveRecord < ViewModel::Record
         when association_data.through?
           viewmodel = association_data.direct_viewmodel
           children = viewmodel.eager_includes(serialize_context: child_context, include_shared: include_shared)
+
+        when !include_shared && association_data.shared?
+          children = nil # Load up to the shared model, but no further
 
         when association_data.polymorphic?
           children_by_klass = {}
