@@ -133,12 +133,19 @@ class ViewModel::ActiveRecord
         # current state of the model before it is saved. For example, but
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
-        if model.changed? || associations_changed?
+
+        changed_attributes = model.changed
+
+        if model.class.locking_enabled?
+          changed_attributes.delete(model.class.locking_column)
+        end
+
+        if changed_attributes.present? || associations_changed?
           viewmodel.was_editable!
 
           viewmodel.valid_edit!(deserialize_context: deserialize_context,
                                 changes: ViewModel::DeserializeContext::Changes.new(
-                                  changed_attributes: model.changed,
+                                  changed_attributes: changed_attributes,
                                   changed_associations: @changed_associations))
         end
 
