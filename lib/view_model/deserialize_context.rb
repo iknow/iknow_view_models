@@ -19,8 +19,8 @@ class ViewModel
 
       def contained_to?(associations: [], attributes: [])
         !deleted? &&
-          changed_associations.all? { |assoc| associations.include?(assoc) } &&
-          changed_attributes.all? { |attr| attributes.include?(attr) }
+          changed_associations.all? { |assoc| associations.include?(assoc.to_s) } &&
+          changed_attributes.all? { |attr| attributes.include?(attr.to_s) }
       end
     end
 
