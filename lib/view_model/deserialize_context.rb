@@ -8,8 +8,8 @@ class ViewModel
       attr_reader :changed_attributes, :changed_associations, :deleted
 
       def initialize(changed_attributes: [], changed_associations: [], deleted: false)
-        @changed_attributes   = changed_attributes
-        @changed_associations = changed_associations
+        @changed_attributes   = changed_attributes.map(&:to_s)
+        @changed_associations = changed_associations.map(&:to_s)
         @deleted              = deleted
       end
 
