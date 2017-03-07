@@ -49,7 +49,7 @@ class ViewModel::ActiveRecord
     end
 
     def association_changed!(association_name)
-      @changed_associations << association_name
+      @changed_associations << association_name.to_s
     end
 
     def associations_changed?
