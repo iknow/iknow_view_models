@@ -306,11 +306,12 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
-          attr_reader :edit_data
+          attr_accessor :last_changes
           attribute   :car
           association :cdr
 
           def valid_edit?(deserialize_context:, changes:)
+            self.last_changes = changes
             EditCheckTests.add_edit_check(self.to_reference,
                                           [changes.changed_attributes, changes.changed_associations, changes.deleted])
             super
@@ -363,6 +364,18 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
      def setup
        reset_edit_checks
+     end
+
+     def test_changes_types
+       l = List.create!
+       lv, _ = alter_by_view!(ListView, l) do |view, refs|
+         view["car"] = 10
+         view["cdr"] = { "_type" => "List", "car" => 2 }
+       end
+
+       assert_equal(["cdr_id", "car"], lv.last_changes.changed_attributes)
+       assert_equal(["cdr"], lv.last_changes.changed_associations)
+       assert_equal(false,   lv.last_changes.deleted)
      end
 
      def test_custom_view_failure
