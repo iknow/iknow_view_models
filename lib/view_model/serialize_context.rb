@@ -64,8 +64,8 @@ class ViewModel
       reference_context = self.for_references
 
       seen = Set.new
-      while seen.size != @references.size
-        @references.each do |ref, value|
+      while @references.present?
+        extract_referenced_views!.each do |ref, value|
           if seen.add?(ref)
             json.set!(ref) do
               ViewModel.serialize(value, json, serialize_context: reference_context)
