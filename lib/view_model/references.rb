@@ -1,7 +1,7 @@
 class ViewModel
   # A bucket for configuration, used for serializing and deserializing.
   class References
-    delegate :each, :size, to: :@value_by_ref
+    delegate :each, :size, :present?, to: :@value_by_ref
 
     def initialize
       @last_ref = 0
