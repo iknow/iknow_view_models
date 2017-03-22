@@ -12,6 +12,17 @@ class ViewModel::AbstractError < StandardError
   def view
     ViewModel::Error::View.new(self)
   end
+
+  def blame_metadata(viewmodel_refs)
+    {
+      nodes: nodes.map do |ref|
+        {
+          ViewModel::TYPE_ATTRIBUTE => ref.viewmodel_class.view_name,
+          ViewModel::ID_ATTRIBUTE   => ref.model_id
+        }
+      end
+    }
+  end
 end
 
 class ViewModel::Error < ViewModel::AbstractError

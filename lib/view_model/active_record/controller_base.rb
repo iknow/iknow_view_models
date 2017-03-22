@@ -17,12 +17,12 @@ module ControllerBase
     super(viewmodel, serialize_context: serialize_context, **args)
   end
 
-  def new_deserialize_context(*args)
-    viewmodel.new_deserialize_context(*args)
+  def new_deserialize_context(access_control: self.class.access_control.new, **args)
+    viewmodel.new_deserialize_context(access_control: access_control, **args)
   end
 
-  def new_serialize_context(*args)
-    viewmodel.new_serialize_context(*args)
+  def new_serialize_context(access_control: self.class.access_control.new, **args)
+    viewmodel.new_serialize_context(access_control: access_control, **args)
   end
 
   class_methods do
@@ -36,6 +36,13 @@ module ControllerBase
         end
       end
       @viewmodel
+    end
+
+    def access_control
+      unless instance_variable_defined?(:@access_control)
+        raise ArgumentError.new("AccessControl instance not set for Controller '#{self.name}'")
+      end
+      @access_control
     end
 
     protected
@@ -54,10 +61,21 @@ module ControllerBase
       end
       @viewmodel = type
     end
+
+    def access_control=(access_control)
+      if instance_variable_defined?(:@access_control)
+        raise ArgumentError.new("AccessControl class for Controller '#{self.name}' already set")
+      end
+
+      unless access_control.is_a?(Class) && access_control < ViewModel::AccessControl
+        raise ArgumentError.new("'#{access_control.inspect}' is not a valid AccessControl")
+      end
+      @access_control = access_control
+    end
   end
 
   included do
-    delegate :viewmodel, to: 'self.class'
+    delegate :viewmodel, :access_control, to: 'self.class'
   end
 end
 end

@@ -29,76 +29,65 @@ end
 class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
 
-  module ContextAccessLogging
-    attr_accessor :editable_checks, :valid_edit_checks, :visible_checks
+  class TestAccessControl < ViewModel::AccessControl
+    attr_accessor :editable_checks, :visible_checks, :valid_edit_checks
 
-    def initialize(**args)
-      super
-
-      # force existence of these objects, so when we get cloned in context we
-      # get aliased.
-      @editable_checks   = []
-      @valid_edit_checks = []
-      @visible_checks    = []
+    def initialize(can_view, can_edit, can_change)
+      super()
+      @can_edit           = can_edit
+      @can_view           = can_view
+      @can_change         = can_change
+      @editable_checks    = []
+      @valid_edit_checks  = []
+      @visible_checks     = []
+      @valid_edit_changes = {}
     end
 
-    def log_editable_check(viewmodel)
-      editable_checks << viewmodel.to_reference
+    def editable_check(view, deserialize_context:)
+      @editable_checks << view.to_reference
+      ViewModel::AccessControl::Result.new(@can_edit)
     end
 
-    def log_valid_edit_check(viewmodel)
-      valid_edit_checks << viewmodel.to_reference
+    def valid_edit_check(view, deserialize_context:, changes:)
+      ref = view.to_reference
+      @valid_edit_checks << ref
+      @valid_edit_changes[ref] = changes
+      ViewModel::AccessControl::Result.new(@can_change)
     end
 
-    def log_visible_check(viewmodel)
-      visible_checks << viewmodel.to_reference
+    def visible_check(view, context:)
+      @visible_checks << view.to_reference
+      ViewModel::AccessControl::Result.new(@can_view)
+    end
+
+    def valid_edit_changes(ref)
+      @valid_edit_changes[ref]
     end
   end
 
   class DeserializeContext < ViewModel::DeserializeContext
-    include ContextAccessLogging
-    attr_accessor :can_edit, :can_change, :can_view
-
-    def initialize(can_edit: true, can_view: true, can_change: true, **rest)
-      super(**rest)
-      self.can_edit   = can_edit
-      self.can_change = can_change
-      self.can_view   = can_view
+    def initialize(can_view: true, can_edit: true, can_change: true, **params)
+      params[:access_control] ||= TestAccessControl.new(can_view, can_edit, can_change)
+      super(**params)
     end
+
+    delegate :visible_checks, :valid_edit_checks, :editable_checks, :valid_edit_changes, to: :access_control
   end
-
-  class SerializeContext < ViewModel::SerializeContext
-    include ContextAccessLogging
-    attr_accessor :can_view
-
-    def initialize(can_view: true, **rest)
-      super(**rest)
-      self.can_view = can_view
-    end
-  end
-
-  # TODO abstract class like active record
 
   def self.deserialize_context_class
     DeserializeContext
   end
 
+  class SerializeContext < ViewModel::SerializeContext
+    def initialize(can_view: true, **params)
+      params[:access_control] ||= TestAccessControl.new(can_view, false, false)
+      super(**params)
+    end
+
+    delegate :visible_checks, :valid_edit_checks, :editable_checks, to: :access_control
+  end
+
   def self.serialize_context_class
     SerializeContext
-  end
-
-  def visible?(context:)
-    context.log_visible_check(self)
-    super && context.can_view
-  end
-
-  def editable?(deserialize_context:)
-    deserialize_context.log_editable_check(self)
-    super && deserialize_context.can_edit
-  end
-
-  def valid_edit?(deserialize_context:, changes:)
-    deserialize_context.log_valid_edit_check(self)
-    super && deserialize_context.can_change
   end
 end

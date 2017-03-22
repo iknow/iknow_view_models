@@ -75,12 +75,12 @@ class ViewModel::ActiveRecord
       debug "-> #{debug_name}: Entering"
 
       model.class.transaction do
-        viewmodel.visible!(context: deserialize_context)
+        deserialize_context.visible!(viewmodel)
 
         # Check that the record is eligible to be edited before any changes are
         # made. A failure here becomes an error once we've detected a change
         # being made.
-        viewmodel.save_editable!(deserialize_context: deserialize_context)
+        initial_editability = deserialize_context.initial_editability(viewmodel)
 
         # update parent association
         if reparent_to.present?
@@ -141,12 +141,11 @@ class ViewModel::ActiveRecord
         end
 
         if changed_attributes.present? || associations_changed?
-          viewmodel.was_editable!
-
-          viewmodel.valid_edit!(deserialize_context: deserialize_context,
-                                changes: ViewModel::DeserializeContext::Changes.new(
-                                  changed_attributes: changed_attributes,
-                                  changed_associations: @changed_associations))
+          changes = ViewModel::DeserializeContext::Changes.new(changed_attributes: changed_attributes,
+                                                               changed_associations: @changed_associations)
+          deserialize_context.editable!(viewmodel,
+                                        initial_editability: initial_editability,
+                                        changes: changes)
         end
 
         debug "-> #{debug_name}: Saving"
@@ -190,10 +189,11 @@ class ViewModel::ActiveRecord
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
           child_context = deserialize_context.for_child(viewmodel)
           child_vm = released_child.viewmodel
-          child_vm.visible!(context: child_context)
-          child_vm.editable!(deserialize_context: child_context)
-          child_vm.valid_edit!(deserialize_context: child_context,
-                               changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+          child_context.visible!(child_vm)
+          initial_editability = child_context.initial_editability(child_vm)
+          child_context.editable!(child_vm,
+                                  initial_editability: initial_editability,
+                                  changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end

@@ -83,14 +83,14 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      viewmodel.visible!(context: deserialize_context)
+      deserialize_context.visible!(self)
 
       if (bad_attrs = view_hash.keys - self.member_names).present?
         raise ViewModel::DeserializationError.new("Illegal attribute(s) #{bad_attrs.inspect} for viewmodel #{self.view_name}",
                                                   viewmodel.blame_reference)
       end
 
-      viewmodel.save_editable!(deserialize_context: deserialize_context)
+      initial_editability = deserialize_context.initial_editability(self)
 
       _members.each do |attr, _|
         if view_hash.has_key?(attr)
@@ -99,9 +99,9 @@ class ViewModel::Record < ViewModel
       end
 
       if viewmodel.changed_attributes.present?
-        viewmodel.was_editable!
-        viewmodel.valid_edit!(deserialize_context: deserialize_context,
-                              changes: ViewModel::DeserializeContext::Changes.new(changed_attributes: viewmodel.changed_attributes))
+        deserialize_context.editable!(self,
+                                      initial_editability: initial_editability,
+                                      changes: ViewModel::DeserializeContext::Changes.new(changed_attributes: viewmodel.changed_attributes))
       end
 
       viewmodel.clear_changed_attributes!
@@ -221,7 +221,7 @@ class ViewModel::Record < ViewModel
     value = self.public_send(attr)
 
     json.set! attr do
-      serialize_context = serialize_context.for_association(attr.to_s) if attr_data.using_viewmodel?
+      serialize_context = serialize_context.for_child(self, association_name: attr.to_s) if attr_data.using_viewmodel?
       self.class.serialize(value, json, serialize_context: serialize_context)
     end
   end

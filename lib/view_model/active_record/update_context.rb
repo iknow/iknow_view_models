@@ -180,7 +180,7 @@ class ViewModel::ActiveRecord
           # manually load unresolvable VMs, and additionally add their previous
           # parents (if present) as otherwise-unmodified roots with
           # `association_changed!` set, in order that we can correctly
-          # `editable?` check them.
+          # `editable_check` them.
 
           # If the foreign key is from child to parent, the child update has a
           # `parent_data` for the new parent set, which will include the

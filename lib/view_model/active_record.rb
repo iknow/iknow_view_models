@@ -195,7 +195,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
 
-        child_context = serialize_context.for_association(assoc_name)
+        child_context = serialize_context.for_child(nil, association_name: assoc_name)
 
         case
         when association_data.through?
@@ -264,7 +264,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       member_context =
         case member_data
         when AssociationData
-          member_context = serialize_context.for_association(member_name)
+          member_context = serialize_context.for_child(self, association_name: member_name)
         else
           serialize_context
         end
@@ -275,9 +275,11 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      visible!(context: deserialize_context)
-      editable!(deserialize_context: deserialize_context)
-      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+      deserialize_context.visible!(self)
+      initial_editability = deserialize_context.initial_editability(self)
+      deserialize_context.editable!(self,
+                                    initial_editability: initial_editability,
+                                    changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       model.destroy!
     end
   end

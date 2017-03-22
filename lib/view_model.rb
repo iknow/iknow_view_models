@@ -183,7 +183,7 @@ class ViewModel
   # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
   # overridden in subclasses to (for example) implement caching.
   def serialize(json, serialize_context: self.class.new_serialize_context)
-    visible!(context: serialize_context)
+    serialize_context.visible!(self)
     serialize_view(json, serialize_context: serialize_context)
   end
 
@@ -227,122 +227,6 @@ class ViewModel
     ViewModel.preload_for_serialization([self], serialize_context: serialize_context)
   end
 
-  attr_writer :access_check_error
-
-  def has_access_check_error?
-    @access_check_error.present?
-  end
-
-  # Check that the user is permitted to view the record in its current state, in
-  # the given context. To be overridden by viewmodel implementation.
-  def visible?(context: self.class.new_serialize_context)
-    true
-  end
-
-  # Editable checks during deserialization are always a combination of
-  # `editable?` and `valid_edit?`, which express the following separate
-  # properties:
-
-  # Check that the record is eligible to be changed in its current state, in the
-  # given context. During deserialization, this must be called before any edits
-  # have taken place (thus checking against the initial state of the viewmodel),
-  # and if found false, an error must be raised if an edit is later attempted.
-  # To be overridden by viewmodel implementations.
-  def editable?(deserialize_context: self.class.new_deserialize_context)
-    true
-  end
-
-  # Check that the attempted changes to this record are permitted in the given
-  # context. During deserialization, this must be called once all edits have
-  # been attempted. To be overridden by viewmodel implementations.
-  def valid_edit?(deserialize_context: self.class.new_deserialize_context, changes:)
-    true
-  end
-
-  # During deserialization, returns true if the viewmodel was found `editable?`
-  # before any changes were attempted. Takes a viewmodel on which to optionally
-  # set the access check error, which can be used when delegating to a parent
-  # view's editability.
-  def was_editable?(error_view:)
-    unless instance_variable_defined?(:@initial_editable_state) && @initial_editable_state
-      raise DeserializationError.new("Attempted to call `was_editable?` outside deserialization.",
-                                     self.blame_reference)
-    end
-    editable, err = @initial_editable_state
-    error_view.access_check_error = err if err
-    editable
-  end
-
-  # Implementations of serialization and deserialization should call this
-  # whenever a viewmodel is visited during serialization or deserialization.
-  def visible!(context: self.class.new_serialize_context)
-    self.access_check_error = nil
-    unless visible?(context: context)
-      raise_access_check_error do
-        if context.is_a?(DeserializeContext)
-          DeserializationError::Permissions.new("Attempt to deserialize into forbidden viewmodel '#{self.class.view_name}'",
-                                                self.blame_reference)
-        else
-          SerializationError::Permissions.new("Attempt to serialize forbidden viewmodel '#{self.class.view_name}'")
-        end
-      end
-    end
-  end
-
-  # Implementations of deserialization that may or may not make changes to the
-  # viewmodel should call this on the viewmodel to save the initial `editable?`
-  # value and optional exception before attempting to apply their changes.
-  def save_editable!(deserialize_context: self.class.new_deserialize_context)
-    val = editable?(deserialize_context: deserialize_context)
-    @initial_editable_state = [val, @access_check_error]
-    self.access_check_error = nil
-  end
-
-  # Implementations of deserialization that have called `save_editable!` to
-  # cache their initial editable check should call this after they know that a
-  # change will be made.
-  def was_editable!
-    self.access_check_error = nil
-    unless was_editable?(error_view: self)
-      raise_access_check_error do
-        DeserializationError::Permissions.new(
-          "Attempt to edit forbidden viewmodel '#{self.class.view_name}'",
-          self.blame_reference)
-      end
-    end
-    @initial_editable_state = nil
-  end
-
-  # Implementations of deserialization that know in advance that they will make
-  # changes to the viewmodel may call this immediately rather than
-  # `save_editable!` followed by `was_editable!`.
-  def editable!(deserialize_context: self.class.new_deserialize_context)
-    self.access_check_error = nil
-    if instance_variable_defined?(:@initial_editable_state) && @initial_editable_state
-      raise DeserializationError.new("Attempted to call `editable!` during deserialization: use `was_editable!`.", self.blame_reference)
-    end
-    unless editable?(deserialize_context: deserialize_context)
-      raise_access_check_error do
-        DeserializationError::Permissions.new(
-          "Attempt to edit forbidden viewmodel '#{self.class.view_name}'",
-          self.blame_reference)
-      end
-    end
-  end
-
-  # Implementations of deserialization should call this once they have made all
-  # changes that will be performed to the viewmodel.
-  def valid_edit!(deserialize_context: self.class.new_deserialize_context, changes:)
-    self.access_check_error = nil
-    unless valid_edit?(deserialize_context: deserialize_context, changes: changes)
-      raise_access_check_error do
-        DeserializationError::Permissions.new(
-          "Attempt to make illegal changes to viewmodel '#{self.class.view_name}'",
-          self.blame_reference)
-      end
-    end
-  end
-
   def ==(other_view)
     other_view.class == self.class && self.class._attributes.all? do |attr|
       other_view.send(attr) == self.send(attr)
@@ -355,17 +239,11 @@ class ViewModel
     self.class._attributes.map { |attr| self.send(attr) }.hash
   end
 
-  private
-
-  def raise_access_check_error
-    err = @access_check_error || yield
-    @access_check_error = nil
-    raise err
-  end
 end
 
 require 'view_model/utils'
 require 'view_model/error'
+require 'view_model/access_control'
 require 'view_model/deserialization_error'
 require 'view_model/serialization_error'
 require 'view_model/registry'
