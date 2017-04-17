@@ -69,78 +69,73 @@ module AssociationManipulation
   # Create or update members of a associated collection. For an ordered
   # collection, the items are inserted either before `before`, after `after`, or
   # at the end.
-  def append_associated(association_name, subtree_hashes, references: {}, before: nil, after: nil, deserialize_context: self.class.new_deserialize_context)
+  def append_associated(association_name, subtree_hash_or_hashes, references: {}, before: nil, after: nil, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
     raise ArgumentError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
 
-    return_array     = subtree_hashes.is_a?(Array)
-    subtree_hashes   = Array.wrap(subtree_hashes)
+    ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
+      model_class.transaction do
+        visible!(context: deserialize_context)
+        editable!(deserialize_context: deserialize_context)
+        valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
-    model_class.transaction do
-      visible!(context: deserialize_context)
-      editable!(deserialize_context: deserialize_context)
-      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
+        if association_data.through?
+          raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
 
-      if association_data.through?
-        raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
-
-        direct_viewmodel_class = association_data.direct_viewmodel
-        root_update_data, referenced_update_data = construct_indirect_append_updates(association_data, subtree_hashes, references)
-      else
-        direct_viewmodel_class = association_data.viewmodel_class
-        root_update_data, referenced_update_data = construct_direct_append_updates(association_data, subtree_hashes, references)
-      end
-
-      update_context = UpdateContext.build!(root_update_data, referenced_update_data, root_type: direct_viewmodel_class)
-
-      # Provide information about what was updated
-      deserialize_context.updated_associations = root_update_data.map(&:updated_associations)
-                                                   .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
-
-      # Set new parent
-      new_parent = ViewModel::ActiveRecord::UpdateOperation::ParentData.new(direct_reflection.inverse_of, self)
-      update_context.root_updates.each { |update| update.reparent_to = new_parent }
-
-      # Set place in list.
-      if direct_viewmodel_class._list_member?
-        new_positions = select_append_positions(association_data,
-                                                direct_viewmodel_class._list_attribute_name,
-                                                update_context.root_updates.count,
-                                                before: before, after: after)
-
-        update_context.root_updates.zip(new_positions).each do |update, new_pos|
-          update.reposition_to = new_pos
+          direct_viewmodel_class = association_data.direct_viewmodel
+          root_update_data, referenced_update_data = construct_indirect_append_updates(association_data, subtree_hashes, references)
+        else
+          direct_viewmodel_class = association_data.viewmodel_class
+          root_update_data, referenced_update_data = construct_direct_append_updates(association_data, subtree_hashes, references)
         end
-      end
 
-      # Ensure that previous parents (other than this model) will be edit-checked.
-      unless association_data.through?
-        inverse_assoc_name = direct_reflection.inverse_of.name
+        update_context = UpdateContext.build!(root_update_data, referenced_update_data, root_type: direct_viewmodel_class)
 
-        update_context.root_updates.dup.each do |update|
-          update_model    = update.viewmodel.model
-          parent_model_id = update_model.read_attribute(update_model
-                                                          .association(inverse_assoc_name)
-                                                          .reflection.foreign_key)
-          next if parent_model_id == self.id
+        # Provide information about what was updated
+        deserialize_context.updated_associations = root_update_data.map(&:updated_associations)
+                                                     .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
-          update_context.ensure_parent_edit_assertion_update(update.viewmodel, self.class, inverse_assoc_name)
+        # Set new parent
+        new_parent = ViewModel::ActiveRecord::UpdateOperation::ParentData.new(direct_reflection.inverse_of, self)
+        update_context.root_updates.each { |update| update.reparent_to = new_parent }
+
+        # Set place in list.
+        if direct_viewmodel_class._list_member?
+          new_positions = select_append_positions(association_data,
+                                                  direct_viewmodel_class._list_attribute_name,
+                                                  update_context.root_updates.count,
+                                                  before: before, after: after)
+
+          update_context.root_updates.zip(new_positions).each do |update, new_pos|
+            update.reposition_to = new_pos
+          end
         end
-      end
 
-      updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self))
+        # Ensure that previous parents (other than this model) will be edit-checked.
+        unless association_data.through?
+          inverse_assoc_name = direct_reflection.inverse_of.name
 
-      if association_data.through?
-        updated_viewmodels.map! do |direct_vm|
-          direct_vm._read_association(association_data.indirect_reflection.name)
+          update_context.root_updates.dup.each do |update|
+            update_model    = update.viewmodel.model
+            parent_model_id = update_model.read_attribute(update_model
+                                                            .association(inverse_assoc_name)
+                                                            .reflection.foreign_key)
+            next if parent_model_id == self.id
+
+            update_context.ensure_parent_edit_assertion_update(update.viewmodel, self.class, inverse_assoc_name)
+          end
         end
-      end
 
-      if return_array
+        updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self))
+
+        if association_data.through?
+          updated_viewmodels.map! do |direct_vm|
+            direct_vm._read_association(association_data.indirect_reflection.name)
+          end
+        end
+
         updated_viewmodels
-      else
-        updated_viewmodels.first
       end
     end
   end

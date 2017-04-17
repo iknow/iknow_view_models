@@ -127,31 +127,26 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
 
     ## Load instances of the viewmodel by id(s)
-    def find(ids, scope: nil, eager_include: true, serialize_context: new_serialize_context)
+    def find(id_or_ids, scope: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = self.model_class.all
       find_scope = find_scope.merge(scope) if scope
 
-      find_all = ids.is_a?(Array)
-      ids = Array.wrap(ids)
+      ViewModel::Utils.wrap_one_or_many(id_or_ids) do |ids|
 
-      models = find_scope.where(id: ids).to_a
+        models = find_scope.where(id: ids).to_a
 
-      if models.size < ids.size
-        missing_ids = ids - models.map(&:id)
-        if missing_ids.present?
-          raise ViewModel::DeserializationError::NotFound.new(
-                  "Couldn't find #{self.model_class.name}(s) with id(s)=#{missing_ids.inspect}",
-                  missing_ids.map { |id| ViewModel::Reference.new(self, id) } )
+        if models.size < ids.size
+          missing_ids = ids - models.map(&:id)
+          if missing_ids.present?
+            raise ViewModel::DeserializationError::NotFound.new(
+                    "Couldn't find #{self.model_class.name}(s) with id(s)=#{missing_ids.inspect}",
+                    missing_ids.map { |id| ViewModel::Reference.new(self, id) } )
+          end
         end
-      end
 
-      vms = models.map { |m| self.new(m) }
-      ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
-
-      if find_all
+        vms = models.map { |m| self.new(m) }
+        ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
         vms
-      else
-        vms.first
       end
     end
 
@@ -165,27 +160,20 @@ class ViewModel::ActiveRecord < ViewModel::Record
       vms
     end
 
-    def deserialize_from_view(subtree_hashes, references: {}, deserialize_context: new_deserialize_context)
+    def deserialize_from_view(subtree_hash_or_hashes, references: {}, deserialize_context: new_deserialize_context)
       model_class.transaction do
-        return_array = subtree_hashes.is_a?(Array)
-        subtree_hashes = Array.wrap(subtree_hashes)
+        ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
+          root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
 
-        root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
+          # Provide information about what was updated
+          deserialize_context.updated_associations = root_update_data
+                                                       .map { |upd| upd.updated_associations }
+                                                       .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
 
-        # Provide information about will was updated
-        deserialize_context.updated_associations = root_update_data
-                                                     .map { |upd| upd.updated_associations }
-                                                     .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
-
-        updated_viewmodels =
-          UpdateContext
-            .build!(root_update_data, referenced_update_data, root_type: self)
-            .run!(deserialize_context: deserialize_context)
-
-        if return_array
-          updated_viewmodels
-        else
-          updated_viewmodels.first
+          _updated_viewmodels =
+            UpdateContext
+              .build!(root_update_data, referenced_update_data, root_type: self)
+              .run!(deserialize_context: deserialize_context)
         end
       end
     end

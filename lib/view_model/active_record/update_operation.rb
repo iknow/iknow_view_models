@@ -293,33 +293,28 @@ class ViewModel::ActiveRecord
         return self.viewmodel.public_send(:"resolve_#{association_data.direct_reflection.name}", update_datas, previous_child_viewmodels)
       end
 
-      was_singular = !update_datas.is_a?(Array)
-      update_datas = Array.wrap(update_datas)
       previous_child_viewmodels = Array.wrap(previous_child_viewmodels)
 
       previous_by_key = previous_child_viewmodels.index_by do |vm|
         vm.to_reference
       end
 
-      resolved_viewmodels =
-        update_datas.map do |update_data|
-          child_viewmodel_class = update_data.viewmodel_class
-          key = ViewModel::Reference.new(child_viewmodel_class, update_data.id)
+      ViewModel::Utils.map_one_or_many(update_datas) do |update_data|
+        child_viewmodel_class = update_data.viewmodel_class
+        key = ViewModel::Reference.new(child_viewmodel_class, update_data.id)
 
-          case
-          when update_data.new?
-            child_viewmodel_class.for_new_model(id: update_data.id)
-          when existing_child = previous_by_key[key]
-            existing_child
-          when taken_child = update_context.try_take_released_viewmodel(key)
-            taken_child
-          else
-            # Refers to child that hasn't yet been seen: create a deferred update.
-            key
-          end
+        case
+        when update_data.new?
+          child_viewmodel_class.for_new_model(id: update_data.id)
+        when existing_child = previous_by_key[key]
+          existing_child
+        when taken_child = update_context.try_take_released_viewmodel(key)
+          taken_child
+        else
+          # Refers to child that hasn't yet been seen: create a deferred update.
+          key
         end
-
-      was_singular ? resolved_viewmodels.first : resolved_viewmodels
+      end
     end
 
     def build_update_for_single_association(association_data, association_update_data, update_context)
