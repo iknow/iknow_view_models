@@ -129,7 +129,7 @@ module AssociationManipulation
         end
       end
 
-      updated_viewmodels = update_context.run!(deserialize_context: deserialize_context)
+      updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self))
 
       if association_data.through?
         updated_viewmodels.map! do |direct_vm|
@@ -199,10 +199,11 @@ module AssociationManipulation
                 blame_reference)
       end
 
+      child_context = deserialize_context.for_child(self)
       vm = direct_viewmodel.new(models.first)
-      vm.visible!(context: deserialize_context)
-      vm.editable!(deserialize_context: deserialize_context)
-      vm.valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+      vm.visible!(context: child_context)
+      vm.editable!(deserialize_context: child_context)
+      vm.valid_edit!(deserialize_context: child_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       association.delete(vm.model)
       vm
     end
