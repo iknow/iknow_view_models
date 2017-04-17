@@ -57,9 +57,7 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_from_view(view_hashes, references: {}, deserialize_context: new_deserialize_context)
-      return_array = view_hashes.is_a?(Array)
-
-      viewmodels = Array.wrap(view_hashes).map do |view_hash|
+      ViewModel::Utils.map_one_or_many(view_hashes) do |view_hash|
         view_hash = view_hash.dup
         type, version, id, new = ViewModel.extract_viewmodel_metadata(view_hash)
 
@@ -82,8 +80,6 @@ class ViewModel::Record < ViewModel
 
         viewmodel
       end
-
-      return_array ? viewmodels : viewmodels.first
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)

@@ -363,6 +363,7 @@ class ViewModel
   end
 end
 
+require 'view_model/utils'
 require 'view_model/error'
 require 'view_model/deserialization_error'
 require 'view_model/serialization_error'
