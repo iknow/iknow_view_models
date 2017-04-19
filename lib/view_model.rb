@@ -95,6 +95,7 @@ class ViewModel
     end
 
     def is_update_hash?(hash)
+      ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_UPDATE, hash)
       hash.has_key?(ViewModel::ID_ATTRIBUTE) &&
         !hash.fetch(ViewModel::ActiveRecord::NEW_ATTRIBUTE, false)
     end
