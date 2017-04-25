@@ -1,99 +1,115 @@
 require 'active_support/core_ext'
+require 'view_model/traversal_context'
 
-class ViewModel
-  class SerializeContext
-    delegate :add_reference, :has_references?, to: :@references
-    attr_accessor :include, :prune, :flatten_references
+class ViewModel::SerializeContext < ViewModel::TraversalContext
+  class SharedContext < ViewModel::TraversalContext::SharedContext
+    attr_reader :references, :flatten_references
 
-    def initialize(include: nil, prune: nil, flatten_references: false)
-      @references = References.new
-      self.flatten_references = flatten_references
-      self.include = self.class.normalize_includes(include)
-      self.prune   = self.class.normalize_includes(prune)
+    def initialize(flatten_references: false, **rest)
+      super(**rest)
+      @references         = ViewModel::References.new
+      @flatten_references = flatten_references
     end
+  end
 
-    def for_association(association_name)
-      # Shallow clone aliases @references; association traversal must not
-      # "change" the context, otherwise references will be lost.
-      self.dup.tap do |copy|
-        copy.include = include.try { |i| i[association_name] }
-        copy.prune   = prune.try   { |p| p[association_name] }
-      end
-    end
+  def self.shared_context_class
+    SharedContext
+  end
 
-    # Context for serializing references: prunes/includes from the main root
-    # aren't meaningful for referenced roots.
-    def for_references
-      self.dup.tap do |copy|
-        copy.include = nil
-        copy.prune   = nil
-      end
-    end
+  delegate :references, :flatten_references, to: :shared_context
 
-    def includes_member?(member_name, default)
-      member_name = member_name.to_s
+  attr_reader :include, :prune
 
-      # Every node in the include tree is to be included
-      included = include.try { |is| is.has_key?(member_name) }
-      # whereas only the leaves of the prune tree are to be removed
-      pruned   = prune.try { |ps| ps.fetch(member_name, :sentinel).nil? }
+  def initialize(include: nil, prune: nil, **rest)
+    super(**rest)
+    @include = self.class.normalize_includes(include)
+    @prune   = self.class.normalize_includes(prune)
+  end
 
-      (default || included) && !pruned
-    end
+  def initialize_as_child(include:, prune:, **rest)
+    super(**rest)
+    @include = include
+    @prune   = prune
+  end
 
-    def add_includes(includes)
-      return if includes.blank?
-      self.include ||= {}
-      self.include.deep_merge!(self.class.normalize_includes(includes))
-    end
+  def for_child(parent_viewmodel, association_name:, **rest)
+    super(parent_viewmodel,
+          include: @include.try { |i| i[association_name] },
+          prune:   @prune.try   { |p| p[association_name] },
+          **rest)
+  end
 
-    def add_prunes(prunes)
-      return if prunes.blank?
-      self.prune ||= {}
-      self.prune.deep_merge!(self.class.normalize_includes(prunes))
-    end
+  # Obtain a semi-independent context for serializing references: keep the same
+  # shared context, but drop any tree location specific local context.
+  def for_references
+    self.class.new(shared_context: shared_context)
+  end
 
-    # Return viewmodels referenced during serialization and clear @references.
-    def extract_referenced_views!
-      refs = @references.each.to_h
-      @references.clear!
-      refs
-    end
+  def includes_member?(member_name, default)
+    member_name = member_name.to_s
 
-    def serialize_references(json)
-      reference_context = self.for_references
+    # Every node in the include tree is to be included
+    included = @include.try { |is| is.has_key?(member_name) }
+    # whereas only the leaves of the prune tree are to be removed
+    pruned   = @prune.try { |ps| ps.fetch(member_name, :sentinel).nil? }
 
-      seen = Set.new
-      while @references.present?
-        extract_referenced_views!.each do |ref, value|
-          if seen.add?(ref)
-            json.set!(ref) do
-              ViewModel.serialize(value, json, serialize_context: reference_context)
-            end
+    (default || included) && !pruned
+  end
+
+  def add_includes(includes)
+    return if includes.blank?
+    @include ||= {}
+    @include.deep_merge!(self.class.normalize_includes(includes))
+  end
+
+  def add_prunes(prunes)
+    return if prunes.blank?
+    @prune ||= {}
+    @prune.deep_merge!(self.class.normalize_includes(prunes))
+  end
+
+  delegate :add_reference, :has_references?, to: :references
+
+  # Return viewmodels referenced during serialization and clear @references.
+  def extract_referenced_views!
+    refs = references.each.to_h
+    references.clear!
+    refs
+  end
+
+  def serialize_references(json)
+    reference_context = self.for_references
+
+    seen = Set.new
+    while references.present?
+      extract_referenced_views!.each do |ref, value|
+        if seen.add?(ref)
+          json.set!(ref) do
+            ViewModel.serialize(value, json, serialize_context: reference_context)
           end
         end
       end
     end
+  end
 
-    def serialize_references_to_hash
-      Jbuilder.new { |json| serialize_references(json) }.attributes!
-    end
+  def serialize_references_to_hash
+    Jbuilder.new { |json| serialize_references(json) }.attributes!
+  end
 
-    def self.normalize_includes(includes)
-      case includes
-      when Array
-        includes.each_with_object({}) do |v, new_includes|
-          new_includes.merge!(normalize_includes(v))
-        end
-      when Hash
-        includes.each_with_object({}) do |(k,v), new_includes|
-          new_includes[k.to_s] = normalize_includes(v)
-        end
-      when nil
-        nil
-      else
-        { includes.to_s => nil }
+  def self.normalize_includes(includes)
+    case includes
+    when Array
+      includes.each_with_object({}) do |v, new_includes|
+        new_includes.merge!(normalize_includes(v))
       end
+    when Hash
+      includes.each_with_object({}) do |(k,v), new_includes|
+        new_includes[k.to_s] = normalize_includes(v)
+      end
+    when nil
+      nil
+    else
+      { includes.to_s => nil }
     end
   end
 end

@@ -35,9 +35,15 @@ module ViewModel::Controller
   end
 
   def render_errors(error_views, status = 500)
+    error_views = Array.wrap(error_views)
+    unless error_views.all? { |ev| ev.is_a?(ViewModel) }
+      raise "Expected ViewModel error views, received #{error_views.inspect}"
+    end
+
     render_jbuilder(status: status) do |json|
-      json.errors Array.wrap(error_views) do |error_view|
-        ViewModel.serialize(error_view, json)
+      json.errors error_views do |error_view|
+        ctx = ViewModel::Error::View.new_serialize_context(access_control: ViewModel::AccessControl::Open.new)
+        ViewModel::Error::View.serialize(error_view, json, serialize_context: ctx)
       end
     end
   end

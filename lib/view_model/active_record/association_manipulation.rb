@@ -76,9 +76,11 @@ module AssociationManipulation
 
     ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
       model_class.transaction do
-        visible!(context: deserialize_context)
-        editable!(deserialize_context: deserialize_context)
-        valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
+        deserialize_context.visible!(self)
+        initial_editability = deserialize_context.initial_editability(self)
+        deserialize_context.editable!(self,
+                                      initial_editability: initial_editability,
+                                      changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
         if association_data.through?
           raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -156,9 +158,11 @@ module AssociationManipulation
     target_ref = ViewModel::Reference.new(type || association_data.viewmodel_class, associated_id)
 
     model_class.transaction do
-      visible!(context: deserialize_context)
-      editable!(deserialize_context: deserialize_context)
-      valid_edit!(deserialize_context: deserialize_context, changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
+      deserialize_context.visible!(self)
+      initial_editability = deserialize_context.initial_editability(self)
+      deserialize_context.editable!(self,
+                                    initial_editability: initial_editability,
+                                    changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
 
       association = self.model.association(direct_reflection.name)
       association_scope = association.association_scope
@@ -196,9 +200,11 @@ module AssociationManipulation
 
       child_context = deserialize_context.for_child(self)
       vm = direct_viewmodel.new(models.first)
-      vm.visible!(context: child_context)
-      vm.editable!(deserialize_context: child_context)
-      vm.valid_edit!(deserialize_context: child_context, changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+      child_context.visible!(vm)
+      initial_editability = child_context.initial_editability(vm)
+      child_context.editable!(vm,
+                              initial_editability: initial_editability,
+                              changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       association.delete(vm.model)
       vm
     end

@@ -12,14 +12,7 @@ class ViewModel
     end
 
     def metadata
-      {
-        nodes: nodes.map do |ref|
-          {
-            ViewModel::TYPE_ATTRIBUTE => ref.viewmodel_class.view_name,
-            ViewModel::ID_ATTRIBUTE   => ref.model_id
-          }
-        end
-      }
+      blame_metadata(nodes)
     end
 
     def code

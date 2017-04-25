@@ -32,16 +32,37 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     end
 
     class DeserializeContext < ViewModel::DeserializeContext
-      attr_reader :targets
+      class SharedContext < ViewModel::DeserializeContext::SharedContext
+        attr_reader :targets
+        def initialize(targets: [], **rest)
+          super(**rest)
+          @targets = targets
+        end
+      end
 
-      def initialize(targets: [], **rest)
+      def self.shared_context_class
+        SharedContext
+      end
+
+      delegate :targets, to: :shared_context
+
+      def initialize(**rest)
         super(**rest)
-        @targets = targets
       end
     end
 
     def self.deserialize_context_class
       DeserializeContext
+    end
+
+    class SerializeContext < ViewModel::SerializeContext
+      def initialize(**rest)
+        super(**rest)
+      end
+    end
+
+    def self.serialize_context_class
+      SerializeContext
     end
 
     def self.resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)

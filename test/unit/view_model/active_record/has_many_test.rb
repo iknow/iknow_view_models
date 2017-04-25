@@ -128,12 +128,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_editability_raises
     no_edit_context = ParentView.new_deserialize_context(can_edit: false)
 
-    assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::AccessControlError) do
       # append child
       ParentView.new(@parent1).append_associated(:children, { "_type" => "Child", "text" => "hi" }, deserialize_context: no_edit_context)
     end
 
-    assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::AccessControlError) do
       # destroy child
       ParentView.new(@parent1).delete_associated(:children, ChildView.new(@parent1.children.first), deserialize_context: no_edit_context)
     end

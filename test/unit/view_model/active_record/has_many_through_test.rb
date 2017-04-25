@@ -198,11 +198,14 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_reordering
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    _pv, ctx = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       view['tags'].reverse!
     end
     assert_equal([@tag2, @tag1],
                  @parent1.parents_tags.order(:position).map(&:tag))
+
+    expected_edit_checks = Set[ViewModel::Reference.new(ParentView, @parent1.id)]
+    assert_equal(expected_edit_checks, ctx.valid_edit_checks.to_set)
   end
 
   def test_child_edit_doesnt_editcheck_parent

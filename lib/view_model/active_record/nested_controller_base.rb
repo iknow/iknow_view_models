@@ -8,7 +8,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
-      owner_view.visible!(context: serialize_context)
+      serialize_context.visible!(owner_view)
       associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
       associated_views = yield(associated_views) if block_given?
