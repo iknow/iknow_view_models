@@ -141,8 +141,19 @@ class ViewModel::ActiveRecord
         end
 
         if changed_attributes.present? || associations_changed?
-          changes = ViewModel::DeserializeContext::Changes.new(changed_attributes: changed_attributes,
+          changes = ViewModel::DeserializeContext::Changes.new(new:                  model.new_record?,
+                                                               changed_attributes:   changed_attributes,
                                                                changed_associations: @changed_associations)
+
+          viewmodel.before_save(changes, deserialize_context: deserialize_context)
+
+          # The hook before this might have caused additional changes. All changes should be checked by the policy,
+          # so we have to recalculate the change set.
+
+          changes = ViewModel::DeserializeContext::Changes.new(new:                  model.new_record?,
+                                                               changed_attributes:   changed_attributes,
+                                                               changed_associations: @changed_associations)
+
           deserialize_context.editable!(viewmodel,
                                         initial_editability: initial_editability,
                                         changes: changes)
