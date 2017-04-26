@@ -99,9 +99,13 @@ class ViewModel::Record < ViewModel
       end
 
       if viewmodel.changed_attributes.present?
+        changes = ViewModel::DeserializeContext::Changes.new(
+          new:                viewmodel.new_model?,
+          changed_attributes: viewmodel.changed_attributes)
+
         deserialize_context.editable!(self,
                                       initial_editability: initial_editability,
-                                      changes: ViewModel::DeserializeContext::Changes.new(changed_attributes: viewmodel.changed_attributes))
+                                      changes:             changes)
       end
 
       viewmodel.clear_changed_attributes!
@@ -148,7 +152,9 @@ class ViewModel::Record < ViewModel
 
   delegate :model_class, to: 'self.class'
 
-  attr_reader :changed_attributes
+  attr_reader :changed_attributes, :new_model
+
+  alias :new_model? :new_model
 
   def initialize(model)
     unless model.is_a?(model_class)
@@ -157,11 +163,12 @@ class ViewModel::Record < ViewModel
 
     super(model)
 
+    @new_model          = false
     @changed_attributes = []
   end
 
   def self.for_new_model(id: nil)
-    self.new(model_class.new(id: id))
+    self.new(model_class.new(id: id)).tap { |v| v.model_is_new! }
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
@@ -177,6 +184,10 @@ class ViewModel::Record < ViewModel
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
     end
+  end
+
+  def model_is_new!
+    @new_model = true
   end
 
   def attribute_changed!(attr_name)
