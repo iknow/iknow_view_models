@@ -166,7 +166,7 @@ class DummyController
     @status = status unless status.nil?
   end
 
-  def head(status:)
+  def head(status)
     @status = status unless status.nil?
     @response_body = nil
     @content_type = nil
