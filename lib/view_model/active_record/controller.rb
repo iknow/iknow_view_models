@@ -54,7 +54,7 @@ module ViewModel::ActiveRecord::Controller
       view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
       view.destroy!(deserialize_context: deserialize_context)
     end
-    render_viewmodel(nil)
+    head :no_content
   end
 
   class_methods do
