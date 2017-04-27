@@ -166,6 +166,12 @@ class DummyController
     @status = status unless status.nil?
   end
 
+  def head(status:)
+    @status = status unless status.nil?
+    @response_body = nil
+    @content_type = nil
+  end
+
   def json_response
     raise "Not a JSON response" unless @content_type == 'application/json'
     @response_body
