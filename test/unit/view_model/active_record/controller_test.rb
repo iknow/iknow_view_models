@@ -106,12 +106,9 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(id: @parent.id)
     parentcontroller.invoke(:destroy)
 
-    assert_equal(200, parentcontroller.status)
+    assert_equal(204, parentcontroller.status)
 
     assert(Parent.where(id: @parent.id).blank?, "record doesn't exist after delete")
-
-    assert_equal({ 'data' => nil },
-                 parentcontroller.hash_response)
   end
 
   def test_show_missing
