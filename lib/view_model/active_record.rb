@@ -257,6 +257,12 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   end
 
+  # Allows a model to run hooks before a record is saved, such as setting default values or clearing caches. Any
+  # changes introduced here are still subject to access control.
+  def before_save(changes, deserialize_context:)
+    # hook method; no default behaviour
+  end
+
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
     self.class._members.each do |member_name, member_data|
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)

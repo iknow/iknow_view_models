@@ -15,9 +15,12 @@ class ViewModel::DeserializeContext < ViewModel::TraversalContext
   delegate :updated_associations, :"updated_associations=", to: :shared_context
 
   class Changes
-    attr_reader :changed_attributes, :changed_associations, :deleted
+    attr_reader :new, :changed_attributes, :changed_associations, :deleted
 
-    def initialize(changed_attributes: [], changed_associations: [], deleted: false)
+    alias new? new
+
+    def initialize(new: false, changed_attributes: [], changed_associations: [], deleted: false)
+      @new                  = new
       @changed_attributes   = changed_attributes.map(&:to_s)
       @changed_associations = changed_associations.map(&:to_s)
       @deleted              = deleted
