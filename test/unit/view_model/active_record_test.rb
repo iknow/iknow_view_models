@@ -468,4 +468,52 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       assert_nil(ref_error.ref)
     end
   end
+
+    # Parent view should be correctly passed down the tree when deserializing
+  class DeferredConstraintTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+
+    def before_all
+      super
+
+      build_viewmodel(:List) do
+        define_schema do |t|
+          t.integer :child_id
+        end
+
+        define_model do
+          belongs_to :child, class_name: :List
+        end
+
+        define_viewmodel do
+          association :child, shared: true
+        end
+      end
+      List.connection.execute("ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED")
+    end
+
+    class SentinelError < RuntimeError; end
+
+    def test_deferred_constraint_violation
+      l1 = List.create!(child: List.new)
+      l2 = List.create!
+
+      assert_raises(SentinelError) do
+        List.transaction do
+          ex = assert_raises(ViewModel::DeserializationError) do
+            alter_by_view!(ListView, l2) do |view, refs|
+              view['child'] = { "_ref" => "r1" }
+              refs["r1"] = { "_type" => "List", "id" => l1.child.id }
+            end
+          end
+
+          assert_match(/unique_child/, ex.message)
+
+          # Test succeeded, need to exit failed transaction block via an
+          # exception to prevent it blowing up.
+          raise SentinelError.new
+        end
+      end
+    end
+  end
 end

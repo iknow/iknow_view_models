@@ -40,9 +40,9 @@ module ViewModel::TestHelpers
 
       result = result.first unless model.is_a?(Array)
 
-      return result, deserialize_context
-    ensure
       models.each { |m| m.reload }
+
+      return result, deserialize_context
     end
   end
 
