@@ -166,10 +166,11 @@ class ViewModel
       schema_version == self.schema_version
     end
 
-    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_shared: true)
+    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_shared: true, lock: nil)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|
         DeepPreloader.preload(views.map(&:model),
-                              type.eager_includes(serialize_context: serialize_context, include_shared: include_shared))
+                              type.eager_includes(serialize_context: serialize_context, include_shared: include_shared),
+                              lock: lock)
       end
     end
   end
@@ -223,8 +224,8 @@ class ViewModel
     to_reference
   end
 
-  def preload_for_serialization(serialize_context: self.class.new_serialize_context)
-    ViewModel.preload_for_serialization([self], serialize_context: serialize_context)
+  def preload_for_serialization(lock: nil, serialize_context: self.class.new_serialize_context)
+    ViewModel.preload_for_serialization([self], lock: lock, serialize_context: serialize_context)
   end
 
   def ==(other_view)
