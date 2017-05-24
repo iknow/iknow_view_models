@@ -18,8 +18,8 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activerecord"
-  spec.add_dependency "activesupport"
+  spec.add_dependency "activerecord", ">= 5.0.0", "< 5.2"
+  spec.add_dependency "activesupport", ">= 5.0.0", "< 5.2"
   spec.add_dependency "iknow_params"
   spec.add_dependency "acts_as_manual_list"
   spec.add_dependency "deep_preloader"
@@ -42,6 +42,6 @@ Gem::Specification.new do |spec|
 
   spec.add_development_dependency "minitest-hooks"
 
-  spec.add_dependency "jbuilder", "~> 2.5.0"
+  spec.add_dependency "jbuilder"
 
 end
