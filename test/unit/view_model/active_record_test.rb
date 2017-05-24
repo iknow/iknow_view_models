@@ -492,28 +492,18 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       List.connection.execute("ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED")
     end
 
-    class SentinelError < RuntimeError; end
-
     def test_deferred_constraint_violation
       l1 = List.create!(child: List.new)
       l2 = List.create!
 
-      assert_raises(SentinelError) do
-        List.transaction do
-          ex = assert_raises(ViewModel::DeserializationError) do
-            alter_by_view!(ListView, l2) do |view, refs|
-              view['child'] = { "_ref" => "r1" }
-              refs["r1"] = { "_type" => "List", "id" => l1.child.id }
-            end
-          end
-
-          assert_match(/unique_child/, ex.message)
-
-          # Test succeeded, need to exit failed transaction block via an
-          # exception to prevent it blowing up.
-          raise SentinelError.new
+      ex = assert_raises(ViewModel::DeserializationError) do
+        alter_by_view!(ListView, l2) do |view, refs|
+          view['child'] = { "_ref" => "r1" }
+          refs["r1"] = { "_type" => "List", "id" => l1.child.id }
         end
       end
+
+      assert_match(/unique_child/, ex.message)
     end
   end
 end
