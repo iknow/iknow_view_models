@@ -166,6 +166,10 @@ class ViewModel::ActiveRecord
       @release_pool.release_all!
 
       if updated_viewmodels.present?
+        # Deferred database constraints may have been violated by changes during
+        # deserialization. VM::AR promises that any errors during deserialization
+        # will be raised as a ViewModel::DeserializationError, so check constraints
+        # and raise before exit.
         check_deferred_constraints!(updated_viewmodels.first.model.class)
       end
 
@@ -342,10 +346,8 @@ class ViewModel::ActiveRecord
       @release_pool.release_to_pool(viewmodel, association_data)
     end
 
-    # Deferred database constraints may have been violated by changes during
-    # deserialization. VM::AR promises that any errors during deserialization
-    # will be raised as a ViewModel::DeserializationError, so check constraints
-    # and raise before exit.
+    # Immediately enforce any deferred database constraints (when using
+    # Postgres) and convert them to DeserializationErrors.
     #
     # Note that there's no effective way to tie such a failure back to the
     # individual node that caused it, without attempting to parse Postgres'
