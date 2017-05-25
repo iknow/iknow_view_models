@@ -82,6 +82,8 @@ class ViewModel::ActiveRecord
         # being made.
         initial_editability = deserialize_context.initial_editability(viewmodel)
 
+        viewmodel.before_deserialize(deserialize_context: deserialize_context)
+
         # update parent association
         if reparent_to.present?
           debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
