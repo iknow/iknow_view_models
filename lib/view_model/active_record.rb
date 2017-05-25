@@ -127,8 +127,9 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
 
     ## Load instances of the viewmodel by id(s)
-    def find(id_or_ids, scope: nil, eager_include: true, serialize_context: new_serialize_context)
+    def find(id_or_ids, scope: nil, lock: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = self.model_class.all
+      find_scope = find_scope.lock(lock) if lock
       find_scope = find_scope.merge(scope) if scope
 
       ViewModel::Utils.wrap_one_or_many(id_or_ids) do |ids|
@@ -145,18 +146,19 @@ class ViewModel::ActiveRecord < ViewModel::Record
         end
 
         vms = models.map { |m| self.new(m) }
-        ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
+        ViewModel.preload_for_serialization(vms, lock: lock, serialize_context: serialize_context) if eager_include
         vms
       end
     end
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
-    def load(scope: nil, eager_include: true, serialize_context: new_serialize_context)
+    def load(scope: nil, eager_include: true, lock: nil, serialize_context: new_serialize_context)
       load_scope = self.model_class.all
+      load_scope = load_scope.lock(lock) if lock
       load_scope = load_scope.merge(scope) if scope
       vms = load_scope.map { |model| self.new(model) }
-      ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
+      ViewModel.preload_for_serialization(vms, lock: lock, serialize_context: serialize_context) if eager_include
       vms
     end
 
