@@ -256,10 +256,16 @@ class ViewModel::ActiveRecord < ViewModel::Record
       raise ArgumentError.new("Invalid association '#{association_name}'") unless association_data.is_a?(AssociationData)
       association_data
     end
-
   end
 
-  # Allows a model to run hooks before a record is saved, such as setting default values or clearing caches. Any
+  # Allows a viewmodel to set a hook when a record is visited during
+  # deserialization, for example for conservative cache clearing.
+  def before_deserialize(deserialize_context:)
+    # hook method; no default behaviour
+  end
+
+  # Allows a viewmodel to set a hook before a record is saved when changes have
+  # been made during deserialization, for example for setting default values. Any
   # changes introduced here are still subject to access control.
   def before_save(changes, deserialize_context:)
     # hook method; no default behaviour
