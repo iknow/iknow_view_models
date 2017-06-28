@@ -129,7 +129,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
     ## Load instances of the viewmodel by id(s)
     def find(id_or_ids, scope: nil, lock: nil, eager_include: true, serialize_context: new_serialize_context)
       find_scope = self.model_class.all
-      find_scope = find_scope.lock(lock) if lock
+      find_scope = find_scope.order(:id).lock(lock) if lock
       find_scope = find_scope.merge(scope) if scope
 
       ViewModel::Utils.wrap_one_or_many(id_or_ids) do |ids|
