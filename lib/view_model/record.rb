@@ -169,8 +169,8 @@ class ViewModel::Record < ViewModel
     @changed_attributes = []
   end
 
-  def self.for_new_model(id: nil)
-    self.new(model_class.new(id: id)).tap { |v| v.model_is_new! }
+  def self.for_new_model(*model_args)
+    self.new(model_class.new(*model_args)).tap { |v| v.model_is_new! }
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
