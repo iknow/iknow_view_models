@@ -78,6 +78,8 @@ class ViewModel::Record < ViewModel
 
         deserialize_members_from_view(viewmodel, view_hash, references: references, deserialize_context: deserialize_context)
 
+        viewmodel.validate!
+
         viewmodel
       end
     end
@@ -184,6 +186,12 @@ class ViewModel::Record < ViewModel
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
     end
+  end
+
+  # Check that the model backing this view is consistent, for example by calling
+  # AR validations. To be implemented by subclasses. Throws
+  # DeserializationError::Validation if invalid.
+  def validate!
   end
 
   def model_is_new!

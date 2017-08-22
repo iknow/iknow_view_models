@@ -161,6 +161,9 @@ class ViewModel::ActiveRecord
                                         changes: changes)
         end
 
+        # Invoke any validation hooks before attempting to save.
+        viewmodel.validate!
+
         debug "-> #{debug_name}: Saving"
         begin
           model.save!

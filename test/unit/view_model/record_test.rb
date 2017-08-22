@@ -31,6 +31,14 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       model.overridden = value.try { |v| Integer(v) / 2 }
     end
 
+    def validate!
+      if simple == "naughty"
+        raise ViewModel::DeserializationError::Validation.new(
+                "Validation failed: simple was naughty",
+                self.blame_reference)
+      end
+    end
+
     class DeserializeContext < ViewModel::DeserializeContext
       class SharedContext < ViewModel::DeserializeContext::SharedContext
         attr_reader :targets
@@ -116,6 +124,15 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     assert_match(/Illegal attribute/, ex.message)
   end
 
+  def test_validation_failure_on_create
+    @view["simple"] = "naughty"
+    @view.delete("readonly")
+    ex = assert_raises(ViewModel::DeserializationError::Validation) do
+      ModelView.deserialize_from_view(@view)
+    end
+    assert_match(/Validation failed: simple was naughty/, ex.message)
+  end
+
   def test_update_from_view
     # Prime our simplistic `resolve_viewmodel` with the desired models to update
     ctx = ModelView::DeserializeContext.new(targets: [@model, @model.recursive])
@@ -128,6 +145,16 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     assert_equal(@model, v.model)
     assert_equal("change", @model.simple)
     assert_equal("morechange", @model.recursive.simple)
+  end
+
+  def test_validation_failure_on_update
+    ctx = ModelView::DeserializeContext.new(targets: [@model, @model.recursive])
+    @view["simple"] = "naughty"
+
+    ex = assert_raises(ViewModel::DeserializationError::Validation) do
+      ModelView.deserialize_from_view(@view, deserialize_context: ctx)
+    end
+    assert_match(/Validation failed: simple was naughty/, ex.message)
   end
 
   def test_update_read_only
