@@ -271,15 +271,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
     # hook method; no default behaviour
   end
 
-  def validate!
-    unless model.valid?
-      raise ViewModel::DeserializationError::Validation.new(
-              "Validation failed: " + model.errors.full_messages.join(", "),
-              self.blame_reference,
-              model.errors.messages)
-    end
-  end
-
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
     self.class._members.each do |member_name, member_data|
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)

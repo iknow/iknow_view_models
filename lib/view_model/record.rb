@@ -189,9 +189,16 @@ class ViewModel::Record < ViewModel
   end
 
   # Check that the model backing this view is consistent, for example by calling
-  # AR validations. To be implemented by subclasses. Throws
+  # AR validations. Default implementation handles ActiveModel::Validations, may
+  # be overridden by subclasses for other types of validation. Must raise
   # DeserializationError::Validation if invalid.
   def validate!
+    if model_class < ActiveModel::Validations && !model.valid?
+      raise ViewModel::DeserializationError::Validation.new(
+              "Validation failed: " + model.errors.full_messages.join(", "),
+              self.blame_reference,
+              model.errors.messages)
+    end
   end
 
   def model_is_new!
