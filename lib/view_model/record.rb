@@ -78,6 +78,8 @@ class ViewModel::Record < ViewModel
 
         deserialize_members_from_view(viewmodel, view_hash, references: references, deserialize_context: deserialize_context)
 
+        viewmodel.validate!
+
         viewmodel
       end
     end
@@ -167,8 +169,8 @@ class ViewModel::Record < ViewModel
     @changed_attributes = []
   end
 
-  def self.for_new_model(id: nil)
-    self.new(model_class.new(id: id)).tap { |v| v.model_is_new! }
+  def self.for_new_model(*model_args)
+    self.new(model_class.new(*model_args)).tap { |v| v.model_is_new! }
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
@@ -183,6 +185,19 @@ class ViewModel::Record < ViewModel
     self.class._members.each do |member_name, member_data|
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
+    end
+  end
+
+  # Check that the model backing this view is consistent, for example by calling
+  # AR validations. Default implementation handles ActiveModel::Validations, may
+  # be overridden by subclasses for other types of validation. Must raise
+  # DeserializationError::Validation if invalid.
+  def validate!
+    if model_class < ActiveModel::Validations && !model.valid?
+      raise ViewModel::DeserializationError::Validation.new(
+              "Validation failed: " + model.errors.full_messages.join(", "),
+              self.blame_reference,
+              model.errors.messages)
     end
   end
 
