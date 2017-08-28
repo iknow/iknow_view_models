@@ -288,7 +288,7 @@ class ViewModel::ActiveRecord
                           update_type: :implicit)
 
       update.build!(self)
-      update.association_changed!(parent_association_name)
+      old_parent_viewmodel.association_changed!(parent_association_name)
       @root_update_operations << update
       update
     end

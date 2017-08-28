@@ -27,6 +27,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   include AssociationManipulation
 
+  attr_reader :changed_associations
+
   class << self
     attr_reader   :_list_attribute_name
     attr_accessor :synthetic
@@ -258,15 +260,23 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
   end
 
+  def initialize(*)
+    super
+    @changed_associations = []
+  end
+
   # Allows a viewmodel to set a hook when a record is visited during
   # deserialization, for example for conservative cache clearing.
   def before_deserialize(deserialize_context:)
     # hook method; no default behaviour
   end
 
-  # Allows a viewmodel to set a hook before a record is saved when changes have
-  # been made during deserialization, for example for setting default values. Any
-  # changes introduced here are still subject to access control.
+  # Allows a viewmodel to set a hook before a record is saved when
+  # changes have been made during deserialization, for example for
+  # setting default values. Any changes introduced here are still
+  # subject to access control. Note that due to limitations on
+  # ActiveRecord, changes to associations here must be explicitly
+  # marked by calling `association_changed!`.
   def before_save(changes, deserialize_context:)
     # hook method; no default behaviour
   end
@@ -296,6 +306,48 @@ class ViewModel::ActiveRecord < ViewModel::Record
                                     changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
       model.destroy!
     end
+  end
+
+  def association_changed!(association_name)
+    @changed_associations << association_name.to_s
+  end
+
+  def associations_changed?
+    @changed_associations.present?
+  end
+
+  def clear_changed_associations!
+    @changed_associations = []
+  end
+
+  def changes
+    # We are a descendent of ViewModel::Record, so we do have the
+    # change tracking for `new_model?` and `changed_attributes` here.
+    #
+    #   - we use `model.new_record?` instead of `self.new_model?` so
+    #     that implementors of custom resolve steps aren't required to
+    #     call `model_is_new!`
+    #
+    #   - we use `model.changed_attributes` instead of
+    #     `self.changed_attributes` for similar reasons, that
+    #     implementors of custom `deserialize_#{foo}` methods aren't
+    #     required to call `attribute_changed!`
+
+    changed_attributes = model.changed
+
+    if model.class.locking_enabled?
+      changed_attributes.delete(model.class.locking_column)
+    end
+
+    ViewModel::DeserializeContext::Changes.new(
+      new:                  model.new_record?,
+      changed_attributes:   changed_attributes,
+      changed_associations: changed_associations)
+  end
+
+  def clear_changes!
+    super
+    @changed_associations = []
   end
 
   def _read_association(association_name)

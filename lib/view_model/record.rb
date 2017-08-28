@@ -100,17 +100,15 @@ class ViewModel::Record < ViewModel
         end
       end
 
-      if viewmodel.changed_attributes.present?
-        changes = ViewModel::DeserializeContext::Changes.new(
-          new:                viewmodel.new_model?,
-          changed_attributes: viewmodel.changed_attributes)
+      changes = viewmodel.changes
 
+      if changes.new? || changes.changed_attributes.present?
         deserialize_context.editable!(self,
                                       initial_editability: initial_editability,
                                       changes:             changes)
       end
 
-      viewmodel.clear_changed_attributes!
+      viewmodel.clear_changes!
     end
 
     def resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)
@@ -210,6 +208,17 @@ class ViewModel::Record < ViewModel
   end
 
   def clear_changed_attributes!
+    @changed_attributes = []
+  end
+
+  def changes
+    ViewModel::DeserializeContext::Changes.new(
+      new:                new_model?,
+      changed_attributes: changed_attributes)
+  end
+
+  def clear_changes!
+    @new_model          = false
     @changed_attributes = []
   end
 
