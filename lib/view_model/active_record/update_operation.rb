@@ -193,7 +193,7 @@ class ViewModel::ActiveRecord
           initial_editability = child_context.initial_editability(child_vm)
           child_context.editable!(child_vm,
                                   initial_editability: initial_editability,
-                                  changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+                                  changes: ViewModel::Changes.new(deleted: true))
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end

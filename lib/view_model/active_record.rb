@@ -303,7 +303,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       initial_editability = deserialize_context.initial_editability(self)
       deserialize_context.editable!(self,
                                     initial_editability: initial_editability,
-                                    changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+                                    changes: ViewModel::Changes.new(deleted: true))
       model.destroy!
     end
   end
@@ -339,7 +339,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       changed_attributes.delete(model.class.locking_column)
     end
 
-    ViewModel::DeserializeContext::Changes.new(
+    ViewModel::Changes.new(
       new:                  model.new_record?,
       changed_attributes:   changed_attributes,
       changed_associations: changed_associations)

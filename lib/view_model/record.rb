@@ -212,7 +212,7 @@ class ViewModel::Record < ViewModel
   end
 
   def changes
-    ViewModel::DeserializeContext::Changes.new(
+    ViewModel::Changes.new(
       new:                new_model?,
       changed_attributes: changed_attributes)
   end
