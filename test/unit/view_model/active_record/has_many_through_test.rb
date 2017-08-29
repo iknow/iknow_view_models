@@ -205,7 +205,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                  @parent1.parents_tags.order(:position).map(&:tag))
 
     expected_edit_checks = Set[ViewModel::Reference.new(ParentView, @parent1.id)]
-    assert_equal(expected_edit_checks, ctx.valid_edit_checks.to_set)
+    assert_equal(expected_edit_checks, ctx.valid_edit_refs.to_set)
   end
 
   def test_child_edit_doesnt_editcheck_parent
@@ -214,8 +214,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
       refs[view['tags'][0]["_ref"]]["name"] = "changed"
     end
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(TagView, @parent1.parents_tags.order(:position).first.tag_id)))
-    refute(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, @parent1.parents_tags.order(:position).first.tag_id)))
+    refute(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_child_reordering_editchecks_parent
@@ -223,7 +223,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
       view['tags'].reverse!
     end
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_child_deletion_editchecks_parent
@@ -232,7 +232,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       removed = view['tags'].pop['_ref']
       refs.delete(removed)
     end
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_child_addition_editchecks_parent
@@ -241,8 +241,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       view['tags'] << { '_ref' => 't_new' }
       refs['t_new'] = { '_type' => 'Tag', 'name' => 'newest tag' }
     end
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, nil)))
   end
 
   def tags(parent)
@@ -449,8 +449,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     ParentView.deserialize_from_view(view, references: refs,
                                      deserialize_context: d_context)
 
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(TagView, nil)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, nil)))
   end
 
   def test_replace_associated
@@ -466,7 +466,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                             ViewModel::Reference.new(TagView,  nil)]
 
     assert_equal(Set.new(expected_edit_checks),
-                 context.valid_edit_checks.to_set)
+                 context.valid_edit_refs.to_set)
 
     assert_equal(1, nc.size)
     assert(nc[0].is_a?(TagView))
@@ -488,7 +488,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id)].to_set
 
     assert_equal(expected_edit_checks,
-                 context.valid_edit_checks.to_set)
+                 context.valid_edit_refs.to_set)
 
     @parent1.reload
     assert_equal([t2], tags(@parent1))
@@ -505,7 +505,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                          before: ViewModel::Reference.new(TagView, @tag1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
 
 
     assert_equal([@tag2, @tag1],
@@ -517,7 +517,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(TagView, @tag1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
 
     assert_equal([@tag1, @tag2],
                  tags(@parent1))
@@ -543,7 +543,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                          before: ViewModel::Reference.new(TagView, @tag1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
 
     assert_equal([@tag3, @tag1, @tag2],
                  tags(@parent1))
@@ -556,7 +556,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(TagView, @tag1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_checks.to_set)
+    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
 
     assert_equal([@tag1, @tag3, @tag2],
                  tags(@parent1))

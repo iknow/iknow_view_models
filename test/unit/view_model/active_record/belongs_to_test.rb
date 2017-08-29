@@ -231,7 +231,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal(target_label, to_parent.label, 'target label moved')
     assert_equal([ViewModel::Reference.new(ParentView, from_parent.id),
                   ViewModel::Reference.new(ParentView, to_parent.id)],
-                 d_context.valid_edit_checks,
+                 d_context.valid_edit_refs,
                  "only parents are checked for change; child was not")
   end
 
