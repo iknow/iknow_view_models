@@ -1,3 +1,5 @@
+require_relative "../../helpers/test_access_control.rb"
+
 require "minitest/autorun"
 require 'minitest/unit'
 
@@ -28,7 +30,9 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     end
 
     def deserialize_overridden(value, references:, deserialize_context:)
+      before_value = model.overridden
       model.overridden = value.try { |v| Integer(v) / 2 }
+      attribute_changed!(:overridden) unless before_value == model.overridden
     end
 
     def validate!
@@ -84,6 +88,11 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
   def setup
     @model = Model.new("simple", 2, "readonly", "writeonce", Model.new("child"), "optional")
+
+    @minimal_view = {
+      "_type"    => "Model",
+      "_version" => 1,
+    }
 
     @view = {
       "_type"      => "Model",
@@ -200,5 +209,61 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
     h = ModelView.new(@model).to_hash(serialize_context: ModelView::SerializeContext.new(prune: [:simple, { recursive: :overridden }]))
     assert_equal(@view, h)
+  end
+
+  def test_edit_check_no_changes
+    ref            = ViewModel::Reference.new(ModelView, nil)
+    access_control = TestAccessControl.new(true, true, true)
+
+    context = ModelView::DeserializeContext.new(
+      targets:        [@model, @model.recursive],
+      access_control: access_control)
+
+    ModelView.deserialize_from_view(@view, deserialize_context: context)
+
+    assert_empty(access_control.all_valid_edit_changes(ref))
+  end
+
+  def test_edit_check # shotgun test of various concerns
+    ref            = ViewModel::Reference.new(ModelView, nil)
+    access_control = TestAccessControl.new(true, true, true)
+
+    @model.recursive    = nil
+
+    @view["simple"]     = "outer simple changed"
+    @view["overridden"] = @view["overridden"] + 42
+
+    context = ModelView::DeserializeContext.new(
+      targets:        [@model],
+      access_control: access_control)
+
+    ModelView.deserialize_from_view(@view, deserialize_context: context)
+
+    all_changes = access_control.all_valid_edit_changes(ref)
+    assert_equal(2, all_changes.length)
+
+    ((inner_changes,), (outer_changes,)) = all_changes.partition { |c| c.new? }
+
+    assert_equal(false, outer_changes.new?)
+    assert_equal(false, outer_changes.deleted?)
+    assert_equal(%w(simple overridden recursive),
+                 outer_changes.changed_attributes)
+    assert_empty(outer_changes.changed_associations)
+
+    assert_equal(true, inner_changes.new?)
+    assert_equal(false, inner_changes.deleted?)
+    assert_equal(%w(simple),
+                 inner_changes.changed_attributes)
+    assert_empty(inner_changes.changed_associations)
+  end
+
+  def test_edit_check_on_create_empty
+    access_control = TestAccessControl.new(true, true, true)
+    context        = ModelView::DeserializeContext.new(access_control: access_control)
+
+    ModelView.deserialize_from_view(@minimal_view, deserialize_context: context)
+
+    assert_equal([ViewModel::Reference.new(ModelView, nil)],
+                 access_control.valid_edit_refs)
   end
 end

@@ -85,14 +85,14 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      deserialize_context.visible!(self)
+      deserialize_context.visible!(viewmodel)
 
       if (bad_attrs = view_hash.keys - self.member_names).present?
         raise ViewModel::DeserializationError.new("Illegal attribute(s) #{bad_attrs.inspect} for viewmodel #{self.view_name}",
                                                   viewmodel.blame_reference)
       end
 
-      initial_editability = deserialize_context.initial_editability(self)
+      initial_editability = deserialize_context.initial_editability(viewmodel)
 
       _members.each do |attr, _|
         if view_hash.has_key?(attr)
@@ -103,7 +103,7 @@ class ViewModel::Record < ViewModel
       changes = viewmodel.changes
 
       if changes.new? || changes.changed_attributes.present?
-        deserialize_context.editable!(self,
+        deserialize_context.editable!(viewmodel,
                                       initial_editability: initial_editability,
                                       changes:             changes)
       end
