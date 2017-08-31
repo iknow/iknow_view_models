@@ -85,14 +85,14 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      deserialize_context.visible!(self)
+      deserialize_context.visible!(viewmodel)
 
       if (bad_attrs = view_hash.keys - self.member_names).present?
         raise ViewModel::DeserializationError.new("Illegal attribute(s) #{bad_attrs.inspect} for viewmodel #{self.view_name}",
                                                   viewmodel.blame_reference)
       end
 
-      initial_editability = deserialize_context.initial_editability(self)
+      initial_editability = deserialize_context.initial_editability(viewmodel)
 
       _members.each do |attr, _|
         if view_hash.has_key?(attr)
@@ -100,17 +100,15 @@ class ViewModel::Record < ViewModel
         end
       end
 
-      if viewmodel.changed_attributes.present?
-        changes = ViewModel::DeserializeContext::Changes.new(
-          new:                viewmodel.new_model?,
-          changed_attributes: viewmodel.changed_attributes)
+      changes = viewmodel.changes
 
-        deserialize_context.editable!(self,
+      if changes.new? || changes.changed_attributes.present?
+        deserialize_context.editable!(viewmodel,
                                       initial_editability: initial_editability,
                                       changes:             changes)
       end
 
-      viewmodel.clear_changed_attributes!
+      viewmodel.clear_changes!
     end
 
     def resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)
@@ -210,6 +208,17 @@ class ViewModel::Record < ViewModel
   end
 
   def clear_changed_attributes!
+    @changed_attributes = []
+  end
+
+  def changes
+    ViewModel::Changes.new(
+      new:                new_model?,
+      changed_attributes: changed_attributes)
+  end
+
+  def clear_changes!
+    @new_model          = false
     @changed_attributes = []
   end
 

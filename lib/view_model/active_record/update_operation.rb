@@ -48,14 +48,6 @@ class ViewModel::ActiveRecord
       @built
     end
 
-    def association_changed!(association_name)
-      @changed_associations << association_name.to_s
-    end
-
-    def associations_changed?
-      @changed_associations.present?
-    end
-
     # Evaluate a built update tree, applying and saving changes to the models.
     def run!(deserialize_context:)
       raise "Not yet built!" unless built? # TODO
@@ -136,25 +128,15 @@ class ViewModel::ActiveRecord
         # comparing #foo, #foo_was, #new_record?. Note that edit checks for
         # deletes are handled elsewhere.
 
-        changed_attributes = model.changed
+        changes = viewmodel.changes
 
-        if model.class.locking_enabled?
-          changed_attributes.delete(model.class.locking_column)
-        end
-
-        if changed_attributes.present? || associations_changed?
-          changes = ViewModel::DeserializeContext::Changes.new(new:                  model.new_record?,
-                                                               changed_attributes:   changed_attributes,
-                                                               changed_associations: @changed_associations)
-
+        if changes.new? || changes.changed_attributes.present? || changes.changed_associations.present?
           viewmodel.before_save(changes, deserialize_context: deserialize_context)
 
           # The hook before this might have caused additional changes. All changes should be checked by the policy,
           # so we have to recalculate the change set.
 
-          changes = ViewModel::DeserializeContext::Changes.new(new:                  model.new_record?,
-                                                               changed_attributes:   changed_attributes,
-                                                               changed_associations: @changed_associations)
+          changes = viewmodel.changes
 
           deserialize_context.editable!(viewmodel,
                                         initial_editability: initial_editability,
@@ -173,6 +155,8 @@ class ViewModel::ActiveRecord
           raise_deserialization_error(ex.message, error: ViewModel::DeserializationError::LockFailure)
         end
         debug "<- #{debug_name}: Saved"
+
+        viewmodel.clear_changes!
 
         # Update association cache of pointed-from associations after save: the
         # child update will have saved the pointer.
@@ -209,7 +193,7 @@ class ViewModel::ActiveRecord
           initial_editability = child_context.initial_editability(child_vm)
           child_context.editable!(child_vm,
                                   initial_editability: initial_editability,
-                                  changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+                                  changes: ViewModel::Changes.new(deleted: true))
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end
@@ -292,7 +276,7 @@ class ViewModel::ActiveRecord
       end
 
       if previous_child_viewmodel != referred_viewmodel
-        self.association_changed!(association_data.association_name)
+        viewmodel.association_changed!(association_data.association_name)
       end
 
       referred_update
@@ -357,7 +341,7 @@ class ViewModel::ActiveRecord
         end
 
       if previous_child_viewmodel != child_viewmodel
-        self.association_changed!(association_data.association_name)
+        viewmodel.association_changed!(association_data.association_name)
         # free previous child if present
         if previous_child_viewmodel.present?
           if association_data.pointer_location == :local
@@ -502,7 +486,7 @@ class ViewModel::ActiveRecord
       # if the new children differ, mark that one of our associations has
       # changed and release any no-longer-attached children
       if child_viewmodels != previous_child_viewmodels
-        self.association_changed!(association_data.association_name)
+        viewmodel.association_changed!(association_data.association_name)
         released_child_viewmodels = previous_child_viewmodels - child_viewmodels
         released_child_viewmodels.each do |vm|
           release_viewmodel(vm, association_data, update_context)
@@ -762,7 +746,7 @@ class ViewModel::ActiveRecord
       # set for those that participated in the update.
 
       if target_collection.members != previous_members
-        self.association_changed!(association_data.association_name)
+        viewmodel.association_changed!(association_data.association_name)
       end
 
       if direct_viewmodel_class._list_member?

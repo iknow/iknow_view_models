@@ -80,7 +80,7 @@ module AssociationManipulation
         initial_editability = deserialize_context.initial_editability(self)
         deserialize_context.editable!(self,
                                       initial_editability: initial_editability,
-                                      changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
+                                      changes: ViewModel::Changes.new(changed_associations: [association_name]))
 
         if association_data.through?
           raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -162,7 +162,7 @@ module AssociationManipulation
       initial_editability = deserialize_context.initial_editability(self)
       deserialize_context.editable!(self,
                                     initial_editability: initial_editability,
-                                    changes: ViewModel::DeserializeContext::Changes.new(changed_associations: [association_name]))
+                                    changes: ViewModel::Changes.new(changed_associations: [association_name]))
 
       association = self.model.association(direct_reflection.name)
       association_scope = association.association_scope
@@ -204,7 +204,7 @@ module AssociationManipulation
       initial_editability = child_context.initial_editability(vm)
       child_context.editable!(vm,
                               initial_editability: initial_editability,
-                              changes: ViewModel::DeserializeContext::Changes.new(deleted: true))
+                              changes: ViewModel::Changes.new(deleted: true))
       association.delete(vm.model)
       vm
     end

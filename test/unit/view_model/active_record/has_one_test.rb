@@ -122,7 +122,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
                           ViewModel::Reference.new(ParentView, @parent2.id),
                           ViewModel::Reference.new(TargetView, t1.id),
                           ViewModel::Reference.new(TargetView, t2.id)]),
-                 deserialize_context.valid_edit_checks.to_set)
+                 deserialize_context.valid_edit_refs.to_set)
 
     @parent1.reload
     @parent2.reload

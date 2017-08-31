@@ -14,6 +14,12 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   def before_all
     super
 
+    build_viewmodel(:Trivial) do
+      define_schema
+      define_model {}
+      define_viewmodel {}
+    end
+
     build_viewmodel(:Parent) do
       define_schema do |t|
         t.string :name, null: false
@@ -145,8 +151,24 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     context = ViewModelBase.new_deserialize_context
     ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
                                         deserialize_context: context)
-    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.valid_edit_checks)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.valid_edit_refs)
   end
+
+  def test_editability_checks_create_on_empty_record
+    context = ViewModelBase.new_deserialize_context
+    TrivialView.deserialize_from_view({'_type' => 'Trivial' },
+                                     deserialize_context: context)
+
+    ref = ViewModel::Reference.new(TrivialView, nil)
+    assert_equal([ref], context.valid_edit_refs)
+
+    changes = context.valid_edit_changes(ref)
+    assert_equal(true, changes.new?)
+    assert_empty(changes.changed_attributes)
+    assert_empty(changes.changed_associations)
+    assert_equal(false, changes.deleted?)
+  end
+
 
   def test_editability_raises
     no_edit_context = ViewModelBase.new_deserialize_context(can_edit: false)

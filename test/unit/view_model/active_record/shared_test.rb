@@ -237,8 +237,8 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
       refs[view['category']["_ref"]]["name"] = "changed"
     end
 
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(CategoryView, @parent1.category.id)))
-    refute(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(CategoryView, @parent1.category.id)))
+    refute(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_child_change_editchecks_parent
@@ -251,8 +251,8 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
       refs['new_cat'] = { "_type" => "Category", "name" => "new category"}
     end
 
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(CategoryView, nil)))
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(CategoryView, nil)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_child_delete_editchecks_parent
@@ -264,7 +264,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
       view['category'] = nil
     end
 
-    assert(d_context.valid_edit_checks.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
   end
 
   def test_dependent_viewmodels

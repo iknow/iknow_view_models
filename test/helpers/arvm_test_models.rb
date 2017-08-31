@@ -1,3 +1,5 @@
+require_relative "test_access_control.rb"
+
 require "iknow_view_models"
 require "view_model/active_record"
 require "view_model/active_record/controller"
@@ -29,49 +31,13 @@ end
 class ViewModelBase < ViewModel::ActiveRecord
   self.abstract_class = true
 
-  class TestAccessControl < ViewModel::AccessControl
-    attr_accessor :editable_checks, :visible_checks, :valid_edit_checks
-
-    def initialize(can_view, can_edit, can_change)
-      super()
-      @can_edit           = can_edit
-      @can_view           = can_view
-      @can_change         = can_change
-      @editable_checks    = []
-      @valid_edit_checks  = []
-      @visible_checks     = []
-      @valid_edit_changes = {}
-    end
-
-    def editable_check(view, deserialize_context:)
-      @editable_checks << view.to_reference
-      ViewModel::AccessControl::Result.new(@can_edit)
-    end
-
-    def valid_edit_check(view, deserialize_context:, changes:)
-      ref = view.to_reference
-      @valid_edit_checks << ref
-      @valid_edit_changes[ref] = changes
-      ViewModel::AccessControl::Result.new(@can_change)
-    end
-
-    def visible_check(view, context:)
-      @visible_checks << view.to_reference
-      ViewModel::AccessControl::Result.new(@can_view)
-    end
-
-    def valid_edit_changes(ref)
-      @valid_edit_changes[ref]
-    end
-  end
-
   class DeserializeContext < ViewModel::DeserializeContext
     def initialize(can_view: true, can_edit: true, can_change: true, **params)
       params[:access_control] ||= TestAccessControl.new(can_view, can_edit, can_change)
       super(**params)
     end
 
-    delegate :visible_checks, :valid_edit_checks, :editable_checks, :valid_edit_changes, to: :access_control
+    delegate :visible_checks, :editable_checks, :valid_edit_refs, :valid_edit_changes, :all_valid_edit_changes, to: :access_control
   end
 
   def self.deserialize_context_class
@@ -84,7 +50,7 @@ class ViewModelBase < ViewModel::ActiveRecord
       super(**params)
     end
 
-    delegate :visible_checks, :valid_edit_checks, :editable_checks, to: :access_control
+    delegate :visible_checks, :editable_checks, :valid_edit_refs, :valid_edit_changes, :all_valid_edit_changes, to: :access_control
   end
 
   def self.serialize_context_class
