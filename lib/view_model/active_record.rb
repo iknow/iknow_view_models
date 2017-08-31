@@ -320,27 +320,29 @@ class ViewModel::ActiveRecord < ViewModel::Record
     @changed_associations = []
   end
 
-  def changes
-    # We are a descendent of ViewModel::Record, so we do have the
-    # change tracking for `new_model?` and `changed_attributes` here.
-    #
-    #   - we use `model.new_record?` instead of `self.new_model?` so
-    #     that implementors of custom resolve steps aren't required to
-    #     call `model_is_new!`
-    #
-    #   - we use `model.changed_attributes` instead of
-    #     `self.changed_attributes` for similar reasons, that
-    #     implementors of custom `deserialize_#{foo}` methods aren't
-    #     required to call `attribute_changed!`
+  # We use `model.new_record?` instead of internal new_model tracking so that
+  # implementors of custom resolve steps aren't required to call `model_is_new!`
+  def new_model?
+    model.new_record?
+  end
 
+  # we use `model.changed_attributes` instead of `self.changed_attributes` for
+  # similar reasons, that implementors of custom `deserialize_#{foo}` methods
+  # aren't required to call `attribute_changed!`
+  def changed_attributes
     changed_attributes = model.changed
 
     if model.class.locking_enabled?
       changed_attributes.delete(model.class.locking_column)
     end
 
+    changed_attributes
+  end
+
+  # Additionally pass `changed_associations` while constructing changes.
+  def changes
     ViewModel::Changes.new(
-      new:                  model.new_record?,
+      new:                  new_model?,
       changed_attributes:   changed_attributes,
       changed_associations: changed_associations)
   end

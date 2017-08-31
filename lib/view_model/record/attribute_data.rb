@@ -1,12 +1,17 @@
 class ViewModel::Record::AttributeData
   attr_reader :name, :attribute_viewmodel
 
-  def initialize(name, attribute_viewmodel, optional, read_only, write_once)
-    @name = name
+  def initialize(name, attribute_viewmodel, array, optional, read_only, write_once)
+    @name                = name
     @attribute_viewmodel = attribute_viewmodel
-    @optional = optional
-    @read_only = read_only
-    @write_once = write_once
+    @array               = array
+    @optional            = optional
+    @read_only           = read_only
+    @write_once          = write_once
+  end
+
+  def array?
+    @array
   end
 
   def optional?
