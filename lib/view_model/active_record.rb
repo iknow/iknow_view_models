@@ -17,7 +17,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   BEFORE_ATTRIBUTE       = "before"
   AFTER_ATTRIBUTE        = "after"
 
-  require 'view_model/active_record/collections'
+  require 'view_model/utils/collections'
   require 'view_model/active_record/association_data'
   require 'view_model/active_record/update_data'
   require 'view_model/active_record/update_context'
