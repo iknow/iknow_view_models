@@ -61,7 +61,9 @@ class ViewModel::Utils
       end
 
       def map_keys(&block)
-        dup.map_keys!(&block)
+        each_with_object({}) do |(k, v), new|
+          new[yield(k)] = v
+        end
       end
     end
   end
