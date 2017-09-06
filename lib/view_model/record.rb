@@ -213,8 +213,8 @@ class ViewModel::Record < ViewModel
 
   def changes
     ViewModel::Changes.new(
-      new:                  new_model?,
-      changed_attributes:   changed_attributes)
+      new:                new_model?,
+      changed_attributes: changed_attributes)
   end
 
   def clear_changes!
@@ -273,6 +273,7 @@ class ViewModel::Record < ViewModel
       vm_type = attr_data.attribute_viewmodel
       ctx = deserialize_context.for_child(self)
       if attr_data.array?
+        expect_type!(attr, Array, serialized_value)
         value = serialized_value.map { |v| vm_type.deserialize_from_view(v, references: references, deserialize_context: ctx) }
       else
         value = vm_type.deserialize_from_view(serialized_value, references: references, deserialize_context: ctx)
@@ -299,6 +300,14 @@ class ViewModel::Record < ViewModel
       end
 
       model.public_send("#{attr}=", value)
+    end
+  end
+
+  # Helper for type-checking input in hand-rolled deserialization: raises
+  # DeserializationError unless the serialized value is of the provided type.
+  def expect_type!(attribute, type, serialized_value)
+    unless serialized_value.is_a?(type)
+      raise DeserializationError.new("Expected '#{attribute}' to be '#{type.name}', was '#{serialized_value.class}'", blame_reference)
     end
   end
 end

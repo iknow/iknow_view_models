@@ -425,6 +425,15 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       include CanDeserializeToNew
       include CanDeserializeToExisting
 
+      it "rejects change to attribute" do
+        new_view = default_view.merge("nested" => "terrible")
+        ex = assert_raises(ViewModel::DeserializationError) do
+          viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+        end
+
+        assert_match(/Expected 'nested' to be 'Array'/, ex.message)
+      end
+
       it "can edit a nested value" do
         default_view["nested"][0]["member"] = "changed"
         vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
