@@ -2,7 +2,7 @@ require "renum"
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ViewModel::ActiveRecord
-  using Collections
+  using ViewModel::Utils::Collections
 
   class UpdateOperation
     # inverse association and record to update a change in parent from a child

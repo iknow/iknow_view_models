@@ -1,4 +1,7 @@
+require "view_model/utils/collections"
 class ViewModel::Changes
+  using ViewModel::Utils::Collections
+
   attr_reader :new, :changed_attributes, :changed_associations, :deleted
 
   alias new? new
@@ -16,4 +19,15 @@ class ViewModel::Changes
       changed_associations.all? { |assoc| associations.include?(assoc.to_s) } &&
       changed_attributes.all? { |attr| attributes.include?(attr.to_s) }
   end
+
+  def ==(other)
+    return false unless other.is_a?(ViewModel::Changes)
+
+    self.new? == other.new? &&
+      self.changed_attributes.contains_exactly?(other.changed_attributes) &&
+      self.changed_associations.contains_exactly?(other.changed_associations) &&
+      self.deleted? == other.deleted?
+  end
+
+  alias eql? ==
 end

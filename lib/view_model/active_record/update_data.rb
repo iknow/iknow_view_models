@@ -2,7 +2,7 @@ require 'renum'
 require 'view_model/schemas'
 
 class ViewModel::ActiveRecord
-  using Collections
+  using ViewModel::Utils::Collections
 
   class FunctionalUpdate
     def self.for_type(type)
