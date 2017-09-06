@@ -1,12 +1,49 @@
 class ViewModel::TestHelpers::ARVMBuilder
   attr_reader :name, :model, :viewmodel
 
-  def initialize(name, model_base: ApplicationRecord, viewmodel_base: ViewModelBase, &block)
+  # Building an ARVM requires three blocks, to define schema, model and
+  # viewmodel. Support providing these either in an spec argument or as a
+  # dsl-style builder.
+  Spec = Struct.new(:schema, :model, :viewmodel) do
+    def initialize(schema:, model:, viewmodel:)
+      super(schema, model, viewmodel)
+    end
+
+    def merge(schema: nil, model: nil, viewmodel: nil)
+      this_schema    = self.schema
+      this_model     = self.model
+      this_viewmodel = self.viewmodel
+
+      Spec.new(
+        schema: ->(t) do
+          this_schema.(t)
+          schema&.(t)
+        end,
+        model: ->(m) do
+          m.class_eval(&this_model)
+          model.try { |b| m.class_eval(&b) }
+        end,
+        viewmodel: ->(v) do
+          v.class_eval(&this_viewmodel)
+          viewmodel.try { |b| v.class_eval(&b) }
+        end)
+    end
+  end
+
+  def initialize(name, model_base: ApplicationRecord, viewmodel_base: ViewModelBase, spec: nil, &block)
     @model_base = model_base
     @viewmodel_base = viewmodel_base
     @name = name.to_s.camelize
     @no_viewmodel = false
-    instance_eval(&block)
+
+    if spec
+      define_schema(&spec.schema)
+      define_model(&spec.model)
+      define_viewmodel(&spec.viewmodel)
+    else
+      instance_eval(&block)
+    end
+
     raise "Model not created in ARVMBuilder"     unless model
     raise "Schema not created in ARVMBuilder"    unless model.table_exists?
     raise "ViewModel not created in ARVMBuilder" unless (viewmodel || @no_viewmodel)
