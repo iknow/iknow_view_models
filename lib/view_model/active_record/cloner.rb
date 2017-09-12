@@ -32,11 +32,12 @@ class ViewModel::ActiveRecord::Cloner
     node.class._members.each do |name, association_data|
       next unless association_data.is_a?(ViewModel::ActiveRecord::AssociationData)
 
+      reflection = association_data.direct_reflection
+
       if association_ignored?(name)
         new_associated = nil
       else
         # Load the record associated with the old model
-        reflection = association_data.direct_reflection
         associated = node.model.public_send(reflection.name)
 
         if associated.nil?

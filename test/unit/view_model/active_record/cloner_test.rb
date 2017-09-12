@@ -105,6 +105,12 @@ class ViewModel::ActiveRecord
         end
       end
 
+      class IgnoreChildAssociationCloner < Cloner
+        def visit_model_view(node, model)
+          ignore_association!(:child)
+        end
+      end
+
       module BehavesLikeCloningAChild
         extend ActiveSupport::Concern
         included do
@@ -123,6 +129,16 @@ class ViewModel::ActiveRecord
             clone_model.save!
             refute_equal(model, clone_model)
             refute_equal(model.child, clone_model.child)
+          end
+
+          it "can ignore the child association" do
+            clone_model = IgnoreChildAssociationCloner.new.clone(viewmodel)
+
+            assert(clone_model.new_record?)
+            assert_nil(clone_model.id)
+            assert_equal(model.name, clone_model.name)
+
+            assert_nil(clone_model.child)
           end
         end
       end
