@@ -23,6 +23,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   require 'view_model/active_record/update_context'
   require 'view_model/active_record/update_operation'
   require 'view_model/active_record/visitor'
+  require 'view_model/active_record/cloner'
   require 'view_model/active_record/association_manipulation'
 
   include AssociationManipulation
