@@ -18,13 +18,15 @@ class ViewModel::ActiveRecord::Cloner
     pre_visit(node, new_model)
     return nil if ignored?
 
-    node.class.name.try do |class_name|
-      visit = :"visit_#{class_name.underscore.gsub('/', '__')}"
+    if node.class.name
+      class_name      = node.class.name.underscore.gsub('/', '__')
+      visit     = :"visit_#{class_name}"
+      end_visit = :"end_visit_#{class_name}"
+    end
 
-      if respond_to?(visit, true)
-        self.send(visit, node, new_model)
-        return nil if ignored?
-      end
+    if visit && respond_to?(visit, true)
+      self.send(visit, node, new_model)
+      return nil if ignored?
     end
 
     # visit the underlying viewmodel for each association, ignoring any
@@ -71,10 +73,19 @@ class ViewModel::ActiveRecord::Cloner
       new_association.replace(new_associated)
     end
 
+    if end_visit && respond_to?(end_visit, true)
+      self.send(end_visit, node, new_model)
+    end
+
+    post_visit(node, new_model)
+
     new_model
   end
 
   def pre_visit(node, new_model)
+  end
+
+  def post_visit(node, new_model)
   end
 
   private

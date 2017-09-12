@@ -82,6 +82,23 @@ class ViewModel::ActiveRecord
         clone_model.save!
         refute_equal(model, clone_model)
       end
+
+      class PostAlterAttributeCloner < Cloner
+        def end_visit_model_view(node, model)
+          model.name = "changed"
+        end
+      end
+
+      it "can alter a model attribute post-visit" do
+        clone_model = PostAlterAttributeCloner.new.clone(viewmodel)
+        assert(clone_model.new_record?)
+        assert_nil(clone_model.id)
+        assert_equal("changed", clone_model.name)
+        refute_equal("changed", model.name)
+        assert_equal(model.nonview, clone_model.nonview)
+        clone_model.save!
+        refute_equal(model, clone_model)
+      end
     end
 
     describe "with a child" do
