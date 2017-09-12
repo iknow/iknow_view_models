@@ -19,7 +19,8 @@ class ViewModel::ActiveRecord::Cloner
     return nil if ignored?
 
     node.class.name.try do |class_name|
-      visit      = :"visit_#{class_name.underscore}"
+      visit = :"visit_#{class_name.underscore.gsub('/', '__')}"
+
       if respond_to?(visit, true)
         self.send(visit, node, new_model)
         return nil if ignored?

@@ -8,7 +8,7 @@ class ViewModel::ActiveRecord::Visitor
   def visit(node)
     return unless pre_visit(node)
 
-    class_name = node.class.name.underscore
+    class_name = node.class.name.underscore.gsub('/', '__')
     visit      = :"visit_#{class_name}"
     end_visit  = :"end_visit_#{class_name}"
 
