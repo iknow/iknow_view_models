@@ -155,17 +155,16 @@ class ViewModel::ActiveRecord
       # Parse an anchor for a functional_update, before/after
       # May only contain type and id fields, is never a reference even for shared collections.
       def parse_anchor(child_hash) # final
-        child_viewmodel_name, child_id =
-                              ViewModel.extract_reference_only_metadata(child_hash)
+        child_metadata = ViewModel.extract_reference_only_metadata(child_hash)
 
         child_viewmodel_class =
-          association_data.viewmodel_class_for_name(child_viewmodel_name)
+          association_data.viewmodel_class_for_name(child_metadata.view_name)
 
         if child_viewmodel_class.nil?
-          raise_deserialization_error("Invalid target viewmodel type '#{child_viewmodel_name}' for association '#{association_data.target_reflection.name}'")
+          raise_deserialization_error("Invalid target viewmodel type '#{child_metadata.view_name}' for association '#{association_data.target_reflection.name}'")
         end
 
-        ViewModel::Reference.new(child_viewmodel_class, child_id)
+        ViewModel::Reference.new(child_viewmodel_class, child_metadata.id)
       end
 
       def parse_append_action(action) # final
@@ -377,7 +376,8 @@ class ViewModel::ActiveRecord
   end
 
   class UpdateData
-    attr_accessor :viewmodel_class, :id, :new, :attributes, :associations, :referenced_associations
+    attr_accessor :viewmodel_class, :metadata, :attributes, :associations, :referenced_associations
+    delegate :id, :view_name, :schema_version, to: :metadata
 
     module Schemas
       viewmodel_reference_only =
@@ -503,7 +503,9 @@ class ViewModel::ActiveRecord
       end
     end
 
-    alias new? new
+    def new?
+      id.nil? || metadata.new?
+    end
 
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
       valid_reference_keys = referenced_subtree_hashes.keys.to_set
@@ -514,10 +516,10 @@ class ViewModel::ActiveRecord
 
       # Construct root UpdateData
       root_updates = root_subtree_hashes.map do |subtree_hash|
-        viewmodel_name, schema_version, id, new = ViewModel.extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class                         = ViewModel::Registry.for_view_name(viewmodel_name)
-        verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
-        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
+        metadata = ViewModel.extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class = ViewModel::Registry.for_view_name(metadata.view_name)
+        verify_schema_version!(viewmodel_class, metadata.schema_version, metadata.id) if metadata.schema_version
+        UpdateData.new(viewmodel_class, metadata, subtree_hash, valid_reference_keys)
       end
 
       # Ensure that no root is referred to more than once
@@ -525,11 +527,11 @@ class ViewModel::ActiveRecord
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
-        viewmodel_name, schema_version, id, new = ViewModel.extract_viewmodel_metadata(subtree_hash)
-        viewmodel_class                         = ViewModel::Registry.for_view_name(viewmodel_name)
-        verify_schema_version!(viewmodel_class, schema_version, id) if schema_version
+        metadata = ViewModel.extract_viewmodel_metadata(subtree_hash)
+        viewmodel_class = ViewModel::Registry.for_view_name(metadata.view_name)
+        verify_schema_version!(viewmodel_class, metadata.schema_version, metadata.id) if metadata.schema_version
 
-        UpdateData.new(viewmodel_class, id, new, subtree_hash, valid_reference_keys)
+        UpdateData.new(viewmodel_class, metadata, subtree_hash, valid_reference_keys)
       end
 
       check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
@@ -545,19 +547,19 @@ class ViewModel::ActiveRecord
       end
     end
 
-    def initialize(viewmodel_class, id, new, hash_data, valid_reference_keys)
+    def initialize(viewmodel_class, metadata, hash_data, valid_reference_keys)
       self.viewmodel_class = viewmodel_class
-      self.id = id
-      self.new = id.nil? || new
-      self.attributes = {}
-      self.associations = {}
+      self.metadata        = metadata
+      self.attributes      = {}
+      self.associations    = {}
       self.referenced_associations = {}
 
       parse(hash_data, valid_reference_keys)
     end
 
     def self.empty_update_for(viewmodel)
-      self.new(viewmodel.class, viewmodel.id, false, {}, [])
+      metadata = ViewModel::Metadata.new(viewmodel.id, viewmodel.view_name, viewmodel.class.schema_version, false)
+      self.new(viewmodel.class, metadata, {}, [])
     end
 
     # Produce a sequence of update datas for a given association update value, in the spirit of Array.wrap.
@@ -636,22 +638,21 @@ class ViewModel::ActiveRecord
     end
 
     def self.parse_associated(association_data, blame_reference, valid_reference_keys, child_hash)
-      child_viewmodel_name, child_schema_version, child_id, child_new =
-        ViewModel.extract_viewmodel_metadata(child_hash)
+      child_metadata = ViewModel.extract_viewmodel_metadata(child_hash)
 
       child_viewmodel_class =
-        association_data.viewmodel_class_for_name(child_viewmodel_name)
+        association_data.viewmodel_class_for_name(child_metadata.view_name)
 
       if child_viewmodel_class.nil?
         raise ViewModel::DeserializationError.new(
-          "Invalid target viewmodel type '#{child_viewmodel_name}' " \
+          "Invalid target viewmodel type '#{child_metadata.view_name}' " \
           "for association '#{association_data.target_reflection.name}'",
           blame_reference)
       end
 
-      verify_schema_version!(child_viewmodel_class, child_schema_version, child_id) if child_schema_version
+      verify_schema_version!(child_viewmodel_class, child_metadata.schema_version, child_metadata.id) if child_metadata.schema_version
 
-      UpdateData.new(child_viewmodel_class, child_id, child_new, child_hash, valid_reference_keys)
+      UpdateData.new(child_viewmodel_class, child_metadata, child_hash, valid_reference_keys)
     end
 
     private
@@ -664,10 +665,10 @@ class ViewModel::ActiveRecord
       hash_data = hash_data.dup
 
       # handle view pre-parsing if defined
-      self.viewmodel_class.pre_parse(viewmodel_reference, hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
+      self.viewmodel_class.pre_parse(viewmodel_reference, metadata, hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
       hash_data.keys.each do |key|
         if self.viewmodel_class.respond_to?(:"pre_parse_#{key}")
-          self.viewmodel_class.public_send("pre_parse_#{key}", viewmodel_reference, hash_data, hash_data.delete(key))
+          self.viewmodel_class.public_send("pre_parse_#{key}", viewmodel_reference, metadata, hash_data, hash_data.delete(key))
         end
       end
 

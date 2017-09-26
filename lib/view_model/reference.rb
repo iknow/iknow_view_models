@@ -9,7 +9,7 @@ class ViewModel
     end
 
     def to_s
-      "'#{viewmodel_class.debug_name}(#{model_id})'"
+      "'#{viewmodel_class.view_name}(#{model_id})'"
     end
 
     def ==(other)

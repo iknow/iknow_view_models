@@ -47,7 +47,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       TestSerializeContext
     end
 
-    def self.resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)
+    def self.resolve_viewmodel(metadata, view_hash, deserialize_context:)
       if target_model = deserialize_context.targets.shift
         self.new(target_model)
       else
