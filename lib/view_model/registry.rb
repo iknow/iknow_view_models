@@ -1,6 +1,8 @@
 class ViewModel::Registry
   include Singleton
 
+  DEFERRED_NAME = Object.new
+
   class << self
     delegate :for_view_name, :register, to: :instance
   end
@@ -18,7 +20,7 @@ class ViewModel::Registry
       vm, view_name = @deferred_viewmodel_classes.pop
 
       if vm.should_register?
-        view_name ||= vm.view_name
+        view_name = vm.view_name if view_name == DEFERRED_NAME
         @viewmodel_classes_by_name[view_name] = vm
       end
     end
@@ -32,7 +34,7 @@ class ViewModel::Registry
     viewmodel_class
   end
 
-  def register(viewmodel, as: nil)
+  def register(viewmodel, as: DEFERRED_NAME)
     @deferred_viewmodel_classes << [viewmodel, as]
   end
 end
