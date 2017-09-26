@@ -43,12 +43,9 @@ class ViewModel
       @view_name = name
     end
 
-    def view_names
-      [view_name, *view_aliases]
-    end
-
     def add_view_alias(as)
       view_aliases << as
+      ViewModel::Registry.register(self, as: as)
     end
 
     # ViewModels are typically going to be pretty simple structures. Make it a

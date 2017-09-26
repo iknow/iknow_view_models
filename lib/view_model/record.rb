@@ -61,9 +61,9 @@ class ViewModel::Record < ViewModel
         view_hash = view_hash.dup
         metadata = ViewModel.extract_viewmodel_metadata(view_hash)
 
-        unless self.view_names.include?(metadata.view_name)
+        unless self.view_name == metadata.view_name || self.view_aliases.include?(metadata.view_name)
           raise ViewModel::DeserializationError.new(
-                  "Cannot deserialize type #{metadata.view_name}, expected #{self.view_names}.",
+                  "Cannot deserialize type #{metadata.view_name}, expected #{[self.view_name, *self.view_aliases]}.",
                   ViewModel::Reference.new(self, metadata.id))
         end
 
