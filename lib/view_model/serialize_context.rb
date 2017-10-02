@@ -80,15 +80,23 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
   def serialize_references(json)
     reference_context = self.for_references
 
-    seen = Set.new
+    # References should be serialized in a stable order to improve caching via
+    # naive response hash.
+
+    serialized_refs = {}
+
     while references.present?
       extract_referenced_views!.each do |ref, value|
-        if seen.add?(ref)
-          json.set!(ref) do
-            ViewModel.serialize(value, json, serialize_context: reference_context)
+        unless serialized_refs.has_key?(ref)
+          serialized_refs[ref] = Jbuilder.new do |j|
+            ViewModel.serialize(value, j, serialize_context: reference_context)
           end
         end
       end
+    end
+
+    serialized_refs.sort.each do |ref, value|
+      json.set!(ref, value)
     end
   end
 
