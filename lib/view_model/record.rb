@@ -59,22 +59,22 @@ class ViewModel::Record < ViewModel
     def deserialize_from_view(view_hashes, references: {}, deserialize_context: new_deserialize_context)
       ViewModel::Utils.map_one_or_many(view_hashes) do |view_hash|
         view_hash = view_hash.dup
-        type, version, id, new = ViewModel.extract_viewmodel_metadata(view_hash)
+        metadata = ViewModel.extract_viewmodel_metadata(view_hash)
 
-        if type != self.view_name
+        unless self.view_name == metadata.view_name || self.view_aliases.include?(metadata.view_name)
           raise ViewModel::DeserializationError.new(
-                  "Cannot deserialize type #{type}, expected #{self.view_name}.",
-                  ViewModel::Reference.new(self, id))
+                  "Cannot deserialize type #{metadata.view_name}, expected #{[self.view_name, *self.view_aliases]}.",
+                  ViewModel::Reference.new(self, metadata.id))
         end
 
-        if version && !self.accepts_schema_version?(version)
+        if metadata.schema_version && !self.accepts_schema_version?(metadata.schema_version)
           raise ViewModel::DeserializationError::SchemaMismatch.new(
                   "Mismatched schema version for type #{self.view_name}, "\
-                  "expected #{self.schema_version}, received #{version}.",
-                  ViewModel::Reference.new(self, id))
+                  "expected #{self.schema_version}, received #{metadata.schema_version}.",
+                  ViewModel::Reference.new(self, metadata.id))
         end
 
-        viewmodel = resolve_viewmodel(type, version, id, new, view_hash, deserialize_context: deserialize_context)
+        viewmodel = resolve_viewmodel(metadata, view_hash, deserialize_context: deserialize_context)
 
         deserialize_members_from_view(viewmodel, view_hash, references: references, deserialize_context: deserialize_context)
 
@@ -111,7 +111,7 @@ class ViewModel::Record < ViewModel
       viewmodel.clear_changes!
     end
 
-    def resolve_viewmodel(type, version, id, new, view_hash, deserialize_context:)
+    def resolve_viewmodel(metadata, view_hash, deserialize_context:)
       self.for_new_model
     end
 
@@ -173,7 +173,7 @@ class ViewModel::Record < ViewModel
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
     json.set!(ViewModel::ID_ATTRIBUTE, model.id) if model.respond_to?(:id)
-    json.set!(ViewModel::TYPE_ATTRIBUTE, self.class.view_name)
+    json.set!(ViewModel::TYPE_ATTRIBUTE, self.view_name)
     json.set!(ViewModel::VERSION_ATTRIBUTE, self.class.schema_version)
 
     serialize_members(json, serialize_context: serialize_context)

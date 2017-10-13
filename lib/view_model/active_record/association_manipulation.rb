@@ -248,9 +248,15 @@ module AssociationManipulation
     direct_update_data = indirect_references.map do |ref_name, update|
       existing_id = existing_direct_ids[update.id] unless update.new?
 
-      UpdateData.new(direct_viewmodel_class, existing_id, existing_id.nil?,
+      metadata = ViewModel::Metadata.new(existing_id,
+                                         direct_viewmodel_class.view_name,
+                                         direct_viewmodel_class.schema_version,
+                                         existing_id.nil?)
+
+      UpdateData.new(direct_viewmodel_class,
+                     metadata,
                      { indirect_reflection.name.to_s => { ViewModel::REFERENCE_ATTRIBUTE => ref_name }},
-                     [ref_name] )
+                     [ref_name])
     end
 
     return direct_update_data, referenced_update_data

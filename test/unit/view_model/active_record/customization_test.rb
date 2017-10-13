@@ -28,7 +28,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
         attributes :text
         association :translations
 
-        def self.pre_parse_translations(viewmodel_reference, hash, translations)
+        def self.pre_parse_translations(viewmodel_reference, metadata, hash, translations)
           raise "type check" unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
           hash["translations"] = translations.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
         end
@@ -188,7 +188,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
         attributes :name
         association :section_data, viewmodels: [VocabSectionView, QuizSectionView]
 
-        def self.pre_parse(viewmodel_reference, user_data)
+        def self.pre_parse(viewmodel_reference, metadata, user_data)
           section_type_name = user_data.delete("section_type")
           section_type = SectionType.with_name(section_type_name)
           raise "Invalid section type: #{section_type_name.inspect}" unless section_type
