@@ -58,9 +58,7 @@ class ViewModel::ActiveRecord
 
     def self.build!(root_update_data, referenced_update_data, root_type: nil)
       if root_type.present? && (bad_types = root_update_data.map(&:viewmodel_class).to_set.delete(root_type)).present?
-        raise ViewModel::DeserializationError.new(
-                "Cannot deserialize incorrect root viewmodel type(s) '#{bad_types.map(&:view_name)}'",
-                bad_types.map { |t| ViewModel::Reference.new(t, nil) })
+        raise ViewModel::DeserializationError::InvalidViewType.new(root_type.view_name, bad_types.map { |t| ViewModel::Reference.new(t, nil) })
       end
 
       self.new
@@ -123,9 +121,7 @@ class ViewModel::ActiveRecord
             if models.size < model_ids.size
               missing_model_ids = model_ids - models.map(&:id)
               missing_viewmodel_refs = missing_model_ids.map  { |id| ViewModel::Reference.new(viewmodel_class, id) }
-              raise ViewModel::DeserializationError::NotFound.new(
-                      "Couldn't find #{model_class.name}(s) with id(s)=#{missing_model_ids.inspect}",
-                      missing_viewmodel_refs)
+              raise ViewModel::DeserializationError::NotFound.new(missing_viewmodel_refs)
             end
 
             DeepPreloader.preload(models, dependencies)
@@ -217,10 +213,7 @@ class ViewModel::ActiveRecord
 
           key, deferred_update = @worklist.detect { |k, upd| upd.reparent_to.present? }
           if key.nil?
-            vms = @worklist.keys.map {|k| "#{k.viewmodel_class.view_name}:#{k.model_id}" }.join(", ")
-            raise ViewModel::DeserializationError::NotFound.new(
-                    "Cannot resolve previous parents for the following referenced viewmodels: #{vms}",
-                    @worklist.keys)
+            raise ViewModel::DeserializationError::ParentNotFound.new(@worklist.keys)
           end
 
           # We are guaranteed to make progress or fail entirely.
@@ -229,9 +222,11 @@ class ViewModel::ActiveRecord
 
           child_dependencies = deferred_update.update_data.preload_dependencies(@referenced_update_data)
 
-          child_model = ViewModel::DeserializationError::NotFound.wrap_lookup(key) do
-            key.viewmodel_class.model_class.find(key.model_id)
-          end
+          child_model = begin
+                          key.viewmodel_class.model_class.find(key.model_id)
+                        rescue ::ActiveRecord::RecordNotFound
+                          raise ViewModel::DeserializationError::NotFound.new(key)
+                        end
 
           child_viewmodel = key.viewmodel_class.new(child_model)
           DeepPreloader.preload(child_model, child_dependencies)
@@ -258,7 +253,7 @@ class ViewModel::ActiveRecord
 
       dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| upd.viewmodel.to_reference }
       if dangling_references.present?
-        raise ViewModel::DeserializationError.new("References not referred to from roots", dangling_references)
+        raise ViewModel::DeserializationError::InvalidStructure.new("References not referred to from roots", dangling_references)
       end
 
       self
@@ -322,19 +317,26 @@ class ViewModel::ActiveRecord
         @updates_by_viewmodel[vm_ref] = new_type
       elsif current_type == :implicit && new_type == :implicit
         return
-      else
+      elsif current_type == :explicit && new_type == :explicit
         # explicit -> explicit; updating the same thing twice
-        # implicit -> explicit; internal error, user update processed after implicit udpate
+        raise ViewModel::DeserializationError::DuplicateNodes.new(vm_ref.viewmodel_class.view_name, vm_ref)
+      elsif current_type == :implicit && new_type == :explicit
+        # implicit -> explicit; internal error, user update processed after implicit update
+        raise ViewModel::DeserializationError::Internal.new("Internal error: explicit user update processed after implicit update", vm_ref)
+      elsif current_type == :explicit && new_type == :implicit
         # explicit -> implicit; trying to take something twice, once from user, then once again
-
-        # TODO error messages
-        raise ViewModel::DeserializationError.new("Not a valid type transition: #{current_type} -> #{new_type}", vm_ref)
+        # Occurs if trying to implicitly reparent a child of a node that is present in the tree, but doesn't specify that association.
+        raise ViewModel::DeserializationError::InvalidStructure.new(
+                "Attempted to implicitly move a child view of a parent which is present in the tree "\
+                "but does not include any update for the child association", vm_ref)
+      else
+        raise ViewModel::DeserializationError::Internal.new("Internal error: Not a valid type transition: #{current_type} -> #{new_type}", vm_ref)
       end
     end
 
-    def resolve_reference(ref)
+    def resolve_reference(ref, blame_reference)
       @referenced_update_operations.fetch(ref) do
-        raise ViewModel::DeserializationError.new("Could not find referenced data with key '#{ref}'", ref)
+        raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
       end
     end
 
@@ -357,7 +359,7 @@ class ViewModel::ActiveRecord
         model_class.connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
       end
     rescue ::ActiveRecord::StatementInvalid => ex
-      raise ViewModel::DeserializationError.new(ex.message)
+      raise ViewModel::DeserializationError::DatabaseConstraint.new(ex.message)
     end
   end
 end

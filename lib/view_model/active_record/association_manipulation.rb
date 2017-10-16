@@ -39,7 +39,7 @@ module AssociationManipulation
       vms
     else
       if vms.size > 1
-        raise ViewModel::DeserializationError.new("Internal error: encountered multiple records for single association #{association_name}", self.blame_reference)
+        raise ViewModel::DeserializationError::Internal.new("Internal error: encountered multiple records for single association #{association_name}", self.blame_reference)
       end
       vms.first
     end
@@ -178,8 +178,7 @@ module AssociationManipulation
         if association_data.pointer_location == :local
           # If we hold the pointer, we can immediately check if the type and id match.
           if target_ref != ViewModel::Reference.new(direct_viewmodel, model.read_attribute(direct_reflection.foreign_key))
-            raise ViewModel::DeserializationError::NotFound.new("Couldn't find #{target_ref} in association #{association_name}",
-                                                                blame_reference)
+            raise ViewModel::DeserializationError::AssociatedNotFound.new(association_name.to_s, target_ref, blame_reference)
           end
         else
           # otherwise add the target constraint to the association scope
@@ -190,10 +189,9 @@ module AssociationManipulation
       models = association_scope.to_a
 
       if models.blank?
-        raise ViewModel::DeserializationError::NotFound.new("Couldn't find #{target_ref} in association #{association_name}",
-                                                            blame_reference)
+        raise ViewModel::DeserializationError::AssociatedNotFound.new(association_name.to_s, target_ref, blame_reference)
       elsif models.size > 1
-        raise ViewModel::DeserializationError.new(
+        raise ViewModel::DeserializationError::Internal.new(
                 "Internal error: encountered multiple records for #{target_ref} in association #{association_name}",
                 blame_reference)
       end
@@ -288,9 +286,10 @@ module AssociationManipulation
       end
 
       if start_pos.nil? && end_pos.nil?
-        raise ViewModel::DeserializationError::NotFound.new(
-                "Attempted to insert relative to reference that does not exist #{relative_ref}",
-                [relative_ref])
+        # Attempted to insert relative to ref that's not in the association
+        raise ViewModel::DeserializationError::AssociatedNotFound.new(association_data.association_name.to_s,
+                                                                      relative_ref,
+                                                                      blame_reference)
       end
     else
       start_pos = association_scope.maximum(position_attr)

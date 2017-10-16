@@ -375,7 +375,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   def test_functional_update_remove_stale
     # remove an entity that's no longer part of the collection
     c1 = c2 = nil
-    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+    ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
         c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
@@ -384,13 +384,13 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         }
       end
     end
-    assert_match(/Stale functional update/, ex.message)
+    assert_equal('tags', ex.association)
   end
 
   def test_functional_update_append_after_corpse
     # append after something that no longer exists
     c1 = c2 = nil
-    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+    ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
         c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
@@ -401,7 +401,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         }
       end
     end
-    assert_match(/insert relative/, ex.message)
+    assert_equal('tags', ex.association)
   end
 
   def test_functional_update_update_success
@@ -420,19 +420,22 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_functional_update_update_stale
-    # update a shared entity that's no longer present
-    c1 = c2 = nil
-    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+    _c1, c2 = tags(@parent1)
+
+    # update for a shared entity that's no longer present in the association
+    c2.parents_tags.destroy_all
+
+    ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
-        c1, c2 = tags
-        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
+#        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
         { :actions => [{ '_type'  => 'update',
                          'values' => [{ '_ref' => 'c2' }] }],
           :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id, 'name' => 'c2 new name' } }
         }
       end
     end
-    assert_match(/stale functional update/i, ex.message)
+    assert_equal("tags", ex.association)
+    assert_equal([ViewModel::Reference.new(TagView, c2.id)], ex.missing_nodes)
   end
 
   def test_functional_update_edit_checks

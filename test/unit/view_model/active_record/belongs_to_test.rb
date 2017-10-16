@@ -142,10 +142,9 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_create_invalid_child_type
     view = { '_type' => 'Parent', 'name' => 'p', 'label' => { '_type' => 'Parent', 'name' => 'q' } }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::InvalidAssociationType) do
       ParentView.deserialize_from_view(view)
     end
-    assert_match(/Invalid target viewmodel type '.*' for association '.*'/, ex.message)
   end
 
   def test_belongs_to_create
@@ -186,7 +185,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_move_and_replace_from_outside_tree
     old_p1_label = @parent1.label
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
       set_by_view!(ParentView, @parent2) do |p2, refs|
         p2['label'] = update_hash_for(LabelView, old_p1_label)
       end
@@ -195,7 +194,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     # For now, we don't allow moving unless the pointer is from child to parent,
     # as it's more involved to safely resolve the old parent in the other
     # direction.
-    assert_match(/Cannot resolve previous parents for the following referenced viewmodels/, ex.message)
   end
 
   def test_belongs_to_swap
@@ -237,15 +235,12 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_implicit_release_invalid_belongs_to
     taken_label_ref = update_hash_for(LabelView, @parent1.label)
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
       ParentView.deserialize_from_view(
         [{ '_type' => 'Parent',
            'name'  => 'newp',
            'label' => taken_label_ref }])
     end
-
-    assert_match(/Cannot resolve previous parents/, ex.message,
-                 'belongs_to does not infer previous parents')
   end
 
   class GCTests < ActiveSupport::TestCase
@@ -386,12 +381,11 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     # testing.
     def test_move
       model = Aye.create(bee: Bee.new(cee: Cee.new))
-      ex = assert_raises(ViewModel::DeserializationError) do
+      assert_raises(ViewModel::DeserializationError::ParentNotFound) do
         alter_by_view!(AyeView, model) do |view, refs|
           view['bee'].delete("id")
         end
       end
-      assert_match(/Cannot resolve previous parents for the following referenced viewmodels/, ex.message)
     end
   end
 end

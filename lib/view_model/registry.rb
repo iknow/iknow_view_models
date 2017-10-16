@@ -13,7 +13,7 @@ class ViewModel::Registry
   end
 
   def for_view_name(name)
-    raise ViewModel::DeserializationError.new("ViewModel name cannot be nil") if name.nil?
+    raise ViewModel::DeserializationError::InvalidSyntax.new("ViewModel name cannot be nil") if name.nil?
 
     # Resolve names for any deferred viewmodel classes
     until @deferred_viewmodel_classes.empty? do
@@ -28,7 +28,7 @@ class ViewModel::Registry
     viewmodel_class = @viewmodel_classes_by_name[name]
 
     if viewmodel_class.nil? || !(viewmodel_class < ViewModel)
-      raise ViewModel::DeserializationError.new("ViewModel class for view name '#{name}' not found")
+      raise ViewModel::DeserializationError::UnknownView.new(name)
     end
 
     viewmodel_class

@@ -81,7 +81,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   end
 
   def test_regular_version_verification
-    ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
+    ex = assert_raise(ViewModel::DeserializationError::SchemaVersionMismatch) do
       ParentView.deserialize_from_view(
         { '_type'    => 'Parent',
           '_new'     => true,
@@ -91,7 +91,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   end
 
   def test_polymorphic_version_verification
-    ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
+    ex = assert_raise(ViewModel::DeserializationError::SchemaVersionMismatch) do
       ParentView.deserialize_from_view(
         { '_type' => 'Parent',
           '_new'  => true,
@@ -104,7 +104,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   end
 
   def test_shared_parse_version_verification
-    ex = assert_raise(ViewModel::DeserializationError::SchemaMismatch) do
+    ex = assert_raise(ViewModel::DeserializationError::SchemaVersionMismatch) do
       ParentView.deserialize_from_view(
         { '_type'  => 'Parent',
           '_new'   => true,

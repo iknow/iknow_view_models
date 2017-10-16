@@ -74,7 +74,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       @reasons = reasons
     end
 
-    def metadata
+    def meta
       super.merge(conditions: @reasons.to_a)
     end
 

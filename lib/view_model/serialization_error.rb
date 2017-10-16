@@ -1,17 +1,10 @@
-class ViewModel
-  class SerializationError < ViewModel::AbstractError
-    def status
-      400
-    end
+class ViewModel::SerializationError < ViewModel::AbstractError
+  attr_reader :detail
+  status 400
+  code "SerializationError"
 
-    def code
-      "Serialization.#{self.class.name.demodulize}"
-    end
-
-    class Permissions < SerializationError
-      def status
-        403
-      end
-    end
+  def initialize(detail)
+    @detail = detail
+    super()
   end
 end

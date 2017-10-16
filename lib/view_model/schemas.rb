@@ -1,4 +1,3 @@
-require 'view_model'
 require 'json'
 require 'json_schema'
 
@@ -40,7 +39,7 @@ class ViewModel::Schemas
     unless valid
       error_list = errors.map { |e| "#{e.pointer}: #{e.message}" }.join("\n")
       errors     = 'Error'.pluralize(errors.length)
-      raise ViewModel::DeserializationError.new("#{errors} parsing #{schema.description}:\n#{error_list}")
+      raise ViewModel::DeserializationError::InvalidSyntax.new("#{errors} parsing #{schema.description}:\n#{error_list}")
     end
   end
 end

@@ -143,8 +143,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
           missing_ids = ids - models.map(&:id)
           if missing_ids.present?
             raise ViewModel::DeserializationError::NotFound.new(
-                    "Couldn't find #{self.model_class.name}(s) with id(s)=#{missing_ids.inspect}",
-                    missing_ids.map { |id| ViewModel::Reference.new(self, id) } )
+                    missing_ids.map { |id| ViewModel::Reference.new(self, id) })
           end
         end
 

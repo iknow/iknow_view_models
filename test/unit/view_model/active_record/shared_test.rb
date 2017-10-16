@@ -166,7 +166,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_requires_all_references
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
       alter_by_view!(ParentView, @parent2, serialize_context: serialize_context) do |p2view, refs|
         refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
       end
@@ -175,38 +175,36 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
   end
 
   def test_shared_requires_valid_references
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::InvalidSharedReference) do
       serialize_context = ParentView.new_serialize_context(include: :category)
       alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
         refs.clear # remove the expected serialized refs
       end
     end
-    assert_match(/Could not parse unresolvable reference/, ex.message)
   end
 
   def test_shared_requires_assignable_type
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidAssociationType) do
       serialize_context = ParentView.new_serialize_context(include: :category)
       alter_by_view!(ParentView, @parent1, serialize_context: serialize_context) do |p1view, refs|
         p1view['category'] = { '_ref' => 'p2' }
         refs['p2'] = update_hash_for(ParentView, @parent2)
       end
     end
-    assert_match(/can't refer to/, ex.message)
+    assert_equal("category", ex.association)
   end
 
   def test_shared_requires_unique_references
     serialize_context = ParentView.new_serialize_context(include: :category)
     c1_ref = update_hash_for(CategoryView, @category1)
-    ex = assert_raises(ViewModel::DeserializationError, serialize_context: serialize_context) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1view, p2view), refs|
+    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
+      alter_by_view!(ParentView, [@parent1, @parent2], serialize_context: serialize_context) do |(p1view, p2view), refs|
         refs['c_a'] = c1_ref.dup
         refs['c_b'] = c1_ref.dup
         p1view['category'] = { '_ref' => 'c_a' }
         p2view['category'] = { '_ref' => 'c_b' }
       end
     end
-    assert_match(/Duplicate/, ex.message)
   end
 
   def test_shared_updates_shared_data

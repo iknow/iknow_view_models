@@ -5,7 +5,7 @@ module ViewModel::Controller
 
   included do
     rescue_from ViewModel::AbstractError, with: ->(ex) do
-      render_errors(ex.view, ex.status)
+      render_error(ex.view, ex.status)
     end
   end
 
@@ -34,16 +34,15 @@ module ViewModel::Controller
     render_json_string(pre_rendered, status: status)
   end
 
-  def render_errors(error_views, status = 500)
-    error_views = Array.wrap(error_views)
-    unless error_views.all? { |ev| ev.is_a?(ViewModel) }
-      raise "Expected ViewModel error views, received #{error_views.inspect}"
+  def render_error(error_view, status = 500)
+    unless error_view.is_a?(ViewModel)
+      raise "Expected ViewModel error view, received #{error_view.inspect}"
     end
 
     render_jbuilder(status: status) do |json|
-      json.errors error_views do |error_view|
-        ctx = ViewModel::Error::View.new_serialize_context(access_control: ViewModel::AccessControl::Open.new)
-        ViewModel::Error::View.serialize(error_view, json, serialize_context: ctx)
+      json.error do
+        ctx = error_view.class.new_serialize_context(access_control: ViewModel::AccessControl::Open.new)
+        ViewModel.serialize(error_view, json, serialize_context: ctx)
       end
     end
   end
