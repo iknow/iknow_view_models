@@ -64,6 +64,9 @@ class ViewModel::ActiveRecord::AssociationData
   private def name_to_viewmodel
     @name_to_viewmodel ||= viewmodel_classes.each_with_object({}) do |vm, h|
       h[vm.view_name] = vm
+      vm.view_aliases.each do |view_alias|
+        h[view_alias] = vm
+      end
     end
   end
 
