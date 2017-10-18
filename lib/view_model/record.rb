@@ -266,7 +266,7 @@ class ViewModel::Record < ViewModel
 
     if attr_data.using_viewmodel? && !serialized_value.nil?
       vm_type = attr_data.attribute_viewmodel
-      ctx = deserialize_context.for_child(self)
+      ctx = deserialize_context.for_child(self, association_name: attr.to_s)
       if attr_data.array?
         expect_type!(attr, Array, serialized_value)
         value = serialized_value.map { |v| vm_type.deserialize_from_view(v, references: references, deserialize_context: ctx) }

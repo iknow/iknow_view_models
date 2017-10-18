@@ -116,7 +116,8 @@ class ViewModel::ActiveRecord
 
           association = model.association(reflection.name)
           child_model = if child_operation
-                          child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
+                          ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+                          child_operation.run!(deserialize_context: ctx).model
                         else
                           nil
                         end
@@ -167,14 +168,16 @@ class ViewModel::ActiveRecord
           debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
 
           association = model.association(reflection.name)
+          child_ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+
           new_target =
             case child_operation
             when nil
               nil
             when ViewModel::ActiveRecord::UpdateOperation
-              child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
+              child_operation.run!(deserialize_context: child_ctx).model
             when Array
-              viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context.for_child(viewmodel)) }
+              viewmodels = child_operation.map { |op| op.run!(deserialize_context: child_ctx) }
               viewmodels.map(&:model)
             end
 
@@ -188,7 +191,7 @@ class ViewModel::ActiveRecord
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          child_context = deserialize_context.for_child(viewmodel)
+          child_context = deserialize_context.for_child(viewmodel, association_name: nil)
           child_vm = released_child.viewmodel
           child_context.visible!(child_vm)
           initial_editability = child_context.initial_editability(child_vm)
