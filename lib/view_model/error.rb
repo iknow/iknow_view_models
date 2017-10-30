@@ -74,13 +74,7 @@ class ViewModel::AbstractError < StandardError
 
   protected
 
-  # For errors associated with specific viewmodel nodes, create metadata
-  # describing the node to blame.
-  def blame_metadata(viewmodel_refs)
-    {
-      nodes: format_references(viewmodel_refs)
-    }
-  end
+
 
   def format_references(viewmodel_refs)
     viewmodel_refs.map do |viewmodel_ref|
@@ -92,6 +86,23 @@ class ViewModel::AbstractError < StandardError
     {
       ViewModel::TYPE_ATTRIBUTE => viewmodel_ref.viewmodel_class.view_name,
       ViewModel::ID_ATTRIBUTE   => viewmodel_ref.model_id
+    }
+  end
+end
+
+# For errors associated with specific viewmodel nodes, include metadata
+# describing the node to blame.
+class ViewModel::AbstractErrorWithBlame < ViewModel::AbstractError
+  attr_reader :nodes
+
+  def initialize(blame_nodes)
+    @nodes = Array.wrap(blame_nodes)
+    super()
+  end
+
+  def meta
+    {
+      nodes: format_references(nodes)
     }
   end
 end

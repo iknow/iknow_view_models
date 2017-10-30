@@ -1,19 +1,9 @@
 class ViewModel
-  class DeserializationError < ViewModel::AbstractError
-    attr_reader :nodes
+  class DeserializationError < ViewModel::AbstractErrorWithBlame
     status 500
-
-    def initialize(nodes)
-      @nodes = Array.wrap(nodes)
-      super()
-    end
 
     def code
       "DeserializationError.#{self.class.name.demodulize}"
-    end
-
-    def meta
-      blame_metadata(nodes)
     end
 
     protected
@@ -44,31 +34,33 @@ class ViewModel
       title "Invalid request"
     end
 
-    # Abstract: an error with an arbitrary string detail taken as a constructor argument.
-    module WithDetail
-      extend ActiveSupport::Concern
-      included do
-        attr_reader :detail
-      end
+    # There has been an unexpected internal failure of the ViewModel library.
+    class Internal < DeserializationError
+      status 500
+      attr_reader :detail
 
-      def initialize(detail, nodes = nil)
+      def initialize(detail, nodes = [])
         @detail = detail
         super(nodes)
       end
     end
 
-    # There has been an unexpected internal failure of the ViewModel library.
-    class Internal < DeserializationError
-      status 500
-      include WithDetail
-    end
-
     class InvalidStructure < InvalidRequest
-      include WithDetail
+      attr_reader :detail
+
+      def initialize(detail, nodes = [])
+        @detail = detail
+        super(nodes)
+      end
     end
 
     class InvalidSyntax < InvalidRequest
-      include WithDetail
+      attr_reader :detail
+
+      def initialize(detail, nodes = [])
+        @detail = detail
+        super(nodes)
+      end
     end
 
     # A view included a invalid shared reference
@@ -77,7 +69,7 @@ class ViewModel
 
       def initialize(reference, node)
         @reference = reference
-        super(node)
+        super([node])
       end
 
       def detail
@@ -95,7 +87,7 @@ class ViewModel
 
       def initialize(type)
         @type = type
-        super(nil)
+        super([])
       end
 
       def detail
@@ -113,7 +105,7 @@ class ViewModel
 
       def initialize(attribute, node)
         @attribute = attribute
-        super(node)
+        super([node])
       end
 
       def detail
@@ -154,7 +146,7 @@ class ViewModel
       def initialize(association, target_type, node)
         @association = association
         @target_type = target_type
-        super(node)
+        super([node])
       end
 
       def detail
@@ -172,7 +164,7 @@ class ViewModel
 
       def initialize(expected_type, node)
         @expected_type = expected_type
-        super(node)
+        super([node])
       end
 
       def detail
@@ -197,10 +189,10 @@ class ViewModel
     class AssociatedNotFound < NotFound
       attr_reader :missing_nodes, :association
 
-      def initialize(association, missing_nodes, nodes)
+      def initialize(association, missing_nodes, blame_nodes)
         @association   = association
         @missing_nodes = Array.wrap(missing_nodes)
-        super(nodes)
+        super(blame_nodes)
       end
 
       def detail
@@ -245,7 +237,7 @@ class ViewModel
 
       def initialize(attribute, node)
         @attribute = attribute
-        super(node)
+        super([node])
       end
 
       def detail
@@ -269,7 +261,7 @@ class ViewModel
         @attribute     = attribute
         @expected_type = expected_type
         @provided_type = provided_type
-        super(node)
+        super([node])
       end
 
       def detail
@@ -295,7 +287,12 @@ class ViewModel
 
     class DatabaseConstraint < DeserializationError
       status 400
-      include WithDetail
+      attr_reader :detail
+
+      def initialize(detail, nodes = [])
+        @detail = detail
+        super(nodes)
+      end
     end
 
     class Validation < DeserializationError
@@ -306,7 +303,7 @@ class ViewModel
         @attribute = attribute
         @reason    = reason
         @details   = details
-        super(node)
+        super([node])
       end
 
       def detail
