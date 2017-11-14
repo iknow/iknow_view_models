@@ -47,7 +47,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
       after  = parse_relative_position(:after)
 
       if before && after
-        raise ViewModel::DeserializationError.new("Can not provide both `before` and `after` anchors for a collection append")
+        raise ViewModel::DeserializationError::InvalidSyntax.new("Can not provide both `before` and `after` anchors for a collection append")
       end
 
 
@@ -85,7 +85,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
         type_name = parse_param("#{name}_type")
         type = association_data.viewmodel_class_for_name(type_name)
         if type.nil?
-          raise ViewModel::DeserializationError.new("Invalid '#{name}_type' for association: #{type_name}")
+          raise ViewModel::DeserializationError::InvalidAssociationType.new(association_data.association_name.to_s, type_name)
         end
       else
         type = owner_viewmodel.viewmodel_class

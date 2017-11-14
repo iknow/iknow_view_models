@@ -147,7 +147,7 @@ class ViewModel
 
     # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
     def deserialize_from_view(hash_data, references: {}, deserialize_context: new_deserialize_context)
-      raise DeserializationError.new("Deserialization not defined for '#{self.name}'", self.blame_reference)
+      raise DeserializationError::ReadOnlyType.new(blame_reference)
     end
 
     def serialize_context_class
@@ -263,3 +263,5 @@ require 'view_model/reference'
 require 'view_model/serialize_context'
 require 'view_model/deserialize_context'
 require 'view_model/changes'
+require 'view_model/schemas'
+require 'view_model/error_view'

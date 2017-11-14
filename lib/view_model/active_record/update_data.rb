@@ -96,7 +96,7 @@ class ViewModel::ActiveRecord
         duplicate_vm_refs = vm_references(update_context).duplicates
         if duplicate_vm_refs.present?
           formatted_invalid_ids = duplicate_vm_refs.keys.map(&:to_s).join(', ')
-          raise ViewModel::DeserializationError.new("Duplicate functional update targets: [#{formatted_invalid_ids}]", blame)
+          raise ViewModel::DeserializationError::InvalidStructure.new("Duplicate functional update targets: [#{formatted_invalid_ids}]", blame)
         end
       end
     end
@@ -119,7 +119,7 @@ class ViewModel::ActiveRecord
           functional_update_type.new(functional_updates)
 
         else
-          raise ViewModel::DeserializationError.new(
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
                   "Could not parse non-array value for collection association '#{association_data}'",
                   blame_reference)
         end
@@ -142,7 +142,7 @@ class ViewModel::ActiveRecord
         when FunctionalUpdate::Update::NAME
           parse_update_action(action)
         else
-          raise ViewModel::DeserializationError(
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
                   "Unknown action type '#{type}'",
                   blame_reference)
         end
@@ -161,7 +161,10 @@ class ViewModel::ActiveRecord
           association_data.viewmodel_class_for_name(child_metadata.view_name)
 
         if child_viewmodel_class.nil?
-          raise_deserialization_error("Invalid target viewmodel type '#{child_metadata.view_name}' for association '#{association_data.target_reflection.name}'")
+          raise ViewModel::DeserializationError::InvalidAssociationType.new(
+                  association_data.association_name.to_s,
+                  child_metadata.view_name,
+                  blame_reference)
         end
 
         ViewModel::Reference.new(child_viewmodel_class, child_metadata.id)
@@ -182,7 +185,7 @@ class ViewModel::ActiveRecord
         end
 
         if before && after
-          raise ViewModel::DeserializationError.new(
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
                   "Append may not specify both 'after' and 'before'",
                   blame_reference)
         end
@@ -234,7 +237,7 @@ class ViewModel::ActiveRecord
         # Report it as soon as we detect it.
         invalid_entries = values.reject { |h| UpdateData.reference_only_hash?(h) }
         if invalid_entries.present?
-          raise ViewModel::DeserializationError.new(
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
                   "Removed entities must have only #{ViewModel::TYPE_ATTRIBUTE} and #{ViewModel::ID_ATTRIBUTE} fields. " \
                   "Invalid entries: #{invalid_entries}",
                   blame_reference)
@@ -316,7 +319,7 @@ class ViewModel::ActiveRecord
 
       def used_vm_refs(update_context)
         references.map do |ref|
-          update_context.resolve_reference(ref).viewmodel_reference
+          update_context.resolve_reference(ref, nil).viewmodel_reference
         end
       end
     end
@@ -342,7 +345,7 @@ class ViewModel::ActiveRecord
         invalid_entries = values.reject { |h| ref_hash?(h) }
 
         if invalid_entries.present?
-          raise ViewModel::DeserializationError.new(
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
             "Appended/Updated entities must be specified as '#{ViewModel::REFERENCE_ATTRIBUTE}' style hashes." \
             "Invalid entries: #{invalid_entries}",
             blame_reference)
@@ -351,9 +354,7 @@ class ViewModel::ActiveRecord
         values.map do |x|
           ref = ViewModel.extract_reference_metadata(x)
           unless valid_reference_keys.include?(ref)
-            raise ViewModel::DeserializationError.new(
-              "Could not parse unresolvable reference '#{ref}' for association '#{association_data.association_name}'",
-              blame_reference)
+            raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
           end
           ref
         end
@@ -511,7 +512,9 @@ class ViewModel::ActiveRecord
       valid_reference_keys = referenced_subtree_hashes.keys.to_set
 
       valid_reference_keys.each do |ref|
-        raise ViewModel::DeserializationError.new("Invalid reference string: #{ref}") unless ref.is_a?(String)
+        unless ref.is_a?(String)
+          raise ViewModel::DeserializationError::InvalidSyntax.new("Invalid reference string: #{ref}")
+        end
       end
 
       # Construct root UpdateData
@@ -543,7 +546,7 @@ class ViewModel::ActiveRecord
       # Ensure that no root is referred to more than once
       duplicates = arr.duplicates_by(&by)
       if duplicates.present?
-        raise ViewModel::DeserializationError.new("Duplicate #{type}(s) specified: '#{duplicates.keys.to_h}'")
+        raise ViewModel::DeserializationError::DuplicateNodes.new(type, duplicates.keys)
       end
     end
 
@@ -644,10 +647,10 @@ class ViewModel::ActiveRecord
         association_data.viewmodel_class_for_name(child_metadata.view_name)
 
       if child_viewmodel_class.nil?
-        raise ViewModel::DeserializationError.new(
-          "Invalid target viewmodel type '#{child_metadata.view_name}' " \
-          "for association '#{association_data.target_reflection.name}'",
-          blame_reference)
+        raise ViewModel::DeserializationError::InvalidAssociationType.new(
+                association_data.association_name.to_s,
+                child_metadata.view_name,
+                blame_reference)
       end
 
       verify_schema_version!(child_viewmodel_class, child_metadata.schema_version, child_metadata.id) if child_metadata.schema_version
@@ -683,7 +686,9 @@ class ViewModel::ActiveRecord
           case
           when value.nil?
             if association_data.collection?
-              raise_deserialization_error("Invalid collection update value 'nil' for association '#{name}'")
+              raise ViewModel::DeserializationError::InvalidSyntax.new(
+                      "Invalid collection update value 'nil' for association '#{name}'",
+                      blame_reference)
             end
             if association_data.shared?
               referenced_associations[name] = nil
@@ -702,7 +707,7 @@ class ViewModel::ActiveRecord
             ref = ViewModel.extract_reference_metadata(value)
 
             unless valid_reference_keys.include?(ref)
-              raise_deserialization_error("Could not parse unresolvable reference '#{ref}' for association '#{name}'")
+              raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
             end
 
             referenced_associations[name] = ref
@@ -723,7 +728,7 @@ class ViewModel::ActiveRecord
             end
           end
         else
-          raise_deserialization_error("Could not parse unknown attribute/association #{name.inspect} in viewmodel '#{viewmodel_class.view_name}'")
+          raise ViewModel::DeserializationError::UnknownAttribute.new(name, blame_reference)
         end
       end
     end
@@ -733,15 +738,11 @@ class ViewModel::ActiveRecord
       ViewModel::Reference.new(self.viewmodel_class, self.id)
     end
 
-    def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
-      raise error.new(msg, [blame_reference], *args)
-    end
-
     def self.verify_schema_version!(viewmodel_class, schema_version, id)
       unless viewmodel_class.accepts_schema_version?(schema_version)
-        raise ViewModel::DeserializationError::SchemaMismatch.new(
-                "Mismatched schema version for type #{viewmodel_class.view_name}, "\
-                "expected #{viewmodel_class.schema_version}, received #{schema_version}.",
+        raise ViewModel::DeserializationError::SchemaVersionMismatch.new(
+                viewmodel_class,
+                schema_version,
                 ViewModel::Reference.new(viewmodel_class, id))
       end
     end

@@ -1,20 +1,10 @@
-class ViewModel::AccessControlError < ViewModel::AbstractError
-  attr_reader :nodes
+class ViewModel::AccessControlError < ViewModel::AbstractErrorWithBlame
+  attr_reader :detail
+  status 403
+  code "AccessControl.Forbidden"
 
   def initialize(detail, nodes = [])
-    super(detail)
-    @nodes = Array.wrap(nodes)
-  end
-
-  def status
-    403
-  end
-
-  def metadata
-    blame_metadata(nodes)
-  end
-
-  def code
-    "AccessControl.Forbidden"
+    @detail = detail
+    super(nodes)
   end
 end

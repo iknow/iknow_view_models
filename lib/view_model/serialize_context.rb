@@ -34,6 +34,7 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
 
   def for_child(parent_viewmodel, association_name:, **rest)
     super(parent_viewmodel,
+          association_name: association_name,
           include: @include.try { |i| i[association_name] },
           prune:   @prune.try   { |p| p[association_name] },
           **rest)

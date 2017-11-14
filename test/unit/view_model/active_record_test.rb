@@ -111,7 +111,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       "id"    => 9999,
       "_new"  => true
     }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
       ParentView.deserialize_from_view(view)
     end
     assert_match(/not-null constraint/, ex.message)
@@ -125,10 +125,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       "id"    => 9999,
       "_new"  => true
     }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
       ParentView.deserialize_from_view(view)
     end
-    assert_match(/read only/, ex.message)
+    assert_match("one", ex.attribute)
     assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
   end
 
@@ -232,11 +232,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       {'_type' => 'Parent', 'id' => @parent1.id},
       {'_type' => 'Parent', 'id' => @parent1.id},
     ]
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
       ParentView.deserialize_from_view(view)
     end
-
-    assert_match(/Duplicate root/, ex.message)
   end
 
   def test_create_invalid_type
@@ -246,20 +244,18 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       define_viewmodel {}
     end
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ParentView.deserialize_from_view({ "target" => [] })
     end
     assert_match(/"_type" wasn't supplied/, ex.message)
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidViewType) do
       ParentView.deserialize_from_view({ "_type" => "Invalid" })
     end
-    assert_match(/incorrect root viewmodel type/, ex.message)
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::UnknownView) do
       ParentView.deserialize_from_view({ "_type" => "NotAViewmodelType" })
     end
-    assert_match(/ViewModel\b.*\bnot found/, ex.message)
   end
 
   def test_edit_attribute_from_view
@@ -271,19 +267,22 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_edit_attribute_validation_failure
     old_name = @parent1.name
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::Validation) do
       alter_by_view!(ParentView, @parent1) do |view, refs|
         view['name'] = 'invalid'
       end
     end
     assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
+    assert_equal(ex.attribute, "name")
+    assert_equal(ex.reason, "invalid due to matching test sentinel")
   end
 
   def test_edit_readonly_attribute
-    assert_raises(ViewModel::DeserializationError) do
-      alter_by_view!(ParentView, @parent1) do |view, refs|
+    assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
+      ex = alter_by_view!(ParentView, @parent1) do |view, refs|
         view['one'] = 2
       end
+      assert_equal("one", ex.attribute)
     end
   end
 
@@ -518,7 +517,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       l1 = List.create!(child: List.new)
       l2 = List.create!
 
-      ex = assert_raises(ViewModel::DeserializationError) do
+      ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
         alter_by_view!(ListView, l2) do |view, refs|
           view['child'] = { "_ref" => "r1" }
           refs["r1"] = { "_type" => "List", "id" => l1.child.id }

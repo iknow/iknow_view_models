@@ -166,7 +166,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       "_type" => "Parent",
       "children" => nil
     }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ParentView.deserialize_from_view(view)
     end
 
@@ -178,7 +178,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       "_type" => "Parent",
       "children" => { '_type' => 'Child', 'name' => 'c1' }
     }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ParentView.deserialize_from_view(view)
     end
 
@@ -491,13 +491,15 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     old_children = @parent1.children.order(:position)
     old_children_refs = old_children.map { |x| update_hash_for(ChildView, x) }
 
-    assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
       ParentView.deserialize_from_view(
         [{ '_type'    => 'Parent',
            'name'     => 'newp',
            'children' => old_children_refs },
          update_hash_for(ParentView, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
     end
+
+    assert_match(/Attempted to implicitly move a child/, ex.message)
   end
 
   def test_move_child_to_existing
@@ -739,7 +741,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                                       'before' => { '_type' => 'Child', 'id' => c2.id },
                                       'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
                                                    { '_type' => 'Child', 'name' => 'new c2' }] }] } }
-    assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       ParentView.deserialize_from_view(append_view)
     end
   end
@@ -789,7 +791,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                                       'after'  => { '_type' => 'Child', 'id' => c2.id },
                                       'values' => [{ '_type' => 'Child', 'name' => 'new c1' },
                                                    { '_type' => 'Child', 'name' => 'new c2' }] }] } }
-    assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       ParentView.deserialize_from_view(append_view)
     end
   end
@@ -819,7 +821,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                                                      'id'    => c_id,
                                                      'name'  => 'remove and update disallowed' }] }] } }
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ParentView.deserialize_from_view(remove_view)
     end
 
@@ -852,11 +854,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                               'actions' => [{ '_type'  => 'update',
                                               'values' => [{ '_type' => 'Child', 'id' => cnew }] }] } }
 
-    ex = assert_raises(ViewModel::DeserializationError::NotFound) do
+    assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       ParentView.deserialize_from_view(update_view)
     end
-
-    assert_match(/Stale functional update/, ex.message)
   end
 
   def test_functional_update_duplicate_refs
@@ -871,11 +871,11 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                                     { '_type'  => 'append',
                                       'values' => [{ '_type' => 'Child', 'id' => child_id }] }] } }
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
       ParentView.deserialize_from_view(update_view)
     end
 
-    assert_match(/Duplicate functional update targets\b.*\bChild\(\d+\)/, ex.message)
+    assert_match(/Duplicate functional update targets\b.*\bChild\b/, ex.message)
   end
 
 

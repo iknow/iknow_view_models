@@ -1,5 +1,3 @@
-require 'view_model/schemas'
-
 # Abstract ViewModel type for serializing a subset of attributes from a record.
 # A record viewmodel wraps a single underlying model, exposing a fixed set of
 # real or calculated attributes.
@@ -62,16 +60,14 @@ class ViewModel::Record < ViewModel
         metadata = ViewModel.extract_viewmodel_metadata(view_hash)
 
         unless self.view_name == metadata.view_name || self.view_aliases.include?(metadata.view_name)
-          raise ViewModel::DeserializationError.new(
-                  "Cannot deserialize type #{metadata.view_name}, expected #{[self.view_name, *self.view_aliases]}.",
+          raise ViewModel::DeserializationError::InvalidViewType.new(
+                  self.view_name,
                   ViewModel::Reference.new(self, metadata.id))
         end
 
         if metadata.schema_version && !self.accepts_schema_version?(metadata.schema_version)
-          raise ViewModel::DeserializationError::SchemaMismatch.new(
-                  "Mismatched schema version for type #{self.view_name}, "\
-                  "expected #{self.schema_version}, received #{metadata.schema_version}.",
-                  ViewModel::Reference.new(self, metadata.id))
+          raise ViewModel::DeserializationError::SchemaVersionMismatch.new(
+                  self, version, ViewModel::Reference.new(self, metadata.id))
         end
 
         viewmodel = resolve_viewmodel(metadata, view_hash, deserialize_context: deserialize_context)
@@ -88,8 +84,10 @@ class ViewModel::Record < ViewModel
       deserialize_context.visible!(viewmodel)
 
       if (bad_attrs = view_hash.keys - self.member_names).present?
-        raise ViewModel::DeserializationError.new("Illegal attribute(s) #{bad_attrs.inspect} for viewmodel #{self.view_name}",
-                                                  viewmodel.blame_reference)
+        causes = bad_attrs.map do |bad_attr|
+          ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
+        end
+        raise ViewModel::DeserializationError::Collection.for_errors(causes)
       end
 
       initial_editability = deserialize_context.initial_editability(viewmodel)
@@ -192,10 +190,7 @@ class ViewModel::Record < ViewModel
   # DeserializationError::Validation if invalid.
   def validate!
     if model_class < ActiveModel::Validations && !model.valid?
-      raise ViewModel::DeserializationError::Validation.new(
-              "Validation failed: " + model.errors.full_messages.join(", "),
-              self.blame_reference,
-              model.errors.messages)
+      raise ViewModel::DeserializationError::Validation.from_active_model(model.errors, self.blame_reference)
     end
   end
 
@@ -271,7 +266,7 @@ class ViewModel::Record < ViewModel
 
     if attr_data.using_viewmodel? && !serialized_value.nil?
       vm_type = attr_data.attribute_viewmodel
-      ctx = deserialize_context.for_child(self)
+      ctx = deserialize_context.for_child(self, association_name: attr.to_s)
       if attr_data.array?
         expect_type!(attr, Array, serialized_value)
         value = serialized_value.map { |v| vm_type.deserialize_from_view(v, references: references, deserialize_context: ctx) }
@@ -285,7 +280,7 @@ class ViewModel::Record < ViewModel
     # Detect changes with ==. In the case of `using_viewmodel?`, this compares viewmodels or arrays of viewmodels.
     if value != self.public_send(attr)
       if attr_data.read_only? && !(attr_data.write_once? && new_model?)
-        raise ViewModel::DeserializationError.new("Cannot edit read only attribute: #{attr}", self.blame_reference)
+        raise ViewModel::DeserializationError::ReadOnlyAttribute.new(attr.to_s, blame_reference)
       end
 
       attribute_changed!(attr)
@@ -307,7 +302,10 @@ class ViewModel::Record < ViewModel
   # DeserializationError unless the serialized value is of the provided type.
   def expect_type!(attribute, type, serialized_value)
     unless serialized_value.is_a?(type)
-      raise DeserializationError.new("Expected '#{attribute}' to be '#{type.name}', was '#{serialized_value.class}'", blame_reference)
+      raise ViewModel::DeserializationError::InvalidAttributeType.new(attribute.to_s,
+                                                                      type.name,
+                                                                      serialized_value.class.name,
+                                                                      blame_reference)
     end
   end
 end

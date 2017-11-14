@@ -50,11 +50,11 @@ class ViewModel::ActiveRecord
 
     # Evaluate a built update tree, applying and saving changes to the models.
     def run!(deserialize_context:)
-      raise "Not yet built!" unless built? # TODO
+      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation run before build") unless built?
 
       case @run_state
       when RunState::Running
-        raise "Cycle! Bad!" # TODO
+        raise ViewModel::DeserializationError::Internal.new("Internal error: Cycle found in running UpdateOperation")
       when RunState::Run
         return viewmodel
       end
@@ -94,7 +94,8 @@ class ViewModel::ActiveRecord
         valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
         bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
         if bad_keys.present?
-          raise_deserialization_error("Illegal attribute/association(s) #{bad_keys.inspect} for viewmodel #{viewmodel.class.view_name}")
+          causes = bad_keys.map { |k| ViewModel::DeserializationError::UnknownAttribute.new(k, blame_reference) }
+          raise ViewModel::DeserializationError::Collection.for_errors(causes)
         end
 
         attributes.each do |attr_name, serialized_value|
@@ -115,7 +116,8 @@ class ViewModel::ActiveRecord
 
           association = model.association(reflection.name)
           child_model = if child_operation
-                          child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
+                          ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+                          child_operation.run!(deserialize_context: ctx).model
                         else
                           nil
                         end
@@ -150,9 +152,9 @@ class ViewModel::ActiveRecord
         begin
           model.save!
         rescue ::ActiveRecord::RecordInvalid => ex
-          raise_deserialization_error(ex.message, model.errors.messages, error: ViewModel::DeserializationError::Validation)
+          raise ViewModel::DeserializationError::Validation.from_active_model(ex.errors, blame_reference)
         rescue ::ActiveRecord::StaleObjectError => ex
-          raise_deserialization_error(ex.message, error: ViewModel::DeserializationError::LockFailure)
+          raise ViewModel::DeserializationError::LockFailure.new(blame_reference)
         end
         debug "<- #{debug_name}: Saved"
 
@@ -166,14 +168,16 @@ class ViewModel::ActiveRecord
           debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
 
           association = model.association(reflection.name)
+          child_ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+
           new_target =
             case child_operation
             when nil
               nil
             when ViewModel::ActiveRecord::UpdateOperation
-              child_operation.run!(deserialize_context: deserialize_context.for_child(viewmodel)).model
+              child_operation.run!(deserialize_context: child_ctx).model
             when Array
-              viewmodels = child_operation.map { |op| op.run!(deserialize_context: deserialize_context.for_child(viewmodel)) }
+              viewmodels = child_operation.map { |op| op.run!(deserialize_context: child_ctx) }
               viewmodels.map(&:model)
             end
 
@@ -187,7 +191,7 @@ class ViewModel::ActiveRecord
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          child_context = deserialize_context.for_child(viewmodel)
+          child_context = deserialize_context.for_child(viewmodel, association_name: nil)
           child_vm = released_child.viewmodel
           child_context.visible!(child_vm)
           initial_editability = child_context.initial_editability(child_vm)
@@ -203,12 +207,12 @@ class ViewModel::ActiveRecord
       @run_state = RunState::Run
       viewmodel
     rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => ex
-      raise_deserialization_error(ex.message)
+      raise ViewModel::DeserializationError::DatabaseConstraint.new(ex.message, blame_reference)
     end
 
     # Recursively builds UpdateOperations for the associations in our UpdateData
     def build!(update_context)
-      raise "Cannot build deferred update" if deferred? # TODO
+      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation cannot build a deferred update") if deferred?
       return self if built?
 
       update_data.associations.each do |association_name, association_update_data|
@@ -264,12 +268,14 @@ class ViewModel::ActiveRecord
         referred_update    = nil
         referred_viewmodel = nil
       else
-        referred_update    = update_context.resolve_reference(reference_string)
+        referred_update    = update_context.resolve_reference(reference_string, blame_reference)
         referred_viewmodel = referred_update.viewmodel
 
         unless association_data.accepts?(referred_viewmodel.class)
-          raise_deserialization_error("Type error: association '#{association_data.direct_reflection.name}'"\
-                                      " can't refer to #{referred_viewmodel.class}")
+          raise ViewModel::DeserializationError::InvalidAssociationType.new(
+            association_data.association_name.to_s,
+            referred_viewmodel.class.view_name,
+            blame_reference)
         end
 
         referred_update.build!(update_context)
@@ -440,9 +446,8 @@ class ViewModel::ActiveRecord
                 ref         = fupdate.before || fupdate.after
                 index       = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
                 unless index
-                  raise ViewModel::DeserializationError::NotFound.new(
-                    "Attempted to insert relative to reference that does not exist #{ref}",
-                    [ref])
+                  raise ViewModel::DeserializationError::AssociatedNotFound.new(
+                    association_data.association_name.to_s, ref, blame_reference)
                 end
 
                 index += 1 if fupdate.after
@@ -468,13 +473,13 @@ class ViewModel::ActiveRecord
 
               # Assertion that all values in update_op.values are present in the collection
               unless new_datas.empty?
-                raise_deserialization_error(
-                  "Stale functional update for association '#{association_data.direct_reflection.name}' - "\
-                  "could not match referenced viewmodels: [#{new_datas.keys.map(&:to_s).join(', ')}]",
-                  error: ViewModel::DeserializationError::NotFound)
+                raise ViewModel::DeserializationError::AssociatedNotFound.new(
+                  association_data.association_name.to_s, new_datas.keys, blame_reference)
               end
             else
-              raise_deserialization_error("Unknown functional update type: '#{fupdate.type}'")
+              raise ViewModel::DeserializationError::InvalidSyntax.new(
+                "Unknown functional update type: '#{fupdate.type}'",
+                blame_reference)
             end
           end
 
@@ -549,13 +554,14 @@ class ViewModel::ActiveRecord
     # update operation. Elements removed from the collection are collected as
     # `orphaned_members`."
     class MutableReferencedCollection
-      attr_reader :members, :orphaned_members
+      attr_reader :members, :orphaned_members, :blame_reference
 
-      def initialize(association_data, update_context, members)
+      def initialize(association_data, update_context, members, blame_reference)
         @association_data = association_data
         @update_context   = update_context
-
         @members          = members.dup
+        @blame_reference  = blame_reference
+
         @orphaned_members = []
 
         @free_members_by_indirect_ref = @members.index_by(&:indirect_viewmodel_reference)
@@ -608,9 +614,8 @@ class ViewModel::ActiveRecord
         index = members.find_index { |m| m.indirect_viewmodel_reference == relative_vm_ref }
 
         unless index
-          raise ViewModel::DeserializationError::NotFound.new(
-            "Attempted to insert relative to reference that does not exist #{relative_vm_ref}",
-            [relative_vm_ref])
+          raise ViewModel::DeserializationError::AssociatedNotFound.new(
+            association_data.association_name.to_s, relative_vm_ref, blame_reference)
         end
 
         members.insert(index + offset, *new_members)
@@ -619,7 +624,7 @@ class ViewModel::ActiveRecord
       # Reclaim existing members corresponding to the specified references, or create new ones if not found.
       def claim_or_create_references(references)
         references.map do |ref_string|
-          indirect_vm_ref = update_context.resolve_reference(ref_string).viewmodel_reference
+          indirect_vm_ref = update_context.resolve_reference(ref_string, blame_reference).viewmodel_reference
           claim_or_create_member(indirect_vm_ref, ref_string)
         end
       end
@@ -636,7 +641,7 @@ class ViewModel::ActiveRecord
       # Reclaim existing members corresponding to the specified references or raise if not found.
       def claim_existing_references(references)
         references.each do |ref_string|
-          indirect_vm_ref = update_context.resolve_reference(ref_string).viewmodel_reference
+          indirect_vm_ref = update_context.resolve_reference(ref_string, blame_reference).viewmodel_reference
           claim_existing_member(indirect_vm_ref, ref_string)
         end
       end
@@ -644,9 +649,8 @@ class ViewModel::ActiveRecord
       # Claim an existing collection member for the update and optionally set its ref.
       def claim_existing_member(indirect_vm_ref, ref_string = nil)
         member = free_members_by_indirect_ref.delete(indirect_vm_ref) do
-          raise ViewModel::DeserializationError::NotFound.new(
-            "Stale functional update for association '#{association_data.direct_reflection.name}' - "\
-                  "could not match referenced viewmodel: '#{indirect_vm_ref}'")
+          raise ViewModel::DeserializationError::AssociatedNotFound.new(
+            association_data.association_name.to_s, indirect_vm_ref, blame_reference)
         end
         member.ref_string = ref_string if ref_string
         member
@@ -688,7 +692,7 @@ class ViewModel::ActiveRecord
       end
 
       target_collection = MutableReferencedCollection.new(
-        association_data, update_context, previous_members)
+        association_data, update_context, previous_members, blame_reference)
 
       # All updates to shared collections produce a complete target list of
       # ReferencedCollectionMembers including a ViewModel::Reference to the
@@ -738,7 +742,7 @@ class ViewModel::ActiveRecord
         end
 
       else
-        raise_deserialization_error("Unknown association_update type '#{association_update.class.name}'")
+        raise ViewModel::DeserializationError::InvalidSyntax.new("Unknown association_update type '#{association_update.class.name}'", blame_reference)
       end
 
       # We should now have an updated list of `target_collection_members`, each
@@ -791,8 +795,8 @@ class ViewModel::ActiveRecord
       end
     end
 
-    def raise_deserialization_error(msg, *args, error: ViewModel::DeserializationError)
-      raise error.new(msg, self.viewmodel.blame_reference, *args)
+    def blame_reference
+      self.viewmodel.blame_reference
     end
 
     def debug(msg)

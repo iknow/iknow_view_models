@@ -184,10 +184,10 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
       it "rejects unknown attributes" do
         view = default_view.merge("unknown" => "illegal")
-        ex = assert_raises(ViewModel::DeserializationError) do
+        ex = assert_raises(ViewModel::DeserializationError::UnknownAttribute) do
           viewmodel_class.deserialize_from_view(view, deserialize_context: create_context)
         end
-        assert_match(/Illegal attribute/, ex.message)
+        assert_equal("unknown", ex.attribute)
       end
 
       it "can prune an attribute" do
@@ -209,9 +209,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         ->(x) do
           def validate!
             if validated == "naughty"
-              raise ViewModel::DeserializationError::Validation.new(
-                      "Validation failed: validated was naughty",
-                      self.blame_reference)
+              raise ViewModel::DeserializationError::Validation.new("validated", "was naughty", nil, self.blame_reference)
             end
           end
         end
@@ -227,8 +225,8 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         ex = assert_raises(ViewModel::DeserializationError::Validation) do
           viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
         end
-
-        assert_match(/Validation failed: validated was naughty/, ex.message)
+        assert_equal("validated", ex.attribute)
+        assert_equal("was naughty", ex.reason)
       end
     end
 
@@ -247,19 +245,18 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
 
       it "rejects deserialize from new" do
-        ex = assert_raises(ViewModel::DeserializationError) do
+        ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
           viewmodel_class.deserialize_from_view(default_view, deserialize_context: create_context)
         end
-        assert_match(/Cannot edit read only/, ex.message)
+        assert_equal("read_only", ex.attribute)
       end
 
       it "rejects update if changed" do
         new_view = default_view.merge("read_only" => "written")
-        ex = assert_raises(ViewModel::DeserializationError) do
+        ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
           viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
         end
-
-        assert_match(/Cannot edit read only/, ex.message)
+        assert_equal("read_only", ex.attribute)
       end
     end
 
@@ -281,11 +278,10 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
       it "rejects change to attribute" do
         new_view = default_view.merge("write_once" => "written")
-        ex = assert_raises(ViewModel::DeserializationError) do
+        ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
           viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
         end
-
-        assert_match(/Cannot edit read only/, ex.message)
+        assert_equal("write_once", ex.attribute)
       end
     end
 
@@ -427,11 +423,12 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
       it "rejects change to attribute" do
         new_view = default_view.merge("nested" => "terrible")
-        ex = assert_raises(ViewModel::DeserializationError) do
+        ex = assert_raises(ViewModel::DeserializationError::InvalidAttributeType) do
           viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
         end
-
-        assert_match(/Expected 'nested' to be 'Array'/, ex.message)
+        assert_equal("nested", ex.attribute)
+        assert_equal("Array",  ex.expected_type)
+        assert_equal("String", ex.provided_type)
       end
 
       it "can edit a nested value" do

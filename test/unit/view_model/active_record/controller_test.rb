@@ -119,10 +119,14 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller.invoke(:show)
 
     assert_equal(404, parentcontroller.status)
-    assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
-                                  'code'   => "Deserialization.NotFound",
-                                  'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]}}]},
+    assert_equal({ 'error' => {
+                     ViewModel::TYPE_ATTRIBUTE => ViewModel::ErrorView.view_name,
+                     ViewModel::VERSION_ATTRIBUTE => ViewModel::ErrorView.schema_version,
+                     'status' => 404,
+                     'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
+                     'title' => nil,
+                     'code'   => "DeserializationError.NotFound",
+                     'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]}}},
                  parentcontroller.hash_response)
   end
 
@@ -134,11 +138,17 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(data: data)
     parentcontroller.invoke(:create)
 
-    assert_equal({ 'errors' => [{ 'status' => 400,
-                                  'detail' => 'Validation failed: Age must be less than 42',
-                                  'code'   => "Deserialization.Validation",
-                                  'meta' => { 'nodes' => [{ '_type' => "Child", 'id' => nil }],
-                                              'validation_errors' => { 'age' => ["must be less than 42"]}}}] },
+    assert_equal({ 'error' => {
+                     ViewModel::TYPE_ATTRIBUTE => ViewModel::ErrorView.view_name,
+                     ViewModel::VERSION_ATTRIBUTE => ViewModel::ErrorView.schema_version,
+                     'status' => 400,
+                     'detail' => 'Validation failed: \'age\' must be less than 42',
+                     'title' => nil,
+                     'code'   => "DeserializationError.Validation",
+                     'meta' => { 'nodes' => [{ '_type' => "Child", 'id' => nil }],
+                                 'attribute' => 'age',
+                                 'message' => 'must be less than 42',
+                                 'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 }}}},
                  parentcontroller.hash_response)
   end
 
@@ -151,7 +161,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(400, parentcontroller.status)
     assert_match(%r{check constraint}i,
-                 parentcontroller.hash_response["errors"].first["detail"],
+                 parentcontroller.hash_response["error"]["detail"],
                  "Database error propagated")
   end
 
@@ -159,10 +169,14 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(id: 9999)
     parentcontroller.invoke(:destroy)
 
-    assert_equal({ 'errors' => [{ 'status' => 404,
-                                  'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
-                                  'code'   => "Deserialization.NotFound",
-                                  'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}}] },
+    assert_equal({ 'error' => {
+                     ViewModel::TYPE_ATTRIBUTE => ViewModel::ErrorView.view_name,
+                     ViewModel::VERSION_ATTRIBUTE => ViewModel::ErrorView.schema_version,
+                     'status' => 404,
+                     'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
+                     'title' => nil,
+                     'code'   => "DeserializationError.NotFound",
+                     'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}} },
                  parentcontroller.hash_response)
     assert_equal(404, parentcontroller.status)
   end

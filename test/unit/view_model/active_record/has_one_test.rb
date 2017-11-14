@@ -196,12 +196,12 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     # p2 shouldn't be able to copy p1's target, because attempting to take t1
     # from outside the tree will create an new update operation for it, which
     # will conflict with the one already present in p1.
-    ex = assert_raises(ViewModel::DeserializationError) do
+    # (Test "explicit -> explicit")
+    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
       alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
         p2['target'] = p1['target'].dup
       end
     end
-    assert_match(/Not a valid type transition: explicit -> explicit/, ex.message)
   end
 
   def test_has_one_cannot_duplicate_implicitly_from_outside_tree
@@ -209,25 +209,26 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     # specify it, because attempting to take t1 from outside the tree will
     # create an new update operation for its old parent (p1), which will
     # conflict with the p1 update.
-    ex = assert_raises(ViewModel::DeserializationError) do
+    # (Test "explicit -> implicit")
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
       alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
         p2['target'] = p1['target']
         p1.delete('target')
       end
     end
-    assert_match(/Not a valid type transition: explicit -> implicit/, ex.message)
+    assert_match(/Attempted to implicitly move a child view/, ex.message)
   end
 
   def test_has_one_cannot_take_twice_from_outside_tree
+    # (Test "explicit -> explicit")
     t3 = Parent.create(target: Target.new(text: 'hi')).target
 
-    ex = assert_raises(ViewModel::DeserializationError) do
+    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
       alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
         p1['target'] = update_hash_for(TargetView, t3)
         p2['target'] = update_hash_for(TargetView, t3)
       end
     end
-    assert_match(/Not a valid type transition: explicit -> explicit/, ex.message)
   end
 
   def test_has_one_take_unparented_from_outside_tree
@@ -243,7 +244,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
       "_type" => "Parent",
       "target" => []
     }
-    ex = assert_raises(ViewModel::DeserializationError) do
+    ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ParentView.deserialize_from_view(view)
     end
     assert_match(/not an object/, ex.message)

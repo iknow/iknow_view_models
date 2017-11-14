@@ -29,22 +29,25 @@ class ViewModel::TraversalContext
     @shared_context   = shared_context || self.class.shared_context_class.new(**shared_context_params)
     @parent_context   = nil
     @parent_viewmodel = nil
+    @parent_association = nil
   end
 
   # Overloaded constructor for initialization of descendent node contexts.
   # Shared context is the same, ancestry is established, and subclasses can
   # override to maintain other node-specific state.
-  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:)
+  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:, parent_association:)
     super()
     @shared_context = shared_context
     @parent_context = parent_context
     @parent_viewmodel = parent_viewmodel
+    @parent_association = parent_association
   end
 
-  def for_child(parent_viewmodel, **rest)
+  def for_child(parent_viewmodel, association_name:, **rest)
     self.class.new_child(shared_context: shared_context,
                          parent_context: self,
                          parent_viewmodel: parent_viewmodel,
+                         parent_association: association_name,
                          **rest)
   end
 
@@ -61,6 +64,14 @@ class ViewModel::TraversalContext
       @parent_viewmodel
     else
       parent_context(idx - 1)&.parent_viewmodel
+    end
+  end
+
+  def parent_association(idx = 0)
+    if idx == 0
+      @parent_association
+    else
+      parent_context(idx - 1)&.parent_association
     end
   end
 
