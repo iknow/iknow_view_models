@@ -64,7 +64,10 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
 
     def create_policy(view_name)
       policy = Class.new(Node)
-      const_set(:"#{view_name}Policy", policy)
+      # View names are not necessarily rails constants, but we want
+      # `const_set` them so they show up in stack traces.
+      mangled_name = view_name.gsub(".", "_")
+      const_set(:"#{mangled_name}Policy", policy)
       view_policies[view_name] = policy
       policy.include_from(self::AlwaysPolicy)
       @env_vars.each { |field| policy.add_to_env(field) }

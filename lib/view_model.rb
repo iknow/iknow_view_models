@@ -35,7 +35,7 @@ class ViewModel
           # try to auto-detect based on class name
           match = /(.*)View$/.match(self.name)
           raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
-          match[1]
+          ViewModel::Registry.default_view_name(match[1])
         end
     end
 

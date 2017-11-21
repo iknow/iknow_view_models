@@ -119,7 +119,8 @@ class ViewModel::Record < ViewModel
     def model_class
       unless instance_variable_defined?(:@model_class)
         # try to auto-detect the model class based on our name
-        self.model_class_name = self.view_name
+        self.model_class_name =
+          ViewModel::Registry.infer_model_class_name(self.view_name)
       end
 
       @model_class
@@ -133,8 +134,14 @@ class ViewModel::Record < ViewModel
 
     # Set the record type to be wrapped by this viewmodel
     def model_class_name=(name)
-      type = name.to_s.camelize.safe_constantize
-      raise ArgumentError.new("Could not find model class '#{name}'") if type.nil?
+      name = name.to_s
+
+      type = name.safe_constantize
+
+      if type.nil?
+        raise ArgumentError.new("Could not find model class with name '#{name}'")
+      end
+
       self.model_class = type
     end
 

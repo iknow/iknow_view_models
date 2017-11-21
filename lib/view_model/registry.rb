@@ -4,7 +4,8 @@ class ViewModel::Registry
   DEFERRED_NAME = Object.new
 
   class << self
-    delegate :for_view_name, :register, to: :instance
+    delegate :for_view_name, :register, :default_view_name, :infer_model_class_name,
+             to: :instance
   end
 
   def initialize
@@ -36,5 +37,13 @@ class ViewModel::Registry
 
   def register(viewmodel, as: DEFERRED_NAME)
     @deferred_viewmodel_classes << [viewmodel, as]
+  end
+
+  def default_view_name(model_class_name)
+    model_class_name.gsub('::', '.')
+  end
+
+  def infer_model_class_name(view_name)
+    view_name.gsub('.', '::')
   end
 end
