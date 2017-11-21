@@ -1,5 +1,5 @@
 class ViewModel::TestHelpers::ARVMBuilder
-  attr_reader :name, :model, :viewmodel
+  attr_reader :name, :model, :viewmodel, :namespace
 
   # Building an ARVM requires three blocks, to define schema, model and
   # viewmodel. Support providing these either in an spec argument or as a
@@ -30,9 +30,10 @@ class ViewModel::TestHelpers::ARVMBuilder
     end
   end
 
-  def initialize(name, model_base: ApplicationRecord, viewmodel_base: ViewModelBase, spec: nil, &block)
+  def initialize(name, model_base: ApplicationRecord, viewmodel_base: ViewModelBase, namespace: Object, spec: nil, &block)
     @model_base = model_base
     @viewmodel_base = viewmodel_base
+    @namespace = namespace
     @name = name.to_s.camelize
     @no_viewmodel = false
 
@@ -56,8 +57,8 @@ class ViewModel::TestHelpers::ARVMBuilder
 
   def teardown
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{name.underscore.pluralize} CASCADE")
-    Object.send(:remove_const, name)
-    Object.send(:remove_const, viewmodel_name) if viewmodel
+    namespace.send(:remove_const, name)
+    namespace.send(:remove_const, viewmodel_name) if viewmodel
     # prevent cached old class from being used to resolve associations
     ActiveSupport::Dependencies::Reference.clear!
   end
@@ -79,9 +80,10 @@ class ViewModel::TestHelpers::ARVMBuilder
 
   def define_model(&block)
     model_name = name
+    _namespace = namespace
     @model = Class.new(@model_base) do |c|
-      raise "Model already defined: #{model_name}" if Object.const_defined?(model_name, false)
-      Object.const_set(model_name, self)
+      raise "Model already defined: #{model_name}" if _namespace.const_defined?(model_name, false)
+      _namespace.const_set(model_name, self)
       class_eval(&block)
       reset_column_information
     end
@@ -90,9 +92,10 @@ class ViewModel::TestHelpers::ARVMBuilder
 
   def define_viewmodel(&block)
     vm_name = viewmodel_name
+    _namespace = namespace
     @viewmodel = Class.new(@viewmodel_base) do |c|
-      raise "Viewmodel alreay defined: #{vm_name}" if Object.const_defined?(vm_name, false)
-      Object.const_set(vm_name, self)
+      raise "Viewmodel alreay defined: #{vm_name}" if _namespace.const_defined?(vm_name, false)
+      _namespace.const_set(vm_name, self)
       class_eval(&block)
     end
     raise "help help" if @viewmodel.name.nil?

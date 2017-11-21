@@ -9,48 +9,8 @@ require "view_model/active_record"
 class ViewModel::AccessControlTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  module Assertions
-    def assert_serializes(vm, model, serialize_context: vm.new_serialize_context)
-      h = vm.new(model).to_hash(serialize_context: serialize_context)
-      assert_kind_of(Hash, h)
-    end
-
-    def refute_serializes(vm, model, message = nil, serialize_context: vm.new_serialize_context)
-      ex = assert_raises(ViewModel::AccessControlError) do
-        vm.new(model).to_hash(serialize_context: serialize_context)
-      end
-      assert_match(message, ex.message) if message
-      ex
-    end
-
-    def assert_deserializes(vm, model,
-                            deserialize_context: vm.new_deserialize_context,
-                            serialize_context: vm.new_serialize_context,
-                            &block)
-      alter_by_view!(vm, model,
-                     deserialize_context: deserialize_context,
-                     serialize_context: serialize_context,
-                     &block)
-    end
-
-    def refute_deserializes(vm, model, message = nil,
-                            deserialize_context: vm.new_deserialize_context,
-                            serialize_context: vm.new_serialize_context,
-                            &block)
-      ex = assert_raises(ViewModel::AccessControlError) do
-        alter_by_view!(vm, model,
-                       deserialize_context: deserialize_context,
-                       serialize_context: serialize_context,
-                       &block)
-      end
-      assert_match(message, ex.message) if message
-      ex
-    end
-  end
-
   class ComposedTest < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include Assertions
 
     def before_all
       super
@@ -227,7 +187,6 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
   class TreeTest < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include Assertions
 
     def before_all
       super

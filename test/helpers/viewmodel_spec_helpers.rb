@@ -19,6 +19,10 @@ module ViewModelSpecHelpers
       end
     end
 
+    def namespace
+      Object
+    end
+
     def model_class
       viewmodel_class.model_class
     end
@@ -28,11 +32,11 @@ module ViewModelSpecHelpers
     end
 
     def viewmodel_class
-      @viewmodel_class ||= define_viewmodel_class(:Model, spec: model_attributes)
+      @viewmodel_class ||= define_viewmodel_class(:Model, spec: model_attributes, namespace: namespace)
     end
 
     def child_viewmodel_class
-      @child_viewmodel_class ||= define_viewmodel_class(:Child, spec: child_attributes)
+      @child_viewmodel_class ||= define_viewmodel_class(:Child, spec: child_attributes, namespace: namespace)
     end
 
     def create_viewmodel!

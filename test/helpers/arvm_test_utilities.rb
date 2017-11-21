@@ -47,7 +47,7 @@ module ARVMTestUtilities
   # Construct an update hash that references an existing model. Does not include
   # any of the model's attributes or association.
   def update_hash_for(viewmodel_class, model)
-    refhash = {'_type' => viewmodel_class.view_name, 'id' => model.id}
+    refhash = { '_type' => viewmodel_class.view_name, 'id' => model.id }
     yield(refhash) if block_given?
     refhash
   end
@@ -91,6 +91,40 @@ module ARVMTestUtilities
     end
   end
 
+  def assert_serializes(vm, model, serialize_context: vm.new_serialize_context)
+    h = vm.new(model).to_hash(serialize_context: serialize_context)
+    assert_kind_of(Hash, h)
+  end
 
+  def refute_serializes(vm, model, message = nil, serialize_context: vm.new_serialize_context)
+    ex = assert_raises(ViewModel::AccessControlError) do
+      vm.new(model).to_hash(serialize_context: serialize_context)
+    end
+    assert_match(message, ex.message) if message
+    ex
+  end
 
+  def assert_deserializes(vm, model,
+                          deserialize_context: vm.new_deserialize_context,
+                          serialize_context: vm.new_serialize_context,
+                          &block)
+    alter_by_view!(vm, model,
+                   deserialize_context: deserialize_context,
+                   serialize_context:   serialize_context,
+                   &block)
+  end
+
+  def refute_deserializes(vm, model, message = nil,
+                          deserialize_context: vm.new_deserialize_context,
+                          serialize_context: vm.new_serialize_context,
+                          &block)
+    ex = assert_raises(ViewModel::AccessControlError) do
+      alter_by_view!(vm, model,
+                     deserialize_context: deserialize_context,
+                     serialize_context:   serialize_context,
+                     &block)
+    end
+    assert_match(message, ex.message) if message
+    ex
+  end
 end

@@ -50,7 +50,8 @@ class ViewModel::ActiveRecord::AssociationData
         if model_class.nil?
           raise "Couldn't derive target class for association '#{target_reflection.name}"
         end
-        viewmodel_class = ViewModel::Registry.for_view_name(model_class.name) # TODO: improve error message to show it's looking for default name
+        inferred_view_name = ViewModel::Registry.default_view_name(model_class.name)
+        viewmodel_class = ViewModel::Registry.for_view_name(inferred_view_name) # TODO: improve error message to show it's looking for default name
         [viewmodel_class]
       end
   end
