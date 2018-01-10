@@ -21,11 +21,14 @@ class ViewModel::ActiveRecord::NamespacingTest < ActiveSupport::TestCase
   end
 
   def model_attributes
-    super.merge(
-      model: ->(m) {
+    parent_attrs = super
+
+    ViewModel::TestHelpers::ARVMBuilder::Spec.new(
+      schema:    parent_attrs.schema,
+      viewmodel: parent_attrs.viewmodel,
+      model:     ->(_) {
         has_one :child, inverse_of: :model, class_name: "NSTest::Child", dependent: :destroy
-      }
-    )
+      })
   end
 
   describe 'inference' do
