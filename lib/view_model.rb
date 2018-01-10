@@ -122,6 +122,7 @@ class ViewModel
           serialize(elt, json, serialize_context: serialize_context)
         end
       when Hash, Struct
+        json.merge!({})
         target.each_pair do |key, value|
           json.set! key do
             serialize(value, json, serialize_context: serialize_context)
