@@ -9,7 +9,7 @@ end
 
 class TestViewModel < ViewModel
   attributes :val
-  def serialize_view(json, **options)
+  def serialize_view(json, **_options)
     json.name val
   end
 end
@@ -37,6 +37,12 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     s = DefaultViewModel.new("a", { "x" => "y" })
     assert_equal(DefaultViewModel.serialize_to_hash(s),
                  { "foo" => "a", "bar" => { "x" => "y" } })
+  end
+
+  def test_default_serialize_empty_hash
+    s = DefaultViewModel.new("a", {})
+    assert_equal(DefaultViewModel.serialize_to_hash(s),
+                 { "foo" => "a", "bar" => {} })
   end
 
   def test_default_serialize_viewmodel
