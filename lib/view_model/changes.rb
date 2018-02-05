@@ -20,6 +20,11 @@ class ViewModel::Changes
       changed_attributes.all? { |attr| attributes.include?(attr.to_s) }
   end
 
+  def changed_any?(associations: [], attributes: [])
+    associations.any? { |assoc| changed_associations.include?(assoc.to_s) } ||
+      attributes.any? { |attr| changed_attributes.include?(attr.to_s) }
+  end
+
   def ==(other)
     return false unless other.is_a?(ViewModel::Changes)
 
