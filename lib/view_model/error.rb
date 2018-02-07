@@ -152,6 +152,26 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
   end
 end
 
+# Error type to wrap an arbitrary exception as a renderable ViewModel::AbstractError
+class ViewModel::WrappedExceptionError < ViewModel::AbstractError
+  attr_reader :exception, :status
+
+  def initialize(exception, status, code)
+    @exception = exception
+    @status    = status
+    @code      = code
+    super()
+  end
+
+  def detail
+    exception.message
+  end
+
+  def code
+    @code || "Exception.#{exception.class.name}"
+  end
+end
+
 # Implementation of ViewModel::AbstractError with constructor parameters for
 # each error data field.
 class ViewModel::Error < ViewModel::AbstractError
