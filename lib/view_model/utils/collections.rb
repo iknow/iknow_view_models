@@ -39,32 +39,6 @@ class ViewModel::Utils
       def duplicates
         duplicates_by { |x| x }
       end
-
-      def map_values!
-        self.keys.each do |k|
-          self[k] = yield(self[k])
-        end
-        self
-      end
-
-      def map_values(&block)
-        dup.map_values!(&block)
-      end
-
-      def map_keys!
-        self.keys.each do |k|
-          value = self.delete(k)
-          new_key = yield(k)
-          self[new_key] = value
-        end
-        self
-      end
-
-      def map_keys(&block)
-        each_with_object({}) do |(k, v), new|
-          new[yield(k)] = v
-        end
-      end
     end
   end
 end
