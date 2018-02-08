@@ -2,10 +2,11 @@
 
 source "https://rubygems.org"
 
-gem "activesupport", "~> 5.0.0"
 gem "activerecord", "~> 5.0.0"
-gem "acts_as_manual_list", :git => "https://github.com/iknow/acts_as_manual_list", :branch => "master"
-gem "iknow_params", :git => "https://github.com/iknow/iknow_params", :branch => "master"
-gem "deep_preloader", :git => "https://github.com/iknow/deep_preloader", :branch => "master"
+gem "activesupport", "~> 5.0.0"
+gem "acts_as_manual_list", git: "https://github.com/iknow/acts_as_manual_list", branch: "master"
+gem "deep_preloader", git: "https://github.com/iknow/deep_preloader", branch: "master"
+gem "iknow_cache", git: "https://github.com/iknow/iknow_cache", branch: "master"
+gem "iknow_params", git: "https://github.com/iknow/iknow_params", branch: "master"
 
-gemspec :path => "../"
+gemspec path: "../"

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "active_support"
 require "active_record"
 
@@ -24,6 +26,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   require 'view_model/active_record/update_operation'
   require 'view_model/active_record/visitor'
   require 'view_model/active_record/cloner'
+  require 'view_model/active_record/cache'
   require 'view_model/active_record/association_manipulation'
 
   include AssociationManipulation
@@ -250,6 +253,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
             h[view.view_name] = view.schema_version
           end
         end
+    end
+
+    def cacheable!
+      include ViewModel::ActiveRecord::Cache::CacheableView
     end
 
     # internal

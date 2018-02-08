@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "view_model"
 
 module ViewModel::Controller
@@ -32,6 +34,28 @@ module ViewModel::Controller
 
   def finish_render_viewmodel(pre_rendered, status: nil)
     render_json_string(pre_rendered, status: status)
+  end
+
+  # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
+  # JSON string terminals. Useful for rendering cached views without parsing
+  # then re-serializing the cached JSON.
+  def render_json_view(json_view, json_references: {}, status: nil)
+    json_view = wrap_json_view(json_view)
+    json_references = wrap_json_view(json_references)
+
+    response = Jbuilder.encode do |json|
+      json.data json_view
+      if json_references.present?
+        json.references do
+          json_references.sort.each do |key, value|
+            json.set!(key, value)
+          end
+        end
+      end
+      yield(json) if block_given?
+    end
+
+    render_json_string(response, status: status)
   end
 
   def render_error(error_view, status = 500)
@@ -90,5 +114,29 @@ module ViewModel::Controller
 
   def render_json_string(response, status:)
     render(json: response, status: status)
+  end
+
+  # Wrap raw JSON in such a way that MultiJSON knows to pass it through
+  # untouched. Requires a MultiJson adapter other than ActiveSupport's
+  # (modified) JsonGem.
+  class CompiledJson
+    def initialize(s);  @s = s; end
+    def to_json(*args); @s;     end
+    def to_s;           @s;     end
+    undef_method :as_json
+  end
+
+  # Traverse a tree and wrap all String terminals in CompiledJson
+  def wrap_json_view(view)
+    case view
+    when Array
+      view.map { |v| wrap_json_view(v) }
+    when Hash
+      view.transform_values { |v| wrap_json_view(v) }
+    when String, Symbol
+      CompiledJson.new(view)
+    else
+      view
+    end
   end
 end
