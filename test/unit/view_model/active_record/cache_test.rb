@@ -113,47 +113,47 @@ class ViewModel::ActiveRecord
       extend ActiveSupport::Concern
       included do
         it 'returns the right serialization' do
-          (serialize_with_cache).must_equal(serialize_from_database)
+          value(serialize_with_cache).must_equal(serialize_from_database)
         end
 
         it 'returns the right serialization after caching' do
           fetch_with_cache
-          (serialize_from_database).must_equal(serialize_with_cache)
+          value(serialize_from_database).must_equal(serialize_with_cache)
         end
 
         it 'writes to the cache after fetching' do
           cached_value = cache_for(viewmodel_class).read({ id: root.id })
-          cached_value.wont_be(:present?)
+          value(cached_value).wont_be(:present?)
 
           fetch_with_cache
 
           cached_value = cache_for(viewmodel_class).read({ id: root.id })
-          cached_value.must_be(:present?)
+          value(cached_value).must_be(:present?)
         end
 
         it 'saves the returned serialization in the cache' do
           data, refs = fetch_with_cache
-          (data.size).must_equal(1)
+          value(data.size).must_equal(1)
 
           cached_root = cache_for(viewmodel_class).read({ id: root.id })
-          (cached_root).must_be(:present?)
-          (cached_root[:data]).must_equal(data.first)
+          value(cached_root).must_be(:present?)
+          value(cached_root[:data]).must_equal(data.first)
 
           ref_cache = cached_root[:ref_cache]
-          refs.size.must_equal(ref_cache.size)
+          value(refs.size).must_equal(ref_cache.size)
 
           refs.each do |key, ref_data|
             view_name, id = ref_cache[key]
-            view_name.must_be(:present?)
-            id.must_be(:present?)
+            value(view_name).must_be(:present?)
+            value(id).must_be(:present?)
 
             # SharedView is independently cached: check it too
             next unless view_name == SharedView.view_name
-            (id).must_equal(shared.id)
+            value(id).must_equal(shared.id)
             cached_shared = cache_for(shared_viewmodel_class).read({ id: id })
-            (cached_shared).must_be(:present?)
-            (cached_shared[:data]).must_equal(ref_data)
-            (cached_shared[:ref_cache]).must_be(:blank?)
+            value(cached_shared).must_be(:present?)
+            value(cached_shared[:data]).must_equal(ref_data)
+            value(cached_shared[:ref_cache]).must_be(:blank?)
           end
         end
       end
@@ -179,8 +179,8 @@ class ViewModel::ActiveRecord
           change_in_database
 
           cache_data, cache_refs = serialize_with_cache
-          (cache_data).must_equal(before_data)
-          (cache_refs).must_equal(before_refs)
+          value(cache_data).must_equal(before_data)
+          value(cache_refs).must_equal(before_refs)
         end
 
         it 'can clear the root cache' do
@@ -189,8 +189,8 @@ class ViewModel::ActiveRecord
           viewmodel_class.viewmodel_cache.clear
 
           cache_data, cache_refs = serialize_with_cache
-          (cache_data[0]["name"]).must_equal("CHANGEDROOT") # Root view invalidated
-          (cache_refs).must_equal(before_refs) # Shared view not invalidated
+          value(cache_data[0]["name"]).must_equal("CHANGEDROOT") # Root view invalidated
+          value(cache_refs).must_equal(before_refs) # Shared view not invalidated
         end
 
         it 'can delete an entity from a cache' do
@@ -199,8 +199,8 @@ class ViewModel::ActiveRecord
           viewmodel_class.viewmodel_cache.delete(root.id)
 
           cache_data, cache_refs = serialize_with_cache
-          (cache_data[0]["name"]).must_equal("CHANGEDROOT")
-          (cache_refs).must_equal(before_refs)
+          value(cache_data[0]["name"]).must_equal("CHANGEDROOT")
+          value(cache_refs).must_equal(before_refs)
         end
 
         it 'can clear a referenced cache' do
@@ -209,8 +209,8 @@ class ViewModel::ActiveRecord
 
           # Shared view invalidated, but root view not
           cache_data, cache_hrefs = serialize_with_cache
-          (cache_data[0]["name"]).must_equal("root1")
-          (cache_hrefs.values[0]["name"]).must_equal("CHANGEDSHARED")
+          value(cache_data[0]["name"]).must_equal("root1")
+          value(cache_hrefs.values[0]["name"]).must_equal("CHANGEDSHARED")
         end
 
         describe 'and a record not in the cache' do
@@ -230,11 +230,11 @@ class ViewModel::ActiveRecord
 
           it 'merges matching shared references between cache hits and misses' do
             db_data, db_refs = serialize_from_database
-            (db_refs.size).must_equal(1)
+            value(db_refs.size).must_equal(1)
 
             cache_data, cache_refs = serialize_with_cache
-            (cache_data).must_equal(db_data)
-            (cache_refs).must_equal(db_refs)
+            value(cache_data).must_equal(db_data)
+            value(cache_refs).must_equal(db_refs)
           end
 
           it 'merges cache hits and misses' do
@@ -242,9 +242,9 @@ class ViewModel::ActiveRecord
             change_in_database
 
             cache_data, cache_refs = serialize_with_cache
-            (cache_data[0]["name"]).must_equal("root1")
-            (cache_data[1]["name"]).must_equal("root2")
-            (cache_refs).must_equal(refs)
+            value(cache_data[0]["name"]).must_equal("root1")
+            value(cache_data[1]["name"]).must_equal("root2")
+            value(cache_refs).must_equal(refs)
           end
         end
       end
@@ -272,8 +272,8 @@ class ViewModel::ActiveRecord
 
       it 'can handle duplicates' do
         data, _refs = viewmodel_class.viewmodel_cache.fetch_by_viewmodel([root_view, root_view])
-        (data.size).must_equal(2)
-        (data[0]).must_equal(data[1])
+        value(data.size).must_equal(2)
+        value(data[0]).must_equal(data[1])
       end
     end
   end
