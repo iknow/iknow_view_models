@@ -198,7 +198,7 @@ class DummyController
 end
 
 # Provide dummy Rails env
-class Rails
+module Rails
   def self.env
     'production'
   end
