@@ -52,7 +52,9 @@ class ViewModel::TestHelpers::ARVMBuilder
     # Force the realization of the view model into the library's lookup
     # table. If this doesn't happen the library may have conflicting entries in
     # the deferred table, and will allow viewmodels to leak between tests.
-    ViewModel::Registry.for_view_name(viewmodel.view_name) unless @no_viewmodel
+    unless @no_viewmodel || !(@viewmodel < ViewModel::Record)
+      ViewModel::Registry.for_view_name(viewmodel.view_name)
+    end
   end
 
   def teardown
