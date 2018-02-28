@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "../../helpers/test_access_control.rb"
 
 require "minitest/autorun"
@@ -47,8 +49,8 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       TestSerializeContext
     end
 
-    def self.resolve_viewmodel(metadata, view_hash, deserialize_context:)
-      if target_model = deserialize_context.targets.shift
+    def self.resolve_viewmodel(_metadata, _view_hash, deserialize_context:)
+      if (target_model = deserialize_context.targets.shift)
         self.new(target_model)
       else
         self.for_new_model
@@ -85,7 +87,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     let(:view_base) do
       {
         "_type"      => "Model",
-        "_version"   => 1
+        "_version"   => 1,
       }
     end
 
@@ -206,7 +208,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     describe "with validated simple attribute" do
       let(:attributes) { { validated: {} } }
       let(:viewmodel_body) do
-        ->(x) do
+        ->(_x) do
           def validate!
             if validated == "naughty"
               raise ViewModel::DeserializationError::Validation.new("validated", "was naughty", nil, self.blame_reference)

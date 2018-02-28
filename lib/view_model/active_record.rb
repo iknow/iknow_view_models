@@ -88,7 +88,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         through_to             = nil
       end
 
-      vm_association_name    = (as || association_name).to_s
+      vm_association_name = (as || association_name).to_s
 
       reflection = model_class.reflect_on_association(model_association_name)
 
@@ -139,7 +139,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
       find_scope = find_scope.merge(scope) if scope
 
       ViewModel::Utils.wrap_one_or_many(id_or_ids) do |ids|
-
         models = find_scope.where(id: ids).to_a
 
         if models.size < ids.size
@@ -235,7 +234,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
       seen << self
 
-      _members.each do |name, data|
+      _members.each_value do |data|
         next unless data.is_a?(AssociationData)
         next unless include_shared || !data.shared?
         data.viewmodel_classes.each do |vm|
@@ -295,7 +294,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       member_context =
         case member_data
         when AssociationData
-          member_context = serialize_context.for_child(self, association_name: member_name)
+          serialize_context.for_child(self, association_name: member_name)
         else
           serialize_context
         end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Abstract ViewModel type for serializing a subset of attributes from a record.
 # A record viewmodel wraps a single underlying model, exposing a fixed set of
 # real or calculated attributes.

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::Record::AttributeData
   attr_reader :name, :attribute_viewmodel
 

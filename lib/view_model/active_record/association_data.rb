@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # TODO consider rephrase scope for consistency
 class ViewModel::ActiveRecord::AssociationData
   attr_reader :direct_reflection, :association_name
