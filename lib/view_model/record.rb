@@ -37,20 +37,34 @@ class ViewModel::Record < ViewModel
     end
 
     # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, read_only: false, write_once: false, using: nil, array: false, optional: false)
-      attr_data = AttributeData.new(attr, using, array, optional, read_only, write_once)
-      _members[attr.to_s] = attr_data
+    def attribute(attr, as: nil, read_only: false, write_once: false, using: nil, format: nil, array: false, optional: false)
+      model_attribute_name = attr.to_s
+      vm_attribute_name    = (as || attr).to_s
+
+      if using && format
+        raise ArgumentError.new("Only one of :using and :format may be specified")
+      end
+      if using && !(using.is_a?(Class) && using < ViewModel)
+        raise ArgumentError.new("Invalid 'using:' viewmodel: not a viewmodel class")
+      end
+      if format && !format.respond_to?(:dump) && !format.respond_to?(:load)
+        raise ArgumentError.new("Invalid 'format:' serializer: must respond to :dump and :load")
+      end
+
+      attr_data = AttributeData.new(vm_attribute_name, model_attribute_name, using, format,
+                                    array, optional, read_only, write_once)
+      _members[vm_attribute_name] = attr_data
 
       @generated_accessor_module.module_eval do
-        define_method attr do
+        define_method vm_attribute_name do
           _get_attribute(attr_data)
         end
 
-        define_method "serialize_#{attr}" do |json, serialize_context: self.class.new_serialize_context|
+        define_method "serialize_#{vm_attribute_name}" do |json, serialize_context: self.class.new_serialize_context|
           _serialize_attribute(attr_data, json, serialize_context: serialize_context)
         end
 
-        define_method "deserialize_#{attr}" do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
+        define_method "deserialize_#{vm_attribute_name}" do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
           _deserialize_attribute(attr_data, value, references: references, deserialize_context: deserialize_context)
         end
       end
@@ -243,16 +257,15 @@ class ViewModel::Record < ViewModel
   private
 
   def _get_attribute(attr_data)
-    attr = attr_data.name
-
-    value = model.public_send(attr)
+    value = model.public_send(attr_data.model_attr_name)
 
     if attr_data.using_viewmodel? && !value.nil?
-      vm_type = attr_data.attribute_viewmodel
-      if attr_data.array?
-        value = value.map { |v| vm_type.new(v) }
-      else
-        value = vm_type.new(value)
+      # Where an attribute uses a viewmodel, the associated viewmodel type is
+      # significant and may have behaviour: like with VM::ActiveRecord
+      # associations it's useful to return the value wrapped in its viewmodel
+      # type even when not serializing.
+      value = attr_data.map_value(value) do |v|
+        attr_data.attribute_viewmodel.new(v)
       end
     end
 
@@ -260,50 +273,63 @@ class ViewModel::Record < ViewModel
   end
 
   def _serialize_attribute(attr_data, json, serialize_context:)
-    attr = attr_data.name
+    vm_attr_name = attr_data.name
 
-    value = self.public_send(attr)
+    value = self.public_send(vm_attr_name)
 
-    json.set! attr do
-      serialize_context = serialize_context.for_child(self, association_name: attr.to_s) if attr_data.using_viewmodel?
+    if attr_data.using_serializer? && !value.nil?
+      # Where an attribute uses a low level serializer (rather than another
+      # viewmodel), it's only desired for converting the value to and from wire
+      # format, so conversion is deferred to serialization time.
+      value = attr_data.map_value(value) do |v|
+        attr_data.attribute_serializer.dump(v, json: true)
+      end
+    end
+
+    json.set! vm_attr_name do
+      serialize_context = serialize_context.for_child(self, association_name: vm_attr_name) if attr_data.using_viewmodel?
       self.class.serialize(value, json, serialize_context: serialize_context)
     end
   end
 
   def _deserialize_attribute(attr_data, serialized_value, references:, deserialize_context:)
-    attr = attr_data.name
+    vm_attr_name = attr_data.name
 
-    if attr_data.using_viewmodel? && !serialized_value.nil?
-      vm_type = attr_data.attribute_viewmodel
-      ctx = deserialize_context.for_child(self, association_name: attr.to_s)
-      if attr_data.array?
-        expect_type!(attr, Array, serialized_value)
-        value = serialized_value.map { |v| vm_type.deserialize_from_view(v, references: references, deserialize_context: ctx) }
-      else
-        value = vm_type.deserialize_from_view(serialized_value, references: references, deserialize_context: ctx)
-      end
-    else
-      value = serialized_value
+    if attr_data.array? && !serialized_value.nil?
+      expect_type!(vm_attr_name, Array, serialized_value)
     end
 
-    # Detect changes with ==. In the case of `using_viewmodel?`, this compares viewmodels or arrays of viewmodels.
-    if value != self.public_send(attr)
-      if attr_data.read_only? && !(attr_data.write_once? && new_model?)
-        raise ViewModel::DeserializationError::ReadOnlyAttribute.new(attr.to_s, blame_reference)
+    value =
+      case
+      when serialized_value.nil?
+        serialized_value
+      when attr_data.using_viewmodel?
+        ctx = deserialize_context.for_child(self, association_name: vm_attr_name)
+        attr_data.map_value(serialized_value) do |sv|
+          attr_data.attribute_viewmodel.deserialize_from_view(sv, references: references, deserialize_context: ctx)
+        end
+      when attr_data.using_serializer?
+        attr_data.map_value(serialized_value) do |sv|
+          attr_data.attribute_serializer.load(sv)
+        end
+      else
+        serialized_value
       end
 
-      attribute_changed!(attr)
+    # Detect changes with ==. In the case of `using_viewmodel?`, this compares viewmodels or arrays of viewmodels.
+    if value != self.public_send(vm_attr_name)
+      if attr_data.read_only? && !(attr_data.write_once? && new_model?)
+        raise ViewModel::DeserializationError::ReadOnlyAttribute.new(vm_attr_name, blame_reference)
+      end
+
+      attribute_changed!(vm_attr_name)
 
       if attr_data.using_viewmodel? && !value.nil?
-        # Extract model from target viewmodel to attach to model
-        if attr_data.array?
-          value = value.map(&:model)
-        else
-          value = value.model
-        end
+        # Extract model from target viewmodel(s) to attach to our model
+        value = attr_data.map_value(value) { |vm| vm.model }
       end
 
-      model.public_send("#{attr}=", value)
+      model.public_send("#{attr_data.model_attr_name}=", value)
     end
   end
 

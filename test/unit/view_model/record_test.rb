@@ -91,19 +91,26 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       }
     end
 
+    let(:attribute_names) do
+      attributes.map do |model_attr_name, opts|
+        vm_attr_name = (opts[:as] || model_attr_name).to_s
+        [model_attr_name.to_s, vm_attr_name]
+      end
+    end
+
     let(:default_values) { {} }
     let(:default_view_values) { default_values }
     let(:default_model_values) { default_values }
 
     let(:default_view) do
-      attributes.keys.each_with_object(view_base.dup) do |attr_name, view|
-        view[attr_name.to_s] = default_view_values.fetch(attr_name, attr_name.to_s)
+      attribute_names.each_with_object(view_base.dup) do |(model_attr_name, vm_attr_name), view|
+        view[vm_attr_name] = default_view_values.fetch(vm_attr_name.to_sym, model_attr_name)
       end
     end
 
     let(:default_model) do
-      attr_values = attributes.keys.map do |attr_name|
-        default_model_values.fetch(attr_name, attr_name.to_s)
+      attr_values = attribute_names.map do |model_attr_name, _vm_attr_name|
+        default_model_values.fetch(model_attr_name.to_sym, model_attr_name)
       end
       model_class.new(*attr_values)
     end
@@ -138,7 +145,8 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
             assert_equal(default_model, vm.model)
             refute(default_model.equal?(vm.model))
 
-            assert_edited(vm, new: true, changed_attributes: attributes.keys)
+            all_view_attrs = attribute_names.map { |_mname, vname| vname }
+            assert_edited(vm, new: true, changed_attributes: all_view_attrs)
           end
         end
       end
@@ -230,6 +238,33 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         assert_equal("validated", ex.attribute)
         assert_equal("was naughty", ex.reason)
       end
+    end
+
+    describe "with renamed attribute" do
+      let(:attributes) { { modelname: { as: :viewname } } }
+      let(:default_model_values) { { modelname: "value" } }
+      let(:default_view_values)  { { viewname: "value" } }
+
+      include CanSerialize
+      include CanDeserializeToNew
+      include CanDeserializeToExisting
+
+      it "makes attributes available on their new names" do
+        value(default_model.modelname).must_equal("value")
+        vm = viewmodel_class.new(default_model)
+        value(vm.viewname).must_equal("value")
+      end
+    end
+
+    describe "with formatted attribute" do
+      let(:attributes) { { moment: { format: IknowParams::Serializer::Time } } }
+      let(:moment) { 1.week.ago.change(usec: 0) }
+      let(:default_model_values) { { moment: moment } }
+      let(:default_view_values)  { { moment: moment.iso8601 } }
+
+      include CanSerialize
+      include CanDeserializeToNew
+      include CanDeserializeToExisting
     end
 
     describe "with read-only attribute" do
