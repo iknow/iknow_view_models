@@ -265,6 +265,23 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       include CanSerialize
       include CanDeserializeToNew
       include CanDeserializeToExisting
+
+      it "raises correctly on an unparseable value" do
+        bad_view = default_view.tap { |v| v["moment"] = "not a timestamp" }
+        ex = assert_raises(ViewModel::DeserializationError::Validation) do
+          viewmodel_class.deserialize_from_view(bad_view, deserialize_context: create_context)
+        end
+        assert_equal('moment', ex.attribute)
+        assert_match(/could not be deserialized because no time information/, ex.detail)
+      end
+
+      it "raises correctly on an undeserializable value" do
+        bad_model = default_model.tap { |m| m.moment = 2.7 }
+        ex = assert_raises(ViewModel::SerializationError) do
+          viewmodel_class.new(bad_model).to_hash
+        end
+        assert_match(/Could not serialize invalid value.*'moment'.*Incorrect type/, ex.detail)
+      end
     end
 
     describe "with read-only attribute" do
