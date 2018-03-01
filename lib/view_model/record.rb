@@ -282,10 +282,12 @@ class ViewModel::Record < ViewModel
       # viewmodel), it's only desired for converting the value to and from wire
       # format, so conversion is deferred to serialization time.
       value = attr_data.map_value(value) do |v|
-        attr_data.attribute_serializer.dump(v, json: true)
-      rescue ArgumentError => ex
-        raise ViewModel::SerializationError.new(
-                "Could not serialize invalid value '#{vm_attr_name}': #{ex.message}")
+        begin
+          attr_data.attribute_serializer.dump(v, json: true)
+        rescue ArgumentError => ex
+          raise ViewModel::SerializationError.new(
+                  "Could not serialize invalid value '#{vm_attr_name}': #{ex.message}")
+        end
       end
     end
 
@@ -313,10 +315,12 @@ class ViewModel::Record < ViewModel
         end
       when attr_data.using_serializer?
         attr_data.map_value(serialized_value) do |sv|
-          attr_data.attribute_serializer.load(sv)
-        rescue ArgumentError => ex
-          reason = "could not be deserialized because #{ex.message}"
-          raise ViewModel::DeserializationError::Validation.new(vm_attr_name, reason, {}, blame_reference)
+          begin
+            attr_data.attribute_serializer.load(sv)
+          rescue ArgumentError => ex
+            reason = "could not be deserialized because #{ex.message}"
+            raise ViewModel::DeserializationError::Validation.new(vm_attr_name, reason, {}, blame_reference)
+          end
         end
       else
         serialized_value
