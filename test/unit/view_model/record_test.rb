@@ -272,7 +272,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
           viewmodel_class.deserialize_from_view(bad_view, deserialize_context: create_context)
         end
         assert_equal('moment', ex.attribute)
-        assert_match(/could not be deserialized because no time information/, ex.detail)
+        assert_match(/could not be deserialized because.*Time/, ex.detail)
       end
 
       it "raises correctly on an undeserializable value" do

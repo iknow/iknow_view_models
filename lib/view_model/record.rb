@@ -284,7 +284,7 @@ class ViewModel::Record < ViewModel
       value = attr_data.map_value(value) do |v|
         begin
           attr_data.attribute_serializer.dump(v, json: true)
-        rescue ArgumentError => ex
+        rescue IknowParams::Serializer::DumpError => ex
           raise ViewModel::SerializationError.new(
                   "Could not serialize invalid value '#{vm_attr_name}': #{ex.message}")
         end
@@ -317,7 +317,7 @@ class ViewModel::Record < ViewModel
         attr_data.map_value(serialized_value) do |sv|
           begin
             attr_data.attribute_serializer.load(sv)
-          rescue ArgumentError => ex
+          rescue IknowParams::Serializer::LoadError => ex
             reason = "could not be deserialized because #{ex.message}"
             raise ViewModel::DeserializationError::Validation.new(vm_attr_name, reason, {}, blame_reference)
           end
