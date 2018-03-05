@@ -1,13 +1,17 @@
-class ViewModel::Record::AttributeData
-  attr_reader :name, :attribute_viewmodel
+# frozen_string_literal: true
 
-  def initialize(name, attribute_viewmodel, array, optional, read_only, write_once)
-    @name                = name
-    @attribute_viewmodel = attribute_viewmodel
-    @array               = array
-    @optional            = optional
-    @read_only           = read_only
-    @write_once          = write_once
+class ViewModel::Record::AttributeData
+  attr_reader :name, :model_attr_name, :attribute_viewmodel, :attribute_serializer
+
+  def initialize(name, model_attr_name, attribute_viewmodel, attribute_serializer, array, optional, read_only, write_once)
+    @name                 = name
+    @model_attr_name      = model_attr_name
+    @attribute_viewmodel  = attribute_viewmodel
+    @attribute_serializer = attribute_serializer
+    @array                = array
+    @optional             = optional
+    @read_only            = read_only
+    @write_once           = write_once
   end
 
   def array?
@@ -26,7 +30,19 @@ class ViewModel::Record::AttributeData
     @write_once
   end
 
+  def using_serializer?
+    !@attribute_serializer.nil?
+  end
+
   def using_viewmodel?
     !@attribute_viewmodel.nil?
+  end
+
+  def map_value(value)
+    if array?
+      value.map { |v| yield(v) }
+    else
+      yield(value)
+    end
   end
 end
