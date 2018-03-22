@@ -9,10 +9,13 @@ module ViewModel::ActiveRecord::NestedControllerBase
     pre_rendered = owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
       serialize_context.visible!(owner_view)
+      # Association manipulation methods construct child contexts internally
       associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
       associated_views = yield(associated_views) if block_given?
-      prerender_viewmodel(associated_views, serialize_context: serialize_context)
+
+      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
+      prerender_viewmodel(associated_views, serialize_context: child_context)
     end
     finish_render_viewmodel(pre_rendered)
     associated_views
@@ -29,8 +32,9 @@ module ViewModel::ActiveRecord::NestedControllerBase
                                                        references: refs,
                                                        deserialize_context: deserialize_context)
 
-      ViewModel.preload_for_serialization(association_view, serialize_context: serialize_context)
-      prerender_viewmodel(association_view, serialize_context: serialize_context)
+      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
+      ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
+      prerender_viewmodel(association_view, serialize_context: child_context)
     end
     finish_render_viewmodel(pre_rendered)
     association_view
@@ -51,7 +55,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
     {
       ViewModel::ID_ATTRIBUTE   => owner_viewmodel_id,
       ViewModel::TYPE_ATTRIBUTE => owner_viewmodel.view_name,
-      association_name.to_s     => update
+      association_name.to_s     => update,
     }
   end
 
