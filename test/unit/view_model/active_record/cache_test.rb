@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# rubocop:disable Style/RedundantParentheses, Lint/MissingCopEnableDirective
-
 require "minitest/autorun"
 require "minitest/unit"
 require "minitest/hooks"

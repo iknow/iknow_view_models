@@ -54,7 +54,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-        association :tags, shared: true, optional: false, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView]
+        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView]
       end
     end
   end
