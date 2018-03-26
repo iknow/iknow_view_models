@@ -147,8 +147,15 @@ class ViewModel::ActiveRecord
             value(view_name).must_be(:present?)
             value(id).must_be(:present?)
 
-            # SharedView is independently cached: check it too
-            next unless view_name == SharedView.view_name
+            # The cached reference must correspond to the returned data.
+            parsed_data = JSON.parse(ref_data)
+            value(parsed_data["id"]).must_equal(id)
+            value(parsed_data["_type"]).must_equal(view_name)
+
+            # When the cached reference is to independently cached data
+            # (SharedView in this test), make sure that data is correctly
+            # cached.
+            next unless view_name == "Shared"
             value(id).must_equal(shared.id)
             cached_shared = cache_for(shared_viewmodel_class).read({ id: id })
             value(cached_shared).must_be(:present?)

@@ -54,7 +54,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
       define_viewmodel do
         attributes :name
-        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels:[TagAView, TagBView]
+        association :tags, shared: true, optional: false, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView]
       end
     end
   end
@@ -170,10 +170,11 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
   def test_create_has_many_through
     alter_by_view!(ParentView, @parent1) do |view, refs|
-      refs.delete_if { |_, ref_hash| ref_hash['_type'] == 'Tag' }
+      view['tags'].each { |tr| refs.delete(tr['_ref']) }
+
+      view['tags'] = [{ '_ref' => 't1' }, { '_ref' => 't2' }]
       refs['t1'] = { '_type' => 'TagA', 'name' => 'new tagA' }
       refs['t2'] = { '_type' => 'TagB', 'name' => 'new tagB' }
-      view['tags'] = [{ '_ref' => 't1' }, { '_ref' => 't2' }]
     end
 
     new_tag_a = TagA.find_by_name('new tagA')

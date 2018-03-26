@@ -43,8 +43,8 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
-          attributes   :name
-          association :category, shared: true
+          attributes  :name
+          association :category, shared: true, optional: true
         end
       end
     end

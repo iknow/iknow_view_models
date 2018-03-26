@@ -75,7 +75,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
                     viewmodel: nil,
                     viewmodels: nil,
                     shared: false,
-                    optional: shared,
+                    optional: false,
                     through: nil,
                     through_order_attr: nil,
                     as: nil)
