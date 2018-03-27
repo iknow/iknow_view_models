@@ -60,8 +60,9 @@ module ViewModel::ActiveRecord::CollectionNestedController
                                                 after:      after,
                                                 deserialize_context: deserialize_context)
 
-      ViewModel.preload_for_serialization(assoc_view, serialize_context: serialize_context)
-      prerender_viewmodel(assoc_view, serialize_context: serialize_context)
+      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
+      ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
+      prerender_viewmodel(assoc_view, serialize_context: child_context)
     end
     finish_render_viewmodel(pre_rendered)
     assoc_view

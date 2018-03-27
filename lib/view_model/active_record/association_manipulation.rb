@@ -33,7 +33,10 @@ module AssociationManipulation
 
     vms = association_scope.map { |model| associated_viewmodel.new(model) }
 
-    ViewModel.preload_for_serialization(vms, serialize_context: serialize_context) if eager_include
+    if eager_include
+      child_context = serialize_context.for_child(self, association_name: association_name)
+      ViewModel.preload_for_serialization(vms, serialize_context: child_context)
+    end
 
     if association_data.collection?
       vms
