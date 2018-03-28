@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # A ViewModel encapsulates a particular aggregation of data calculated via the
 # underlying models and provides a means of serializing it into views.
 require 'jbuilder'
@@ -189,8 +191,9 @@ class ViewModel
   # Serialize this viewmodel to a jBuilder by calling serialize_view. May be
   # overridden in subclasses to (for example) implement caching.
   def serialize(json, serialize_context: self.class.new_serialize_context)
-    serialize_context.visible!(self)
-    serialize_view(json, serialize_context: serialize_context)
+    ViewModel::Callbacks.wrap_serialize(self, context: serialize_context) do
+      serialize_view(json, serialize_context: serialize_context)
+    end
   end
 
   def to_hash(serialize_context: self.class.new_serialize_context)
@@ -214,12 +217,24 @@ class ViewModel
     self.public_send(self.class._attributes.first)
   end
 
+  # Provide a stable way to identify this view through attribute changes. By
+  # default views cannot make assumptions about the identity of our attributes,
+  # so we fall back on the view's `object_id`. If a viewmodel is backed by a
+  # model with a concept of identity, this method should be overridden to use
+  # it.
   def id
-    model.id if model.respond_to?(:id)
+    object_id
+  end
+
+  # Is this viewmodel backed by a model with a stable identity? Used to decide
+  # whether the id is included when constructing a ViewModel::Reference from
+  # this view.
+  def stable_id?
+    false
   end
 
   def to_reference
-    ViewModel::Reference.new(self.class, self.id)
+    ViewModel::Reference.new(self.class, (id if stable_id?))
   end
 
   # Delegate view_name to class in most cases. Polymorphic views may wish to
@@ -239,22 +254,24 @@ class ViewModel
     ViewModel.preload_for_serialization([self], lock: lock, serialize_context: serialize_context)
   end
 
-  def ==(other_view)
-    other_view.class == self.class && self.class._attributes.all? do |attr|
-      other_view.send(attr) == self.send(attr)
+  def ==(other)
+    other.class == self.class && self.class._attributes.all? do |attr|
+      other.send(attr) == self.send(attr)
     end
   end
 
-  alias :eql? :==
+  alias eql? ==
 
   def hash
-    self.class._attributes.map { |attr| self.send(attr) }.hash
+    features = self.class._attributes.map { |attr| self.send(attr) }
+    features << self.class
+    features.hash
   end
-
 end
 
 require 'view_model/utils'
 require 'view_model/error'
+require 'view_model/callbacks'
 require 'view_model/access_control'
 require 'view_model/deserialization_error'
 require 'view_model/serialization_error'

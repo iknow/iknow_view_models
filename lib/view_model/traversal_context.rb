@@ -1,12 +1,17 @@
+# frozen_string_literal: true
+
 require 'view_model/access_control/tree'
 
 # Abstract base for Serialize and DeserializeContexts.
 class ViewModel::TraversalContext
   class SharedContext
-    attr_reader :access_control
+    attr_reader :access_control, :callbacks
 
-    def initialize(access_control: ViewModel::AccessControl::Open.new)
+    def initialize(access_control: ViewModel::AccessControl::Open.new, callbacks: [])
       @access_control = access_control
+      # Access control is guaranteed to be run as the last callback, in case
+      # other callbacks have side-effects.
+      @callbacks = callbacks + [access_control]
     end
   end
 
@@ -15,10 +20,7 @@ class ViewModel::TraversalContext
   end
 
   attr_reader :shared_context
-  delegate :access_control, to: :shared_context
-
-  # Mechanism for saving descendent access control information on root nodes
-  include ViewModel::AccessControl::Tree::AccessControlRootMixin
+  delegate :access_control, :callbacks, to: :shared_context
 
   def self.new_child(*args)
     self.allocate.tap { |c| c.initialize_as_child(*args) }
@@ -82,8 +84,10 @@ class ViewModel::TraversalContext
     parent_viewmodel(idx)&.to_reference
   end
 
-  def visible!(view)
-    access_control.visible!(view, context: self)
+  def run_callback(hook, node, **args)
+    callbacks.each do |callback|
+      callback.run_callback(hook, node, hook.context_name => self, **args)
+    end
   end
 
   def root?
@@ -95,6 +99,16 @@ class ViewModel::TraversalContext
       self
     else
       parent_context&.nearest_root
+    end
+  end
+
+  def nearest_root_viewmodel
+    if root?
+      raise RuntimeError.new("Attempted to find nearest root from a root context. This is probably not what you wanted.")
+    elsif parent_context.root?
+      parent_viewmodel
+    else
+      parent_context.nearest_root
     end
   end
 end

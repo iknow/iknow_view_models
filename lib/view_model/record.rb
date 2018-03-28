@@ -97,36 +97,36 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      deserialize_context.visible!(viewmodel)
-
-      if (bad_attrs = view_hash.keys - self.member_names).present?
-        causes = bad_attrs.map do |bad_attr|
-          ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
+      ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do
+        if (bad_attrs = view_hash.keys - self.member_names).present?
+          causes = bad_attrs.map do |bad_attr|
+            ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
+          end
+          raise ViewModel::DeserializationError::Collection.for_errors(causes)
         end
-        raise ViewModel::DeserializationError::Collection.for_errors(causes)
-      end
 
-      initial_editability = deserialize_context.initial_editability(viewmodel)
-
-      _members.each do |attr, _|
-        if view_hash.has_key?(attr)
-          viewmodel.public_send("deserialize_#{attr}", view_hash[attr], references: references, deserialize_context: deserialize_context)
+        _members.each_key do |attr|
+          if view_hash.has_key?(attr)
+            viewmodel.public_send("deserialize_#{attr}", view_hash[attr], references: references, deserialize_context: deserialize_context)
+          end
         end
+
+        changes = viewmodel.changes
+
+        if changes.new? || changes.changed_attributes.present?
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: changes)
+        end
+
+        viewmodel.clear_changes!
       end
-
-      changes = viewmodel.changes
-
-      if changes.new? || changes.changed_attributes.present?
-        deserialize_context.editable!(viewmodel,
-                                      initial_editability: initial_editability,
-                                      changes:             changes)
-      end
-
-      viewmodel.clear_changes!
     end
 
     def resolve_viewmodel(metadata, view_hash, deserialize_context:)
       self.for_new_model
+    end
+
+    def for_new_model(*model_args)
+      self.new(model_class.new(*model_args)).tap { |v| v.model_is_new! }
     end
 
     # Returns the AR model class wrapped by this viewmodel. If this has not been
@@ -173,9 +173,7 @@ class ViewModel::Record < ViewModel
 
   delegate :model_class, to: 'self.class'
 
-  attr_reader :changed_attributes, :new_model
-
-  alias :new_model? :new_model
+  attr_reader :changed_attributes
 
   def initialize(model)
     unless model.is_a?(model_class)
@@ -188,8 +186,22 @@ class ViewModel::Record < ViewModel
     @changed_attributes = []
   end
 
-  def self.for_new_model(*model_args)
-    self.new(model_class.new(*model_args)).tap { |v| v.model_is_new! }
+  # VM::Record identity matches the identity of its model. If the model has a
+  # stable identity, use it, otherwise fall back to its object_id.
+  def id
+    if stable_id?
+      model.id
+    else
+      model.object_id
+    end
+  end
+
+  def stable_id?
+    model.respond_to?(:id)
+  end
+
+  def new_model?
+    @new_model
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)

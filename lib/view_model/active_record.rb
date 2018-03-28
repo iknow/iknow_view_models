@@ -305,12 +305,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      deserialize_context.visible!(self)
-      initial_editability = deserialize_context.initial_editability(self)
-      deserialize_context.editable!(self,
-                                    initial_editability: initial_editability,
-                                    changes: ViewModel::Changes.new(deleted: true))
-      model.destroy!
+      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: ViewModel::Changes.new(deleted: true))
+        model.destroy!
+      end
     end
   end
 
@@ -326,15 +324,15 @@ class ViewModel::ActiveRecord < ViewModel::Record
     @changed_associations = []
   end
 
-  # We use `model.new_record?` instead of internal new_model tracking so that
+  # We use `model.new_record?` instead of inherited new_model tracking so that
   # implementors of custom resolve steps aren't required to call `model_is_new!`
   def new_model?
     model.new_record?
   end
 
-  # we use `model.changed_attributes` instead of `self.changed_attributes` for
-  # similar reasons, that implementors of custom `deserialize_#{foo}` methods
-  # aren't required to call `attribute_changed!`
+  # we use `model.changed_attributes` instead of inheriting for similar reasons,
+  # that implementors of custom `deserialize_#{foo}` methods aren't required to
+  # call `attribute_changed!`
   def changed_attributes
     changed_attributes = model.changed
 

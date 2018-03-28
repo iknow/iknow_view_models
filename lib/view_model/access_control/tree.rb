@@ -12,7 +12,7 @@
 ## veto access to their non-root tree descendents with the additional access
 ## checks `root_children_{editable,visible}_if!` and `root_children_
 ## {editable,visible}_unless!`. The results of evaluating these checks on entry
-## to the root node will be cached and used when evaluating `visible` and
+## to the root node.object_id will be cached and used when evaluating `visible` and
 ## `editable` on children.
 class ViewModel::AccessControl::Tree < ViewModel::AccessControl
   class << self
@@ -84,8 +84,11 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
   end
 
   def initialize
+    super()
     @always_policy_instance = self.class::AlwaysPolicy.new(self)
     @view_policy_instances  = self.class.view_policies.each_with_object({}) { |(name, policy), h| h[name] = policy.new(self) }
+    @root_visibility_store  = {}
+    @root_editability_store = {}
   end
 
   # Evaluation entry points
@@ -101,32 +104,37 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     policy_instance_for(view).valid_edit_check(view, deserialize_context: deserialize_context, changes: changes)
   end
 
+  def store_descendent_editability(view, descendent_editability)
+    if @root_editability_store.has_key?(view.object_id)
+      raise RuntimeError.new("Root access control data already saved for root")
+    end
+    @root_editability_store[view.object_id] = descendent_editability
+  end
+
+  def fetch_descendent_editability(view)
+    @root_editability_store.fetch(view.object_id) do
+      raise RuntimeError.new("No root access control data recorded for root")
+    end
+  end
+
+  def store_descendent_visibility(view, descendent_visibility)
+    if @root_visibility_store.has_key?(view.object_id)
+      raise RuntimeError.new("Root access control data already saved for root")
+    end
+    @root_visibility_store[view.object_id] = descendent_visibility
+  end
+
+  def fetch_descendent_visibility(view)
+    @root_visibility_store.fetch(view.object_id) do
+      raise RuntimeError.new("No root access control data recorded for root")
+    end
+  end
+
   private
 
   def policy_instance_for(view)
     view_name = view.class.view_name
     @view_policy_instances.fetch(view_name) { @always_policy_instance }
-  end
-
-  # Mix-in for traversal contexts to support saving precalculated
-  # child-editability/visibility for tree-based access control roots.
-  module AccessControlRootMixin
-    extend ActiveSupport::Concern
-
-    RootData = Struct.new(:visibility, :editability)
-
-    def descendent_access_control_data
-      raise ArgumentError.new("Cannot access descendent access control data: node is not a root in this traversal") unless root?
-      @descendent_access_control_data ||= RootData.new
-    end
-
-    def set_descendent_editability!(root_result)
-      descendent_access_control_data.editability = root_result
-    end
-
-    def set_descendent_visibility!(root_result)
-      descendent_access_control_data.visibility = root_result
-    end
   end
 
   class Node < ViewModel::AccessControl::Composed
@@ -199,6 +207,10 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       @tree_access_control = tree_access_control
     end
 
+    delegate :store_descendent_visibility, :fetch_descendent_visibility,
+             :store_descendent_editability, :fetch_descendent_editability,
+             to: :@tree_access_control
+
     def visible_check(view, context:)
       validate_root!(view, context)
 
@@ -206,8 +218,8 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
         save_root_visibility!(view, context: context)
         super
       else
-        root_data = context.nearest_root.descendent_access_control_data
-        root_data.visibility.merge { super }
+        root_visibility = fetch_descendent_visibility(context.nearest_root_viewmodel)
+        root_visibility.merge { super }
       end
     end
 
@@ -218,8 +230,8 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
         save_root_editability!(view, deserialize_context: deserialize_context)
         super
       else
-        root_data = deserialize_context.nearest_root.descendent_access_control_data
-        root_data.editability.merge { super }
+        root_editability = fetch_descendent_editability(deserialize_context.nearest_root_viewmodel)
+        root_editability.merge { super }
       end
     end
 
@@ -238,7 +250,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
                                self.class.each_check(:root_children_visible_ifs,      ->(a) { a.is_a?(Node) }),
                                self.class.each_check(:root_children_visible_unlesses, ->(a) { a.is_a?(Node) }))
 
-      context.set_descendent_visibility!(result)
+      store_descendent_visibility(view, result)
     end
 
     def save_root_editability!(view, deserialize_context:)
@@ -248,7 +260,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
                                self.class.each_check(:root_children_editable_ifs,      ->(a) { a.is_a?(Node) }),
                                self.class.each_check(:root_children_editable_unlesses, ->(a) { a.is_a?(Node) }))
 
-      deserialize_context.set_descendent_editability!(result)
+      store_descendent_editability(view, result)
     end
   end
 end

@@ -4,10 +4,13 @@ Bundler.require
 require "minitest/autorun"
 
 class DefaultViewModel < ViewModel
+  self.view_name = 'DefaultViewModel'
   attributes :foo, :bar
 end
 
 class TestViewModel < ViewModel
+  self.view_name = 'TestViewModel'
+
   attributes :val
   def serialize_view(json, **_options)
     json.name val
