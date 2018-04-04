@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative "../../helpers/arvm_test_utilities.rb"
 require_relative "../../helpers/arvm_test_models.rb"
 
@@ -271,22 +273,22 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         visible_if!("true") { true }
 
         root_children_visible_if!("root children visible") do
-          view.val == "visible_children"
+          view.val == "rule:visible_children"
         end
       end
 
-      refute_serializes(Tree1View, make_tree("visible", "invisible"))
-      assert_serializes(Tree1View, make_tree("visible_children", "visible"))
+      refute_serializes(Tree1View, make_tree("arbitrary parent",      "invisible child"))
+      assert_serializes(Tree1View, make_tree("rule:visible_children", "visible child"))
 
       # nested root
-      refute_serializes(Tree1View, make_tree("visible_children", "invisible", "visible", "invisible"))
-      assert_serializes(Tree1View, make_tree("visible_children", "invisible", "visible_children", "visible"))
+      refute_serializes(Tree1View, make_tree("rule:visible_children", "visible child", "arbitrary parent",      "invisible child"))
+      assert_serializes(Tree1View, make_tree("rule:visible_children", "visible child", "rule:visible_children", "visible child"))
     end
 
     def test_visibility_veto_from_root
       TestAccessControl.view "Tree1" do
         root_children_visible_unless!("root children invisible") do
-          view.val == "invisible_children"
+          view.val == "rule:invisible_children"
         end
       end
 
@@ -294,12 +296,12 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         visible_if!("true") { true }
       end
 
-      assert_serializes(Tree1View, make_tree("visible", "visible"))
-      refute_serializes(Tree1View, make_tree("invisible_children", "invisible"))
+      assert_serializes(Tree1View, make_tree("arbitrary parent",        "visible child"))
+      refute_serializes(Tree1View, make_tree("rule:invisible_children", "invisible child"))
 
       # nested root
-      assert_serializes(Tree1View, make_tree("visible", "visible", "visible", "visible"))
-      refute_serializes(Tree1View, make_tree("visible", "visible", "invisible_children", "invisible"))
+      assert_serializes(Tree1View, make_tree("arbitrary parent", "visible child", "arbitrary nested parent", "visible child"))
+      refute_serializes(Tree1View, make_tree("arbitrary parent", "visible child", "rule:invisible_children", "invisible child"))
     end
 
     def test_editability_from_root
@@ -311,24 +313,24 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         editable_if!("true") { true }
 
         root_children_editable_if!("root children editable") do
-          view.val == "editable_children"
+          view.val == "rule:editable_children"
         end
       end
 
-      refute_deserializes(Tree1View, make_tree("editable", "uneditable")) { |v, r|
+      refute_deserializes(Tree1View, make_tree("arbitrary parent", "uneditable child")) { |v, r|
         dig_tree(v, r, "tree2")["val"] = "change"
       }
 
-      assert_deserializes(Tree1View, make_tree("editable_children", "editable")) { |v, r|
+      assert_deserializes(Tree1View, make_tree("rule:editable_children", "editable child")) { |v, r|
         dig_tree(v, r, "tree2")["val"] = "change"
       }
 
       # nested root
-      refute_deserializes(Tree1View, make_tree("editable_children", "uneditable", "editable", "uneditable")) { |v, r|
+      refute_deserializes(Tree1View, make_tree("rule:editable_children", "editable child", "arbitrary parent", "uneditable child")) { |v, r|
         dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
       }
 
-      assert_deserializes(Tree1View, make_tree("editable_children", "uneditable", "editable_children", "editable")) { |v, r|
+      assert_deserializes(Tree1View, make_tree("arbitrary parent", "uneditable child", "rule:editable_children", "editable child")) { |v, r|
         dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
       }
     end
@@ -341,24 +343,24 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
       TestAccessControl.view "Tree1" do
         root_children_editable_unless!("root children uneditable") do
-          view.val == "uneditable_children"
+          view.val == "rule:uneditable_children"
         end
       end
 
-      refute_deserializes(Tree1View, make_tree("uneditable_children", "uneditable")) { |v, r|
+      refute_deserializes(Tree1View, make_tree("rule:uneditable_children", "uneditable child")) { |v, r|
         dig_tree(v, r, "tree2")["val"] = "change"
       }
 
-      assert_deserializes(Tree1View, make_tree("editable", "editable")) { |v, r|
+      assert_deserializes(Tree1View, make_tree("arbitrary parent", "editable child")) { |v, r|
         dig_tree(v, r, "tree2")["val"] = "change"
       }
 
       # nested root
-      refute_deserializes(Tree1View, make_tree("editable", "editable", "uneditable_children", "uneditable")) { |v, r|
+      refute_deserializes(Tree1View, make_tree("arbitrary parent", "editable child", "rule:uneditable_children", "uneditable child")) { |v, r|
         dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
       }
 
-      assert_deserializes(Tree1View, make_tree("editable", "editable", "editable", "editable")) { |v, r|
+      assert_deserializes(Tree1View, make_tree("rule:uneditable_children", "uneditable child", "arbitrary parent", "editable child")) { |v, r|
         dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
       }
     end
@@ -401,17 +403,16 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
     def test_editability_always_composition
       TestAccessControl.view "Tree1" do
-        editable_if!("editable1")   { view.val == "editable1" }
+        editable_if!("editable1")    { view.val == "editable1" }
         edit_valid_if!("editvalid1") { view.val == "editvalid1" }
       end
 
       TestAccessControl.always do
-        editable_if!("editable2")   { view.val == "editable2" }
+        editable_if!("editable2")    { view.val == "editable2" }
         edit_valid_if!("editvalid2") { view.val == "editvalid2" }
 
         visible_if!("always") { true }
       end
-
 
       refute_deserializes(Tree1View, Tree1.create!(val: "bad")) { |v, _| v["val"] = "alsobad" }
 
@@ -513,7 +514,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
     def test_changes_types
       l = List.create!
-      lv, ctx = alter_by_view!(ListView, l) do |view, refs|
+      lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
         view["car"] = "a"
         view["cdr"] = { "_type" => "List", "car" => "b" }
       end
@@ -528,7 +529,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     def test_editable_change_attribute
       l = List.create!(car: "a")
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, refs|
+      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
         view["car"] = nil
       end
 
@@ -539,7 +540,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     def test_editable_add_association
       l = List.create!(car: "a")
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, refs|
+      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
         view["cdr"] = { "_type" => "List", "car" => "b" }
       end
 
@@ -554,7 +555,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       l = List.create!(car: "a", cdr: List.new(car: "b"))
       l2 = l.cdr
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, refs|
+      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
         view["cdr"] = { "_type" => "List", "car" => "c" }
       end
 
@@ -572,7 +573,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       l = List.create!(car: "a", cdr: List.new(car: "b"))
       l2 = l.cdr
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, refs|
+      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
         view["cdr"] = nil
       end
 
