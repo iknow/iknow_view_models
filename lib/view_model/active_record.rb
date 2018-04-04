@@ -75,7 +75,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
                     viewmodel: nil,
                     viewmodels: nil,
                     shared: false,
-                    optional: shared,
+                    optional: false,
                     through: nil,
                     through_order_attr: nil,
                     as: nil)
@@ -201,7 +201,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
 
-        child_context = serialize_context.for_child(nil, association_name: assoc_name)
+        child_context = serialize_context.for_child(nil, association_name: assoc_name, root: association_data.shared?)
 
         case
         when association_data.through?
@@ -294,7 +294,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       member_context =
         case member_data
         when AssociationData
-          serialize_context.for_child(self, association_name: member_name)
+          serialize_context.for_child(self, association_name: member_name, root: member_data.shared?)
         else
           serialize_context
         end

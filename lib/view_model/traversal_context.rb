@@ -17,7 +17,7 @@ class ViewModel::TraversalContext
   attr_reader :shared_context
   delegate :access_control, to: :shared_context
 
-  # Mechanism for marking nodes as access-control roots and saving their child-visibility
+  # Mechanism for saving descendent access control information on root nodes
   include ViewModel::AccessControl::Tree::AccessControlRootMixin
 
   def self.new_child(*args)
@@ -26,29 +26,32 @@ class ViewModel::TraversalContext
 
   def initialize(shared_context: nil, **shared_context_params)
     super()
-    @shared_context   = shared_context || self.class.shared_context_class.new(**shared_context_params)
-    @parent_context   = nil
-    @parent_viewmodel = nil
+    @shared_context     = shared_context || self.class.shared_context_class.new(**shared_context_params)
+    @parent_context     = nil
+    @parent_viewmodel   = nil
     @parent_association = nil
+    @root               = true
   end
 
   # Overloaded constructor for initialization of descendent node contexts.
   # Shared context is the same, ancestry is established, and subclasses can
   # override to maintain other node-specific state.
-  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:, parent_association:)
-    super()
-    @shared_context = shared_context
-    @parent_context = parent_context
-    @parent_viewmodel = parent_viewmodel
+  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:, parent_association:, root:)
+    @shared_context     = shared_context
+    @parent_context     = parent_context
+    @parent_viewmodel   = parent_viewmodel
     @parent_association = parent_association
+    @root               = root
   end
 
-  def for_child(parent_viewmodel, association_name:, **rest)
-    self.class.new_child(shared_context: shared_context,
-                         parent_context: self,
-                         parent_viewmodel: parent_viewmodel,
-                         parent_association: association_name,
-                         **rest)
+  def for_child(parent_viewmodel, association_name:, root: false, **rest)
+    self.class.new_child(
+      shared_context:     shared_context,
+      parent_context:     self,
+      parent_viewmodel:   parent_viewmodel,
+      parent_association: association_name,
+      root:               root,
+      **rest)
   end
 
   def parent_context(idx = 0)
@@ -81,5 +84,17 @@ class ViewModel::TraversalContext
 
   def visible!(view)
     access_control.visible!(view, context: self)
+  end
+
+  def root?
+    @root
+  end
+
+  def nearest_root
+    if root?
+      self
+    else
+      parent_context&.nearest_root
+    end
   end
 end

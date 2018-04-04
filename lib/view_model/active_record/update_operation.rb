@@ -116,7 +116,9 @@ class ViewModel::ActiveRecord
 
           association = model.association(reflection.name)
           child_model = if child_operation
-                          ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+                          ctx = deserialize_context.for_child(viewmodel,
+                                                              association_name: association_data.association_name,
+                                                              root: association_data.shared?)
                           child_operation.run!(deserialize_context: ctx).model
                         else
                           nil
@@ -168,7 +170,9 @@ class ViewModel::ActiveRecord
           debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
 
           association = model.association(reflection.name)
-          child_ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
+          child_ctx = deserialize_context.for_child(viewmodel,
+                                                    association_name: association_data.association_name,
+                                                    root: association_data.shared?)
 
           new_target =
             case child_operation
@@ -188,11 +192,16 @@ class ViewModel::ActiveRecord
       end
 
       if self.released_children.present?
+        # Released children that were not reclaimed by other parents during the
+        # build phase will be deleted: check access control.
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          child_context = deserialize_context.for_child(viewmodel, association_name: nil)
           child_vm = released_child.viewmodel
+          child_association_data = released_child.association_data
+          child_context = deserialize_context.for_child(viewmodel,
+                                                        association_name: child_association_data.association_name,
+                                                        root: child_association_data.shared?)
           child_context.visible!(child_vm)
           initial_editability = child_context.initial_editability(child_vm)
           child_context.editable!(child_vm,
