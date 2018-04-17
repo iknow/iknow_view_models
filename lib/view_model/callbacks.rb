@@ -1,10 +1,28 @@
 # frozen_string_literal: true
 
 require 'renum'
+require 'safe_values'
 
 # Callback hooks for viewmodel traversal contexts
 module ViewModel::Callbacks
   extend ActiveSupport::Concern
+
+  # Callbacks are run in the instance context of an Env class that wraps the
+  # callbacks instance with additional instance method access to the view,
+  # context and extra context-dependent parameters.
+  module CallbackEnvContext
+    def method_missing(method, *args, &block)
+      if _callbacks.respond_to?(method, true)
+        _callbacks.send(method, *args, &block)
+      else
+        super
+      end
+    end
+
+    def respond_to_missing?(method, include_all = false)
+      _callbacks.respond_to?(method, false) || super
+    end
+  end
 
   # Define the possible callback hooks and their required parameters.
   enum :Hook do
@@ -26,11 +44,31 @@ module ViewModel::Callbacks
 
     AfterDeserialize(:deserialize_context)
 
-    attr_reader :context_name, :required_params
+    attr_reader :context_name, :required_params, :env_class
 
     def init(context_name, *other_params)
-      @context_name = context_name
-      @required_params = [context_name, *other_params]
+      @context_name    = context_name
+      @required_params = other_params
+      @env_class = Value.new(:_callbacks, :view, context_name, *other_params) do
+        include CallbackEnvContext
+        delegate :model, to: :view
+
+        # If we have any other params, generate a combined positional/keyword
+        # constructor wrapper
+        if other_params.present?
+          params = other_params.map { |x| "#{x}:" }.join(", ")
+          args   = other_params.join(", ")
+          instance_eval(<<-SRC, __FILE__, __LINE__ + 1)
+            def create(callbacks, view, context, #{params})
+              self.new(callbacks, view, context, #{args})
+            end
+          SRC
+        else
+          def self.create(callbacks, view, context)
+            self.new(callbacks, view, context)
+          end
+        end
+      end
     end
 
     def dsl_add_hook_name
@@ -41,18 +79,26 @@ module ViewModel::Callbacks
   # Placeholder for callbacks to invoked for all view types
   ALWAYS = "__always"
 
-  # Callbacks classes may be inherited, including their callbacks.
+  # Callbacks classes may be inherited, including their callbacks and
+  # env method delegations.
   included do
     base_callbacks = {}
     define_singleton_method(:class_callbacks) { base_callbacks }
-    define_singleton_method(:all_callbacks) { [base_callbacks] }
+    define_singleton_method(:all_callbacks) do |&block|
+      return to_enum(__method__) unless block
+      block.call(base_callbacks)
+    end
   end
 
   class_methods do
     def inherited(subclass)
       subclass_callbacks = {}
       subclass.define_singleton_method(:class_callbacks) { subclass_callbacks }
-      subclass.define_singleton_method(:all_callbacks) { super() << subclass_callbacks }
+      subclass.define_singleton_method(:all_callbacks) do |&block|
+        return to_enum(__method__) unless block
+        super(&block)
+        block.call(subclass_callbacks)
+      end
     end
 
     # Add dsl methods to declare hooks in subclasses
@@ -66,7 +112,7 @@ module ViewModel::Callbacks
       valid_hook!(hook)
       return to_enum(__method__, hook, view_name) unless block_given?
 
-      all_callbacks.each do |callbacks|
+      all_callbacks do |callbacks|
         if (hook_callbacks = callbacks[hook])
           hook_callbacks[view_name.to_s]&.each { |c| yield(c) }
           hook_callbacks[ALWAYS]&.each { |c| yield(c) }
@@ -78,7 +124,6 @@ module ViewModel::Callbacks
 
     def add_callback(hook, view_name, &block)
       valid_hook!(hook)
-      valid_hook_params!(hook, block)
 
       hook_callbacks = (class_callbacks[hook] ||= {})
       view_callbacks = (hook_callbacks[view_name.to_s] ||= [])
@@ -90,31 +135,14 @@ module ViewModel::Callbacks
         raise ArgumentError.new("Invalid hook: '#{hook}'")
       end
     end
-
-    def valid_hook_params!(hook, block)
-      required_params = hook.required_params
-
-      key_params, pos_params = block.parameters.partition do |type, _name|
-        type == :key || type == :keyreq
-      end
-
-      unless pos_params.size == 1
-        raise ArgumentError.new("Cannot add callback to hook #{hook}: "\
-                                "must have exactly one positional parameter.")
-      end
-
-      key_param_names = key_params.map { |_type, name| name }
-      unless (required_params.to_set ^ key_param_names).blank?
-        raise ArgumentError.new("Cannot add callback to hook #{hook}: "\
-                                "invalid keyword parameters #{key_param_names.inspect}, "\
-                                "expected #{required_params.inspect}")
-      end
-    end
   end
 
-  def run_callback(hook, node, **args)
-    self.class.each_callback(hook, node.class.view_name) do |callback|
-      self.instance_exec(node, **args, &callback)
+  def run_callback(hook, view, context, **args)
+    callback_env = hook.env_class.create(self, view, context, **args)
+
+    view_name = view.class.view_name
+    self.class.each_callback(hook, view_name) do |callback|
+      callback_env.instance_exec(&callback)
     end
   end
 

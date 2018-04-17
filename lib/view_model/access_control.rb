@@ -41,7 +41,7 @@ class ViewModel::AccessControl
 
   # Check that the user is permitted to view the record in its current state, in
   # the given context.
-  def visible_check(_view, context:)
+  def visible_check(_traversal_env)
     Result::DENY
   end
 
@@ -55,7 +55,7 @@ class ViewModel::AccessControl
   # checking against the initial state of the viewmodel), and if editing is
   # denied, an error must be raised only if an edit is later attempted. To be
   # overridden by viewmodel implementations.
-  def editable_check(_view, deserialize_context:)
+  def editable_check(_traversal_env)
     Result::DENY
   end
 
@@ -64,17 +64,17 @@ class ViewModel::AccessControl
   # transactional backing models, the changes may be made in advance to give the
   # edit checks the opportunity to compare values. To be overridden by viewmodel
   # implementations.
-  def valid_edit_check(_view, deserialize_context:, changes:)
+  def valid_edit_check(_traversal_env)
     Result::DENY
   end
 
   # Edit checks are invoked via traversal callbacks:
   include ViewModel::Callbacks
 
-  before_visit do |view, context:|
+  before_visit do
     next if ineligible(view)
 
-    result = visible_check(view, context: context)
+    result = visible_check(self)
 
     raise_if_error!(result) do
       message =
@@ -88,21 +88,20 @@ class ViewModel::AccessControl
     end
   end
 
-  before_deserialize do |view, deserialize_context:|
+  before_deserialize do
     next if ineligible(view)
 
-    initial_result =
-      editable_check(view, deserialize_context: deserialize_context)
+    initial_result = editable_check(self)
 
     save_editability(view, initial_result)
   end
 
-  on_change do |view, changes:, deserialize_context:|
+  on_change do
     next if ineligible(view)
-    initial_result = fetch_editability(view)
 
+    initial_result = fetch_editability(view)
     result = initial_result.merge do
-      valid_edit_check(view, deserialize_context: deserialize_context, changes: changes)
+      valid_edit_check(self)
     end
 
     raise_if_error!(result) do
@@ -112,7 +111,7 @@ class ViewModel::AccessControl
     end
   end
 
-  after_deserialize do |view, deserialize_context:|
+  after_deserialize do
     next if ineligible(view)
     cleanup_editability(view)
   end

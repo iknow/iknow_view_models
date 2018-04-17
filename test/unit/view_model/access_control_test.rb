@@ -167,24 +167,6 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       ex = refute_serializes(ListView, List.create!(car: "foreigner"), serialize_context: s_ctx)
       assert_equal(2, ex.reasons.count)
     end
-
-    def test_add_to_env
-      TestAccessControl.class_eval do
-        attr_reader :env_data
-        def initialize(env_data = "data")
-          @env_data = env_data
-        end
-        add_to_env :env_data
-      end
-
-      TestAccessControl.visible_if!("car matches env_data") { view.car == env_data }
-
-      assert_serializes(ListView, List.create!(car: "data"))
-      refute_serializes(ListView, List.create!(car: "failure"))
-
-      s_ctx = ListView.new_serialize_context(access_control: TestAccessControl.new("data2"))
-      assert_serializes(ListView, List.create!(car: "data2"), serialize_context: s_ctx)
-    end
   end
 
   class TreeTest < ActiveSupport::TestCase
@@ -452,34 +434,6 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       assert_serializes(Tree1View, Tree1.create!(val: "parentalways"), serialize_context: s_ctx)
       assert_serializes(Tree1View, Tree1.create!(val: "childtree1"), serialize_context: s_ctx)
       assert_serializes(Tree1View, Tree1.create!(val: "childalways"), serialize_context: s_ctx)
-    end
-
-    def test_add_to_env
-      TestAccessControl.class_eval do
-        attr_reader :env_data
-        def initialize(env_data = "data")
-          super()
-          @env_data = env_data
-        end
-      end
-
-      TestAccessControl.add_to_env :env_data
-
-      TestAccessControl.view "Tree1" do
-        visible_if!("val matches env_data") { view.val == env_data }
-      end
-
-      TestAccessControl.always do
-        visible_if!("val starts with env_data") { view.val.start_with?(env_data) }
-      end
-
-      assert_serializes(Tree1View, Tree1.create!(val: "data"))
-      assert_serializes(Tree1View, Tree1.create!(val: "data-plus"))
-      refute_serializes(Tree1View, Tree1.create!(val: "bad-data"))
-
-      s_ctx = Tree1View.new_serialize_context(access_control: TestAccessControl.new("other"))
-
-      assert_serializes(Tree1View, Tree1.create!(val: "other"), serialize_context: s_ctx)
     end
   end
 

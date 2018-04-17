@@ -1,13 +1,13 @@
 class ViewModel::AccessControl::Open < ViewModel::AccessControl
-  def visible_check(view, context:)
+  def visible_check(_traversal_env)
     ViewModel::AccessControl::Result::PERMIT
   end
 
-  def editable_check(view, deserialize_context:)
+  def editable_check(_traversal_env)
     ViewModel::AccessControl::Result::PERMIT
   end
 
-  def valid_edit_check(view, deserialize_context:, changes:)
+  def valid_edit_check(_traversal_env)
     ViewModel::AccessControl::Result::PERMIT
   end
 end

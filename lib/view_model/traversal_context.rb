@@ -84,9 +84,9 @@ class ViewModel::TraversalContext
     parent_viewmodel(idx)&.to_reference
   end
 
-  def run_callback(hook, node, **args)
+  def run_callback(hook, view, **args)
     callbacks.each do |callback|
-      callback.run_callback(hook, node, hook.context_name => self, **args)
+      callback.run_callback(hook, view, self, **args)
     end
   end
 
