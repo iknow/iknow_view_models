@@ -97,7 +97,7 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do
+      ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do |hook_control|
         if (bad_attrs = view_hash.keys - self.member_names).present?
           causes = bad_attrs.map do |bad_attr|
             ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
@@ -115,6 +115,7 @@ class ViewModel::Record < ViewModel
 
         if changes.new? || changes.changed_attributes.present?
           deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: changes)
+          hook_control.record_changes(changes)
         end
 
         viewmodel.clear_changes!

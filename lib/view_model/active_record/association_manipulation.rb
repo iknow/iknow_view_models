@@ -79,9 +79,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
     ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
       model_class.transaction do
-        ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do
+        ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
           changes = ViewModel::Changes.new(changed_associations: [association_name])
           deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
+          hook_control.record_changes(changes)
 
           if association_data.through?
             raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -160,9 +161,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
     target_ref = ViewModel::Reference.new(type || association_data.viewmodel_class, associated_id)
 
     model_class.transaction do
-      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do
+      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
         changes = ViewModel::Changes.new(changed_associations: [association_name])
         deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
+        hook_control.record_changes(changes)
 
         association = self.model.association(direct_reflection.name)
         association_scope = association.association_scope
@@ -199,9 +201,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
         child_context = deserialize_context.for_child(self, association_name: association_name)
         child_vm = direct_viewmodel.new(models.first)
 
-        ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do
+        ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |child_hook_control|
           changes = ViewModel::Changes.new(deleted: true)
           child_context.run_callback(ViewModel::Callbacks::Hook::OnChange, child_vm, changes: changes)
+          child_hook_control.record_changes(changes)
 
           association.delete(child_vm.model)
         end

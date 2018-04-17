@@ -68,7 +68,7 @@ class ViewModel::ActiveRecord
 
       model.class.transaction do
         # Run context and viewmodel hooks
-        ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do
+        ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do |hook_control|
           viewmodel.before_deserialize(deserialize_context: deserialize_context)
 
           # update parent association
@@ -143,6 +143,7 @@ class ViewModel::ActiveRecord
             # yet been updated.
             final_changes = viewmodel.changes
             deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: final_changes)
+            hook_control.record_changes(final_changes)
           end
 
           # Save if the model has been altered. Covers not only models with
@@ -202,10 +203,12 @@ class ViewModel::ActiveRecord
                                                         association_name: child_association_data.association_name,
                                                         root: child_association_data.shared?)
 
-          ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do
+          ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |hook_control|
+            changes = ViewModel::Changes.new(deleted: true)
             child_context.run_callback(ViewModel::Callbacks::Hook::OnChange,
                                        child_vm,
-                                       changes: ViewModel::Changes.new(deleted: true))
+                                       changes: changes)
+            hook_control.record_changes(changes)
           end
         end
         debug "<- #{debug_name}: Finished checking released children permissions"

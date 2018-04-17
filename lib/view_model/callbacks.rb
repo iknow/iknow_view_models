@@ -42,7 +42,10 @@ module ViewModel::Callbacks
     # to inspect initial values.
     OnChange(:deserialize_context, :changes)
 
-    AfterDeserialize(:deserialize_context)
+    # The after-deserialize hook is called when leaving the viewmodel during
+    # deserialization. If any changes were made, the recorded ViewModel::Changes
+    # instance is passed to the hook.
+    AfterDeserialize(:deserialize_context, :changes)
 
     attr_reader :context_name, :required_params, :env_class
 
@@ -153,11 +156,19 @@ module ViewModel::Callbacks
     val
   end
 
+  # Record changes made in the deserialization block so that they can be
+  # provided to the AfterDeserialize hook.
+  DeserializeHookControl = Struct.new(:changes) do
+    alias_method :record_changes, :changes=
+  end
+
   def self.wrap_deserialize(viewmodel, deserialize_context:)
+    hook_control = DeserializeHookControl.new
+
     wrap_serialize(viewmodel, context: deserialize_context) do
       deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, viewmodel)
-      val = yield
-      deserialize_context.run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, viewmodel)
+      val = yield(hook_control)
+      deserialize_context.run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, viewmodel, changes: hook_control.changes)
       val
     end
   end
