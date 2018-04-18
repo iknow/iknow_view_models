@@ -56,6 +56,10 @@ module ViewModel::Callbacks
         include CallbackEnvContext
         delegate :model, to: :view
 
+        unless context_name == :context
+          alias_method :context, context_name
+        end
+
         # If we have any other params, generate a combined positional/keyword
         # constructor wrapper
         if other_params.present?
