@@ -49,14 +49,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     end
   end
 
-  ViewEnv = Struct.new(:view, :_access_control, :context) do
-    delegate :model, to: :view
-  end
-
-  EditEnv = Struct.new(:view, :_access_control, :deserialize_context, :changes) do
-    delegate :model, to: :view
-  end
-
   PermissionsCheck = Struct.new(:location, :reason, :error_type, :checker) do
     def name
       "#{reason} (#{location})"
