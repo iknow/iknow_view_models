@@ -158,7 +158,13 @@ class ViewModel::ActiveRecord
               raise ViewModel::DeserializationError::LockFailure.new(blame_reference)
             end
             debug "<- #{debug_name}: Saved"
+          else
+            # Still run validations, even if the model hasn't changed.
+            unless model.valid?
+              raise ViewModel::DeserializationError::Validation.from_active_model(model.errors, blame_reference)
+            end
           end
+
           viewmodel.clear_changes!
 
           # Update association cache of pointed-from associations after save: the
