@@ -306,7 +306,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
       ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
-        ViewModel::Changes.new(deleted: true)
+        changes = ViewModel::Changes.new(deleted: true)
         deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
         hook_control.record_changes(changes)
         model.destroy!

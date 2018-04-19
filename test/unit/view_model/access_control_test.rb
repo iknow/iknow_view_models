@@ -537,5 +537,16 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       l2_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l2.id))
       assert_equal([[], [], true], l2_edits)
     end
+
+    def test_editable_destroy!
+      l = List.create!(car: "a")
+      lv = ListView.new(l)
+
+      ctx = ListView.new_deserialize_context
+      lv.destroy!(deserialize_context: ctx)
+
+      l_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
+      assert_equal([[], [], true], l_edits)
+    end
   end
 end
