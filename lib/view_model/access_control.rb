@@ -68,6 +68,24 @@ class ViewModel::AccessControl
     Result::DENY
   end
 
+  # Wrappers to check access control for a single view directly. Because the
+  # checking is run directly on one node without any tree context, it's only
+  # valid to run:
+  # * on root views
+  # * when no children could contribute to the result
+  def visible!(view, context:)
+    run_callback(ViewModel::Callbacks::Hook::BeforeVisit, view, context)
+    run_callback(ViewModel::Callbacks::Hook::AfterVisit,  view, context)
+  end
+
+  def editable!(view, deserialize_context:, changes:)
+    run_callback(ViewModel::Callbacks::Hook::BeforeVisit,       view, context)
+    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, context)
+    run_callback(ViewModel::Callbacks::Hook::OnChange,          view, context, changes: changes) if changes
+    run_callback(ViewModel::Callbacks::Hook::AfterDeserialize,  view, context, changes: changes)
+    run_callback(ViewModel::Callbacks::Hook::AfterVisit,        view, context)
+  end
+
   # Edit checks are invoked via traversal callbacks:
   include ViewModel::Callbacks
 
@@ -77,14 +95,9 @@ class ViewModel::AccessControl
     result = visible_check(self)
 
     raise_if_error!(result) do
-      message =
-        if context.is_a?(ViewModel::DeserializeContext)
-          "Attempt to deserialize into forbidden viewmodel '#{view.class.view_name}'"
-        else
-          "Attempt to serialize forbidden viewmodel '#{view.class.view_name}'"
-        end
-
-      ViewModel::AccessControlError.new(message, view.blame_reference)
+      ViewModel::AccessControlError.new(
+        "Illegal access to viewmodel '#{view.class.view_name}'",
+        view.blame_reference)
     end
   end
 
@@ -113,6 +126,7 @@ class ViewModel::AccessControl
 
   after_deserialize do
     next if ineligible(view)
+    # If there was no change to consume the initial editability we still want to clean it up
     cleanup_editability(view)
   end
 

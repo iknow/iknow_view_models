@@ -122,6 +122,15 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     end
   end
 
+  def cleanup_descendent_results(view)
+    @root_visibility_store.delete(view.object_id)
+    @root_editability_store.delete(view.object_id)
+  end
+
+  after_deserialize do
+    cleanup_descendent_results(view) if context.root?
+  end
+
   private
 
   def policy_instance_for(view)
