@@ -108,7 +108,7 @@ class ViewModel::TraversalContext
     elsif parent_context.root?
       parent_viewmodel
     else
-      parent_context.nearest_root
+      parent_context.nearest_root_viewmodel
     end
   end
 end
