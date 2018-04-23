@@ -9,9 +9,10 @@ class ViewModel::TraversalContext
 
     def initialize(access_control: ViewModel::AccessControl::Open.new, callbacks: [])
       @access_control = access_control
-      # Access control is guaranteed to be run as the last callback, in case
-      # other callbacks have side-effects.
-      @callbacks = callbacks + [access_control]
+      # Access control is guaranteed to be run after callbacks that may have
+      # side-effects on the view.
+      pre_callbacks, post_callbacks = callbacks.partition { |c| c.class.updates_view? }
+      @callbacks = pre_callbacks + [access_control] + post_callbacks
     end
   end
 

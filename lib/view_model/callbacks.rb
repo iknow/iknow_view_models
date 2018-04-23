@@ -127,7 +127,15 @@ module ViewModel::Callbacks
       end
     end
 
+    def updates_view?
+      false
+    end
+
     private
+
+    def updates_view!
+      define_singleton_method(:updates_view?) { true }
+    end
 
     def add_callback(hook, view_name, &block)
       valid_hook!(hook)
