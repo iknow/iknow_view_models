@@ -75,6 +75,10 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       attrs = attributes
       vmb   = viewmodel_body
       Class.new(TestViewModel) do
+        # Avoid the need for teardown. Registration is only necessary for
+        # associations.
+        self.unregistered = true
+
         self.view_name   = "Model"
         self.model_class = mc
 
