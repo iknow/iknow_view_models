@@ -63,8 +63,8 @@ module ViewModel::Callbacks
         # If we have any other params, generate a combined positional/keyword
         # constructor wrapper
         if other_params.present?
-          params = other_params.map { |x| "#{x}:" }.join(", ")
-          args   = other_params.join(", ")
+          params = other_params.map { |x| "#{x}:" }.join(', ')
+          args   = other_params.join(', ')
           instance_eval(<<-SRC, __FILE__, __LINE__ + 1)
             def create(callbacks, view, context, #{params})
               self.new(callbacks, view, context, #{args})
@@ -84,7 +84,7 @@ module ViewModel::Callbacks
   end
 
   # Placeholder for callbacks to invoked for all view types
-  ALWAYS = "__always"
+  ALWAYS = '__always'
 
   # Callbacks classes may be inherited, including their callbacks and
   # env method delegations.
