@@ -154,6 +154,31 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child)])
       end
 
+      it 'calls hooks on old and new when moving' do
+        child = vm.child
+        vm2 = viewmodel_class.new(model_class.create!(name: 'z'))
+        alter_by_view!(viewmodel_class, [vm.model, vm2.model]) do |views, _refs|
+          views[1]['child'] = views[0]['child']
+          views[0]['child'] = nil
+        end
+
+        value(callback.hook_trace).must_equal(
+          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm2),
+           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm2),
+           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       child),
+           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        child),
+           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm2),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm2),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm2)])
+      end
+
       it 'calls hooks on delete' do
         ctx = vm_deserialize_context(viewmodel_class)
         vm.destroy!(deserialize_context: ctx)
