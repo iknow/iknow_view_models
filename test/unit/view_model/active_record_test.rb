@@ -303,11 +303,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     @parent1.name = "changed"
     @parent1.save!
 
-     assert_raises(ViewModel::DeserializationError::LockFailure) do
-      alter_by_view!(ParentView, @parent1) do |view, refs|
+    assert_raises(ViewModel::DeserializationError::LockFailure) do
+      alter_by_view!(ParentView, @parent1) do |view, _refs|
         view['lock_version'] = 0
       end
-     end
+    end
   end
 
 

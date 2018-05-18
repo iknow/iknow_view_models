@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'view_model/access_control_error'
 
 ## Defines an access control discipline for a given action against a viewmodel.
@@ -21,7 +23,7 @@ class ViewModel::AccessControl
     # returning a result, and returns a combined result for both tests. Access
     # is permitted if both results permit. Otherwise, access is denied with the
     # error value of the first denying Result.
-    def merge(&block)
+    def merge(&_block)
       if permit?
         yield
       else
@@ -33,74 +35,86 @@ class ViewModel::AccessControl
   Result::PERMIT = Result.new(true).freeze
   Result::DENY   = Result.new(false).freeze
 
+  def initialize
+    @initial_editability_store = {}
+  end
+
   # Check that the user is permitted to view the record in its current state, in
   # the given context.
-  def visible_check(view, context:)
+  def visible_check(_traversal_env)
     Result::DENY
   end
 
   # Editable checks during deserialization are always a combination of
   # `editable_check` and `valid_edit_check`, which express the following
-  # separate properties. `editable!` passes if both checks are successful.
+  # separate properties. `The after_deserialize check passes if both checks are
+  # successful.
 
   # Check that the record is eligible to be changed in its current state, in the
-  # given context. During deserialization, this must be called before any edits
-  # have taken place (thus checking against the initial state of the viewmodel),
-  # and if edit is denied, an error must be raised if an edit is later
-  # attempted. To be overridden by viewmodel implementations.
-  def editable_check(view, deserialize_context:)
+  # given context. This must be called before any edits have taken place (thus
+  # checking against the initial state of the viewmodel), and if editing is
+  # denied, an error must be raised only if an edit is later attempted. To be
+  # overridden by viewmodel implementations.
+  def editable_check(_traversal_env)
     Result::DENY
   end
 
-  # Check that the attempted changes to this record are permitted in the given
-  # context. During deserialization, this must be called once all edits have
-  # been attempted. To be overridden by viewmodel implementations.
-  def valid_edit_check(view, deserialize_context:, changes:)
+  # Once the changes to be made to the viewmodel are known, check that the
+  # attempted changes are permitted in the given context. For viewmodels with
+  # transactional backing models, the changes may be made in advance to give the
+  # edit checks the opportunity to compare values. To be overridden by viewmodel
+  # implementations.
+  def valid_edit_check(_traversal_env)
     Result::DENY
   end
 
-  # Implementations of deserialization that will potentially make changes to the
-  # viewmodel or any of its descendents must call this on the unmodified
-  # viewmodel to obtain an initial `editable_check` result before attempting to
-  # apply their changes or recursing to children. This result must then be
-  # passed to `editable!` as `initial_editability` after changes have been
-  # applied.
-  def initial_editability(view, deserialize_context:)
-    return nil if ineligible(view)
-    editable_check(view, deserialize_context: deserialize_context)
-  end
-
-  # Implementations of serialization and deserialization must call this
-  # whenever a viewmodel is visited during serialization or deserialization.
+  # Wrappers to check access control for a single view directly. Because the
+  # checking is run directly on one node without any tree context, it's only
+  # valid to run:
+  # * on root views
+  # * when no children could contribute to the result
   def visible!(view, context:)
-    return if ineligible(view)
+    run_callback(ViewModel::Callbacks::Hook::BeforeVisit, view, context)
+    run_callback(ViewModel::Callbacks::Hook::AfterVisit,  view, context)
+  end
 
-    result = visible_check(view, context: context)
+  def editable!(view, deserialize_context:, changes:)
+    run_callback(ViewModel::Callbacks::Hook::BeforeVisit,       view, context)
+    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, context)
+    run_callback(ViewModel::Callbacks::Hook::OnChange,          view, context, changes: changes) if changes
+    run_callback(ViewModel::Callbacks::Hook::AfterDeserialize,  view, context, changes: changes)
+    run_callback(ViewModel::Callbacks::Hook::AfterVisit,        view, context)
+  end
+
+  # Edit checks are invoked via traversal callbacks:
+  include ViewModel::Callbacks
+
+  before_visit do
+    next if ineligible(view)
+
+    result = visible_check(self)
 
     raise_if_error!(result) do
-      message =
-        if context.is_a?(ViewModel::DeserializeContext)
-          "Attempt to deserialize into forbidden viewmodel '#{view.class.view_name}'"
-        else
-          "Attempt to serialize forbidden viewmodel '#{view.class.view_name}'"
-        end
-
-      ViewModel::AccessControlError.new(message, view.blame_reference)
+      ViewModel::AccessControlError.new(
+        "Illegal access to viewmodel '#{view.class.view_name}'",
+        view.blame_reference)
     end
   end
 
-  # Implementations of deserialization must call this when they know what
-  # changes are to be made to the viewmodel. For viewmodels with transactional
-  # backing models, the changes may be made in advance to give the edit checks
-  # the opportunity to compare values. Must be called with the saved
-  # `initial_editability` value if changes have been made.
-  def editable!(view, initial_editability: nil, deserialize_context:, changes:)
-    return if ineligible(view)
+  before_deserialize do
+    next if ineligible(view)
 
-    initial_editability ||= editable_check(view, deserialize_context: deserialize_context)
+    initial_result = editable_check(self)
 
-    result = initial_editability.merge do
-      valid_edit_check(view, deserialize_context: deserialize_context, changes: changes)
+    save_editability(view, initial_result)
+  end
+
+  on_change do
+    next if ineligible(view)
+
+    initial_result = fetch_editability(view)
+    result = initial_result.merge do
+      valid_edit_check(self)
     end
 
     raise_if_error!(result) do
@@ -110,7 +124,31 @@ class ViewModel::AccessControl
     end
   end
 
+  after_deserialize do
+    next if ineligible(view)
+    # If there was no change to consume the initial editability we still want to clean it up
+    cleanup_editability(view)
+  end
+
   private
+
+  def save_editability(view, initial_editability)
+    if @initial_editability_store.has_key?(view.object_id)
+      raise RuntimeError.new("Access control data already recorded for view #{view.to_reference}")
+    end
+    @initial_editability_store[view.object_id] = initial_editability
+  end
+
+  def fetch_editability(view)
+    unless @initial_editability_store.has_key?(view.object_id)
+      raise RuntimeError.new("No access control data recorded for view #{view.to_reference}")
+    end
+    @initial_editability_store.delete(view.object_id)
+  end
+
+  def cleanup_editability(view)
+    @initial_editability_store.delete(view.object_id)
+  end
 
   def ineligible(view)
     # ARVM synthetic views are considered part of their association and as such

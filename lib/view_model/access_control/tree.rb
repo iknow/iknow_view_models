@@ -12,7 +12,7 @@
 ## veto access to their non-root tree descendents with the additional access
 ## checks `root_children_{editable,visible}_if!` and `root_children_
 ## {editable,visible}_unless!`. The results of evaluating these checks on entry
-## to the root node will be cached and used when evaluating `visible` and
+## to the root node.object_id will be cached and used when evaluating `visible` and
 ## `editable` on children.
 class ViewModel::AccessControl::Tree < ViewModel::AccessControl
   class << self
@@ -26,7 +26,6 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     def initialize_as_tree_access_control
       @included_checkers = []
       @view_policies     = {}
-      @env_vars          = []
       const_set(:AlwaysPolicy, Class.new(Node))
     end
 
@@ -39,20 +38,14 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
 
       self::AlwaysPolicy.include_from(ancestor::AlwaysPolicy)
       ancestor.view_policies.each do |view_name, ancestor_policy|
-        policy = find_or_create_policy(view_name, root: ancestor_policy.root?)
+        policy = find_or_create_policy(view_name)
         policy.include_from(ancestor_policy)
       end
     end
 
-    def add_to_env(field_name)
-      @env_vars << field_name
-      self::AlwaysPolicy.add_to_env(field_name)
-      view_policies.values.each { |p| p.add_to_env(field_name) }
-    end
-
     # Definition language
-    def view(view_name, root: false, &block)
-      policy = find_or_create_policy(view_name, root: root)
+    def view(view_name, &block)
+      policy = find_or_create_policy(view_name)
       policy.instance_exec(&block)
     end
 
@@ -66,47 +59,76 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       policy = Class.new(Node)
       # View names are not necessarily rails constants, but we want
       # `const_set` them so they show up in stack traces.
-      mangled_name = view_name.gsub(".", "_")
+      mangled_name = view_name.tr('.', '_')
       const_set(:"#{mangled_name}Policy", policy)
       view_policies[view_name] = policy
       policy.include_from(self::AlwaysPolicy)
-      @env_vars.each { |field| policy.add_to_env(field) }
       policy
     end
 
-    def find_or_create_policy(view_name, root:)
-      if (policy = view_policies[view_name])
-        if policy.root? != root
-          raise ArgumentError.new("Cannot create policy with root=#{root}: inconsistent with ancestors")
-        end
-      else
-        policy = create_policy(view_name)
-        policy.root! if root
-      end
-      policy
+    def find_or_create_policy(view_name)
+      view_policies.fetch(view_name) { create_policy(view_name) }
     end
 
     def inspect
-    "#{super}(checks:\n#{@view_policies.values.map(&:inspect).join("\n")}\n#{self::AlwaysPolicy.inspect}\nincluded checkers: #{@included_checkers})"
+      "#{super}(checks:\n#{@view_policies.values.map(&:inspect).join("\n")}\n#{self::AlwaysPolicy.inspect}\nincluded checkers: #{@included_checkers})"
     end
   end
 
   def initialize
+    super()
     @always_policy_instance = self.class::AlwaysPolicy.new(self)
     @view_policy_instances  = self.class.view_policies.each_with_object({}) { |(name, policy), h| h[name] = policy.new(self) }
+    @root_visibility_store  = {}
+    @root_editability_store = {}
   end
 
   # Evaluation entry points
-  def visible_check(view, context:)
-    policy_instance_for(view).visible_check(view, context: context)
+  def visible_check(traversal_env)
+    policy_instance_for(traversal_env.view).visible_check(traversal_env)
   end
 
-  def editable_check(view, deserialize_context:)
-    policy_instance_for(view).editable_check(view, deserialize_context: deserialize_context)
+  def editable_check(traversal_env)
+    policy_instance_for(traversal_env.view).editable_check(traversal_env)
   end
 
-  def valid_edit_check(view, deserialize_context:, changes:)
-    policy_instance_for(view).valid_edit_check(view, deserialize_context: deserialize_context, changes: changes)
+  def valid_edit_check(traversal_env)
+    policy_instance_for(traversal_env.view).valid_edit_check(traversal_env)
+  end
+
+  def store_descendent_editability(view, descendent_editability)
+    if @root_editability_store.has_key?(view.object_id)
+      raise RuntimeError.new("Root access control data already saved for root")
+    end
+    @root_editability_store[view.object_id] = descendent_editability
+  end
+
+  def fetch_descendent_editability(view)
+    @root_editability_store.fetch(view.object_id) do
+      raise RuntimeError.new("No root access control data recorded for root")
+    end
+  end
+
+  def store_descendent_visibility(view, descendent_visibility)
+    if @root_visibility_store.has_key?(view.object_id)
+      raise RuntimeError.new("Root access control data already saved for root")
+    end
+    @root_visibility_store[view.object_id] = descendent_visibility
+  end
+
+  def fetch_descendent_visibility(view)
+    @root_visibility_store.fetch(view.object_id) do
+      raise RuntimeError.new("No root access control data recorded for root")
+    end
+  end
+
+  def cleanup_descendent_results(view)
+    @root_visibility_store.delete(view.object_id)
+    @root_editability_store.delete(view.object_id)
+  end
+
+  after_deserialize do
+    cleanup_descendent_results(view) if context.root?
   end
 
   private
@@ -114,46 +136,6 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
   def policy_instance_for(view)
     view_name = view.class.view_name
     @view_policy_instances.fetch(view_name) { @always_policy_instance }
-  end
-
-  # Mix-in for traversal contexts to support saving precalculated
-  # child-editability/visibility for tree-based access control roots.
-  module AccessControlRootMixin
-    extend ActiveSupport::Concern
-
-    RootData = Struct.new(:visibility, :editability)
-
-    def initialize(*)
-      super
-      @access_control_root_data = nil
-    end
-
-    def initialize_as_child(*)
-      @access_control_root_data = nil
-    end
-
-    def access_control_root?
-      @access_control_root_data.present?
-    end
-
-    def nearest_access_control_root_data
-      @nearest_access_control_root_data ||=
-        if access_control_root?
-          @access_control_root_data
-        else
-          parent_context&.nearest_access_control_root_data
-        end
-    end
-
-    def set_access_control_root_editability!(root_result)
-      @access_control_root_data ||= RootData.new
-      @access_control_root_data.editability = root_result
-    end
-
-    def set_access_control_root_visibility!(root_result)
-      @access_control_root_data ||= RootData.new
-      @access_control_root_data.visibility = root_result
-    end
   end
 
   class Node < ViewModel::AccessControl::Composed
@@ -169,53 +151,49 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       end
 
       def initialize_as_node
-        @root                            = false
+        @root = false
         @root_children_editable_ifs      = []
         @root_children_editable_unlesses = []
         @root_children_visible_ifs       = []
         @root_children_visible_unlesses  = []
       end
 
-      def root!
+      def root_children_visible_if!(reason, &block)
         @root = true
+        root_children_visible_ifs << new_permission_check(reason, &block)
+      end
+
+      def root_children_visible_unless!(reason, &block)
+        @root = true
+        root_children_visible_unlesses << new_permission_check(reason, &block)
+      end
+
+      def root_children_editable_if!(reason, &block)
+        @root = true
+        root_children_editable_ifs << new_permission_check(reason, &block)
+      end
+
+      def root_children_editable_unless!(reason, &block)
+        @root = true
+        root_children_editable_unlesses << new_permission_check(reason, &block)
       end
 
       def root?
         @root
       end
 
-      def add_to_env(parent_field)
-        delegate(parent_field, to: :@tree_access_control)
-        super(parent_field)
-      end
-
-      def root_children_visible_if!(reason, &block)
-        raise ArgumentError.new("Cannot set child access control on non-root") unless root?
-        @root_children_visible_ifs << new_permission_check(reason, &block)
-      end
-
-      def root_children_visible_unless!(reason, &block)
-        raise ArgumentError.new("Cannot set child access control on non-root") unless root?
-        @root_children_visible_unlesses << new_permission_check(reason, &block)
-      end
-
-      def root_children_editable_if!(reason, &block)
-        raise ArgumentError.new("Cannot set child access control on non-root") unless root?
-        @root_children_editable_ifs << new_permission_check(reason, &block)
-      end
-
-      def root_children_editable_unless!(reason, &block)
-        raise ArgumentError.new("Cannot set child access control on non-root") unless root?
-        @root_children_editable_unlesses << new_permission_check(reason, &block)
-      end
+      alias requires_root? root?
 
       def inspect_checks
         checks = super
-        checks.unshift("root: #{root?}")
-        checks << "root_children_visible_if: #{@root_children_visible_ifs.map(&:reason)}"            if @root_children_visible_ifs.present?
-        checks << "root_children_visible_unless: #{@root_children_visible_unlesses.map(&:reason)}"   if @root_children_visible_unlesses.present?
-        checks << "root_children_editable_if: #{@root_children_editable_ifs.map(&:reason)}"          if @root_children_editable_ifs.present?
-        checks << "root_children_editable_unless: #{@root_children_editable_unlesses.map(&:reason)}" if @root_children_editable_unlesses.present?
+        if root?
+          checks << "no root checks"
+        else
+          checks << "root_children_visible_if: #{root_children_visible_ifs.map(&:reason)}"            if root_children_visible_ifs.present?
+          checks << "root_children_visible_unless: #{root_children_visible_unlesses.map(&:reason)}"   if root_children_visible_unlesses.present?
+          checks << "root_children_editable_if: #{root_children_editable_ifs.map(&:reason)}"          if root_children_editable_ifs.present?
+          checks << "root_children_editable_unless: #{root_children_editable_unlesses.map(&:reason)}" if root_children_editable_unlesses.present?
+        end
         checks
       end
     end
@@ -225,52 +203,62 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       @tree_access_control = tree_access_control
     end
 
-    def visible_check(view, context:)
-      if self.class.root?
-        save_root_visibility!(view, context: context)
+    delegate :store_descendent_visibility, :fetch_descendent_visibility,
+             :store_descendent_editability, :fetch_descendent_editability,
+             to: :@tree_access_control
+
+    def visible_check(traversal_env)
+      view    = traversal_env.view
+      context = traversal_env.context
+
+      validate_root!(view, context)
+
+      if context.root?
+        save_root_visibility!(traversal_env)
         super
       else
-        if (root_data = context.nearest_access_control_root_data)
-          root_data.visibility.merge { super }
-        else
-          super
-        end
+        root_visibility = fetch_descendent_visibility(context.nearest_root_viewmodel)
+        root_visibility.merge { super }
       end
     end
 
-    def editable_check(view, deserialize_context:)
-      if self.class.root?
-        save_root_editability!(view, deserialize_context: deserialize_context)
+    def editable_check(traversal_env)
+      view                = traversal_env.view
+      deserialize_context = traversal_env.deserialize_context
+
+      validate_root!(view, deserialize_context)
+
+      if deserialize_context.root?
+        save_root_editability!(traversal_env)
         super
       else
-        if (root_data = deserialize_context.nearest_access_control_root_data)
-          root_data.editability.merge { super }
-        else
-          super
-        end
+        root_editability = fetch_descendent_editability(deserialize_context.nearest_root_viewmodel)
+        root_editability.merge { super }
       end
     end
 
     private
 
-    def save_root_visibility!(view, context:)
-      env = self.class.new_view_env(view, self, context)
-
-      result = check_delegates(env,
-                               self.class.each_check(:root_children_visible_ifs, ->(a){ a.is_a?(Node) }),
-                               self.class.each_check(:root_children_visible_unlesses, ->(a){ a.is_a?(Node) }))
-
-      context.set_access_control_root_visibility!(result)
+    def validate_root!(view, context)
+      if self.class.requires_root? && !context.root?
+        raise RuntimeError.new("AccessControl instance for #{view.class.view_name} node requires root context but was visited in owned context.")
+      end
     end
 
-    def save_root_editability!(view, deserialize_context:)
-      env = self.class.new_edit_env(view, self, deserialize_context)
+    def save_root_visibility!(traversal_env)
+      result = check_delegates(traversal_env,
+                               self.class.each_check(:root_children_visible_ifs,      ->(a) { a.is_a?(Node) }),
+                               self.class.each_check(:root_children_visible_unlesses, ->(a) { a.is_a?(Node) }))
 
-      result = check_delegates(env,
-                               self.class.each_check(:root_children_editable_ifs, ->(a){ a.is_a?(Node) }),
-                               self.class.each_check(:root_children_editable_unlesses, ->(a){ a.is_a?(Node) }))
+      store_descendent_visibility(traversal_env.view, result)
+    end
 
-      deserialize_context.set_access_control_root_editability!(result)
+    def save_root_editability!(traversal_env)
+      result = check_delegates(traversal_env,
+                               self.class.each_check(:root_children_editable_ifs,      ->(a) { a.is_a?(Node) }),
+                               self.class.each_check(:root_children_editable_unlesses, ->(a) { a.is_a?(Node) }))
+
+      store_descendent_editability(traversal_env.view, result)
     end
   end
 end

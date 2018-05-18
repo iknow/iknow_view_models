@@ -16,19 +16,19 @@ class TestAccessControl < ViewModel::AccessControl
 
   # Collect
 
-  def editable_check(view, deserialize_context:)
-    @editable_checks << view.to_reference
+  def editable_check(traversal_env)
+    @editable_checks << traversal_env.view.to_reference
     ViewModel::AccessControl::Result.new(@can_edit)
   end
 
-  def valid_edit_check(view, deserialize_context:, changes:)
-    ref = view.to_reference
-    @valid_edit_checks << [ref, changes]
+  def valid_edit_check(traversal_env)
+    ref = traversal_env.view.to_reference
+    @valid_edit_checks << [ref, traversal_env.changes]
     ViewModel::AccessControl::Result.new(@can_change)
   end
 
-  def visible_check(view, context:)
-    @visible_checks << view.to_reference
+  def visible_check(traversal_env)
+    @visible_checks << traversal_env.view.to_reference
     ViewModel::AccessControl::Result.new(@can_view)
   end
 

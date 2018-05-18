@@ -75,7 +75,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
                     viewmodel: nil,
                     viewmodels: nil,
                     shared: false,
-                    optional: shared,
+                    optional: false,
                     through: nil,
                     through_order_attr: nil,
                     as: nil)
@@ -201,7 +201,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
 
-        child_context = serialize_context.for_child(nil, association_name: assoc_name)
+        child_context = serialize_context.for_child(nil, association_name: assoc_name, root: association_data.shared?)
 
         case
         when association_data.through?
@@ -294,7 +294,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       member_context =
         case member_data
         when AssociationData
-          serialize_context.for_child(self, association_name: member_name)
+          serialize_context.for_child(self, association_name: member_name, root: member_data.shared?)
         else
           serialize_context
         end
@@ -305,12 +305,12 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      deserialize_context.visible!(self)
-      initial_editability = deserialize_context.initial_editability(self)
-      deserialize_context.editable!(self,
-                                    initial_editability: initial_editability,
-                                    changes: ViewModel::Changes.new(deleted: true))
-      model.destroy!
+      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
+        changes = ViewModel::Changes.new(deleted: true)
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
+        hook_control.record_changes(changes)
+        model.destroy!
+      end
     end
   end
 
@@ -326,15 +326,15 @@ class ViewModel::ActiveRecord < ViewModel::Record
     @changed_associations = []
   end
 
-  # We use `model.new_record?` instead of internal new_model tracking so that
+  # We use `model.new_record?` instead of inherited new_model tracking so that
   # implementors of custom resolve steps aren't required to call `model_is_new!`
   def new_model?
     model.new_record?
   end
 
-  # we use `model.changed_attributes` instead of `self.changed_attributes` for
-  # similar reasons, that implementors of custom `deserialize_#{foo}` methods
-  # aren't required to call `attribute_changed!`
+  # we use `model.changed_attributes` instead of inheriting for similar reasons,
+  # that implementors of custom `deserialize_#{foo}` methods aren't required to
+  # call `attribute_changed!`
   def changed_attributes
     changed_attributes = model.changed
 

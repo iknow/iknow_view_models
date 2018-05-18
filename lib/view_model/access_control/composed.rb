@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ## Provides access control as a combination of `x_if!` and `x_unless!` checks
 ## for each access check (visible, editable, edit_valid). An action is permitted
 ## if at least one `if` check and no `unless` checks succeed. For example:
@@ -17,14 +19,14 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
 
     def error
       case
-      when veto;   veto_error
-      when !allow; allow_error
-      else;        nil
+      when veto   then veto_error
+      when !allow then allow_error
+      else nil
       end
     end
 
     # Merge this composed result with another. `allow`s widen and `veto`es narrow.
-    def merge(&block)
+    def merge(&_block)
       if self.veto
         self
       else
@@ -45,14 +47,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
         ComposedResult.new(new_allow, other.veto, new_allow_error, other.veto_error)
       end
     end
-  end
-
-  ViewEnv = Struct.new(:view, :_access_control, :context) do
-    delegate :model, to: :view
-  end
-
-  EditEnv = Struct.new(:view, :_access_control, :deserialize_context, :changes) do
-    delegate :model, to: :view
   end
 
   PermissionsCheck = Struct.new(:location, :reason, :error_type, :checker) do
@@ -108,9 +102,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
 
       @visible_ifs         = []
       @visible_unlesses    = []
-
-      @view_env_class = ViewEnv
-      @edit_env_class = EditEnv
     end
 
     ## Configuration API
@@ -120,16 +111,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       end
 
       @included_checkers << ancestor
-    end
-
-    def add_to_env(field_name)
-      if @edit_env_class == EditEnv
-        @edit_env_class = Class.new(EditEnv)
-        @view_env_class = Class.new(ViewEnv)
-      end
-
-      @edit_env_class.delegate(field_name, to: :_access_control)
-      @view_env_class.delegate(field_name, to: :_access_control)
     end
 
     def visible_if!(reason, &block)
@@ -157,14 +138,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     end
 
     ## Implementation
-
-    def new_view_env(view, access_control, context)
-      @view_env_class.new(view, access_control, context)
-    end
-
-    def new_edit_env(view, access_control, deserialize_context, changes = nil)
-      @edit_env_class.new(view, access_control, deserialize_context, changes)
-    end
 
     def new_permission_check(reason, error_type: ViewModel::AccessControlError, &block)
       PermissionsCheck.new(self.name&.demodulize, reason, error_type, block)
@@ -205,21 +178,18 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
   end
 
   # final
-  def visible_check(view, context:)
-    env = self.class.new_view_env(view, self, context)
-    check_delegates(env, self.class.each_check(:visible_ifs), self.class.each_check(:visible_unlesses))
+  def visible_check(traversal_env)
+    check_delegates(traversal_env, self.class.each_check(:visible_ifs), self.class.each_check(:visible_unlesses))
   end
 
   # final
-  def editable_check(view, deserialize_context:)
-    env = self.class.new_edit_env(view, self, deserialize_context)
-    check_delegates(env, self.class.each_check(:editable_ifs), self.class.each_check(:editable_unlesses))
+  def editable_check(traversal_env)
+    check_delegates(traversal_env, self.class.each_check(:editable_ifs), self.class.each_check(:editable_unlesses))
   end
 
   # final
-  def valid_edit_check(view, deserialize_context:, changes:)
-    env = self.class.new_edit_env(view, self, deserialize_context, changes)
-    check_delegates(env, self.class.each_check(:edit_valid_ifs), self.class.each_check(:edit_valid_unlesses))
+  def valid_edit_check(traversal_env)
+    check_delegates(traversal_env, self.class.each_check(:edit_valid_ifs), self.class.each_check(:edit_valid_unlesses))
   end
 
   protected

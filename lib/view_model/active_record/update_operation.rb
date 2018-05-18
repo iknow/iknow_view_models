@@ -67,137 +67,155 @@ class ViewModel::ActiveRecord
       debug "-> #{debug_name}: Entering"
 
       model.class.transaction do
-        deserialize_context.visible!(viewmodel)
+        # Run context and viewmodel hooks
+        ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do |hook_control|
+          viewmodel.before_deserialize(deserialize_context: deserialize_context)
 
-        # Check that the record is eligible to be edited before any changes are
-        # made. A failure here becomes an error once we've detected a change
-        # being made.
-        initial_editability = deserialize_context.initial_editability(viewmodel)
+          # update parent association
+          if reparent_to.present?
+            debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
+            association = model.association(reparent_to.association_reflection.name)
+            association.replace(reparent_to.viewmodel.model)
+            debug "<- #{debug_name}: Updated parent pointer"
+          end
 
-        viewmodel.before_deserialize(deserialize_context: deserialize_context)
+          # update position
+          if reposition_to.present?
+            debug "-> #{debug_name}: Updating position to #{reposition_to}"
+            viewmodel._list_attribute = reposition_to
+          end
 
-        # update parent association
-        if reparent_to.present?
-          debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
-          association = model.association(reparent_to.association_reflection.name)
-          association.replace(reparent_to.viewmodel.model)
-          debug "<- #{debug_name}: Updated parent pointer"
-        end
+          # update user-specified attributes
+          valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
+          bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
+          if bad_keys.present?
+            causes = bad_keys.map { |k| ViewModel::DeserializationError::UnknownAttribute.new(k, blame_reference) }
+            raise ViewModel::DeserializationError::Collection.for_errors(causes)
+          end
 
-        # update position
-        if reposition_to.present?
-          debug "-> #{debug_name}: Updating position to #{reposition_to}"
-          viewmodel._list_attribute = reposition_to
-        end
+          attributes.each do |attr_name, serialized_value|
+            # Note that the VM::AR deserialization tree asserts ownership over any
+            # references it's provided, and so they're intentionally not passed on
+            # to attribute deserialization for use by their `using:` viewmodels. A
+            # (better?) alternative would be to provide them as reference-only
+            # hashes, to indicate that no modification can be permitted.
+            viewmodel.public_send("deserialize_#{attr_name}", serialized_value,
+                                  references: {},
+                                  deserialize_context: deserialize_context)
+          end
 
-        # update user-specified attributes
-        valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
-        bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
-        if bad_keys.present?
-          causes = bad_keys.map { |k| ViewModel::DeserializationError::UnknownAttribute.new(k, blame_reference) }
-          raise ViewModel::DeserializationError::Collection.for_errors(causes)
-        end
+          # Update points-to associations before save
+          points_to.each do |association_data, child_operation|
+            reflection = association_data.direct_reflection
+            debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
-        attributes.each do |attr_name, serialized_value|
-          # Note that the VM::AR deserialization tree asserts ownership over any
-          # references it's provided, and so they're intentionally not passed on
-          # to attribute deserialization for use by their `using:` viewmodels. A
-          # (better?) alternative would be to provide them as reference-only
-          # hashes, to indicate that no modification can be permitted.
-          viewmodel.public_send("deserialize_#{attr_name}", serialized_value,
-                                references: {},
-                                deserialize_context: deserialize_context)
-        end
+            association = model.association(reflection.name)
+            child_model = if child_operation
+                            ctx = deserialize_context.for_child(viewmodel,
+                                                                association_name: association_data.association_name,
+                                                                root: association_data.shared?)
+                            child_operation.run!(deserialize_context: ctx).model
+                          else
+                            nil
+                          end
+            association.replace(child_model)
+            debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
+          end
 
-        # Update points-to associations before save
-        points_to.each do |association_data, child_operation|
-          reflection = association_data.direct_reflection
-          debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
-
-          association = model.association(reflection.name)
-          child_model = if child_operation
-                          ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
-                          child_operation.run!(deserialize_context: ctx).model
-                        else
-                          nil
-                        end
-          association.replace(child_model)
-          debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
-        end
-
-        # Placing the edit check here allows it to consider the previous and
-        # current state of the model before it is saved. For example, but
-        # comparing #foo, #foo_was, #new_record?. Note that edit checks for
-        # deletes are handled elsewhere.
-
-        changes = viewmodel.changes
-
-        if changes.new? || changes.changed_attributes.present? || changes.changed_associations.present?
-          viewmodel.before_save(changes, deserialize_context: deserialize_context)
-
-          # The hook before this might have caused additional changes. All changes should be checked by the policy,
-          # so we have to recalculate the change set.
+          # Placing the edit check here allows it to consider the previous and
+          # current state of the model before it is saved. For example, but
+          # comparing #foo, #foo_was, #new_record?. Note that edit checks for
+          # deletes are handled elsewhere.
 
           changes = viewmodel.changes
+          if changes.new? || changes.changed_attributes.present? || changes.changed_associations.present?
+            debug "-> #{debug_name}: Validating changes"
+            # invoke pre-save hook
+            viewmodel.before_save(changes, deserialize_context: deserialize_context)
 
-          deserialize_context.editable!(viewmodel,
-                                        initial_editability: initial_editability,
-                                        changes: changes)
-        end
+            # Invoke any validation hooks before attempting to save.
+            viewmodel.validate!
 
-        # Invoke any validation hooks before attempting to save.
-        viewmodel.validate!
+            # The hooks before this might have caused additional changes. All
+            # changes should be checked by the policy, so we have to recalculate
+            # the change set. Note that changes to associated children that point
+            # to this parent are recorded in `changes`, but their models have not
+            # yet been updated.
+            final_changes = viewmodel.changes
+            deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: final_changes)
+            hook_control.record_changes(final_changes)
+          end
 
-        debug "-> #{debug_name}: Saving"
-        begin
-          model.save!
-        rescue ::ActiveRecord::RecordInvalid => ex
-          raise ViewModel::DeserializationError::Validation.from_active_model(ex.errors, blame_reference)
-        rescue ::ActiveRecord::StaleObjectError => ex
-          raise ViewModel::DeserializationError::LockFailure.new(blame_reference)
-        end
-        debug "<- #{debug_name}: Saved"
-
-        viewmodel.clear_changes!
-
-        # Update association cache of pointed-from associations after save: the
-        # child update will have saved the pointer.
-        pointed_to.each do |association_data, child_operation|
-          reflection = association_data.direct_reflection
-
-          debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
-
-          association = model.association(reflection.name)
-          child_ctx = deserialize_context.for_child(viewmodel, association_name: association_data.association_name)
-
-          new_target =
-            case child_operation
-            when nil
-              nil
-            when ViewModel::ActiveRecord::UpdateOperation
-              child_operation.run!(deserialize_context: child_ctx).model
-            when Array
-              viewmodels = child_operation.map { |op| op.run!(deserialize_context: child_ctx) }
-              viewmodels.map(&:model)
+          # Save if the model has been altered. Covers not only models with
+          # view changes but also lock version assertions.
+          if viewmodel.model.changed?
+            debug "-> #{debug_name}: Saving"
+            begin
+              model.save!
+            rescue ::ActiveRecord::RecordInvalid => ex
+              raise ViewModel::DeserializationError::Validation.from_active_model(ex.errors, blame_reference)
+            rescue ::ActiveRecord::StaleObjectError => _ex
+              raise ViewModel::DeserializationError::LockFailure.new(blame_reference)
             end
+            debug "<- #{debug_name}: Saved"
+          else
+            # Still run validations, even if the model hasn't changed.
+            unless model.valid?
+              raise ViewModel::DeserializationError::Validation.from_active_model(model.errors, blame_reference)
+            end
+          end
 
-          association.target = new_target
+          viewmodel.clear_changes!
 
-          debug "<- #{debug_name}: Updated pointed-to association '#{reflection.name}'"
+          # Update association cache of pointed-from associations after save: the
+          # child update will have saved the pointer.
+          pointed_to.each do |association_data, child_operation|
+            reflection = association_data.direct_reflection
+
+            debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
+
+            association = model.association(reflection.name)
+            child_ctx = deserialize_context.for_child(viewmodel,
+                                                      association_name: association_data.association_name,
+                                                      root: association_data.shared?)
+
+            new_target =
+              case child_operation
+              when nil
+                nil
+              when ViewModel::ActiveRecord::UpdateOperation
+                child_operation.run!(deserialize_context: child_ctx).model
+              when Array
+                viewmodels = child_operation.map { |op| op.run!(deserialize_context: child_ctx) }
+                viewmodels.map(&:model)
+              end
+
+            association.target = new_target
+
+            debug "<- #{debug_name}: Updated pointed-to association '#{reflection.name}'"
+          end
         end
       end
 
       if self.released_children.present?
+        # Released children that were not reclaimed by other parents during the
+        # build phase will be deleted: check access control.
         debug "-> #{debug_name}: Checking released children permissions"
         self.released_children.reject(&:claimed?).each do |released_child|
           debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          child_context = deserialize_context.for_child(viewmodel, association_name: nil)
           child_vm = released_child.viewmodel
-          child_context.visible!(child_vm)
-          initial_editability = child_context.initial_editability(child_vm)
-          child_context.editable!(child_vm,
-                                  initial_editability: initial_editability,
-                                  changes: ViewModel::Changes.new(deleted: true))
+          child_association_data = released_child.association_data
+          child_context = deserialize_context.for_child(viewmodel,
+                                                        association_name: child_association_data.association_name,
+                                                        root: child_association_data.shared?)
+
+          ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |hook_control|
+            changes = ViewModel::Changes.new(deleted: true)
+            child_context.run_callback(ViewModel::Callbacks::Hook::OnChange,
+                                       child_vm,
+                                       changes: changes)
+            hook_control.record_changes(changes)
+          end
         end
         debug "<- #{debug_name}: Finished checking released children permissions"
       end
@@ -804,6 +822,5 @@ class ViewModel::ActiveRecord
         logger.debug(msg)
       end
     end
-
   end
 end

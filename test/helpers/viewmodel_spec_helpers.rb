@@ -96,6 +96,20 @@ module ViewModelSpecHelpers
     end
   end
 
+  module List
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::Base
+
+    def model_attributes
+      super.merge(schema:    ->(t) { t.integer :next_id },
+                  model:     ->(m) {
+                    belongs_to :next, class_name: self.name, inverse_of: :previous, dependent: :destroy
+                    has_one :previous, class_name: self.name, foreign_key: :next_id, inverse_of: :next
+                  },
+                  viewmodel: ->(v) { association :next })
+    end
+  end
+
   module ParentAndHasOneChild
     extend ActiveSupport::Concern
     include ViewModelSpecHelpers::Base

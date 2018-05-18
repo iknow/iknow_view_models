@@ -25,6 +25,15 @@ class ViewModel::Changes
       attributes.any? { |attr| changed_attributes.include?(attr.to_s) }
   end
 
+  def to_h
+    {
+      "changed_attributes"   => changed_attributes.dup,
+      "changed_associations" => changed_associations.dup,
+      "new"                  => new?,
+      "deleted"              => deleted?,
+    }
+  end
+
   def ==(other)
     return false unless other.is_a?(ViewModel::Changes)
 

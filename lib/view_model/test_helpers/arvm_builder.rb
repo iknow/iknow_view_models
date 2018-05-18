@@ -53,7 +53,8 @@ class ViewModel::TestHelpers::ARVMBuilder
     # table. If this doesn't happen the library may have conflicting entries in
     # the deferred table, and will allow viewmodels to leak between tests.
     unless @no_viewmodel || !(@viewmodel < ViewModel::Record)
-      ViewModel::Registry.for_view_name(viewmodel.view_name)
+      resolved = ViewModel::Registry.for_view_name(viewmodel.view_name)
+      raise "Failed to register expected new class!" unless resolved == @viewmodel
     end
   end
 

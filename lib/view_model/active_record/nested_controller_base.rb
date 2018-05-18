@@ -8,14 +8,15 @@ module ViewModel::ActiveRecord::NestedControllerBase
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
-      serialize_context.visible!(owner_view)
-      # Association manipulation methods construct child contexts internally
-      associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
+      ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
+        # Association manipulation methods construct child contexts internally
+        associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
-      associated_views = yield(associated_views) if block_given?
+        associated_views = yield(associated_views) if block_given?
 
-      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
-      prerender_viewmodel(associated_views, serialize_context: child_context)
+        child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
+        prerender_viewmodel(associated_views, serialize_context: child_context)
+      end
     end
     finish_render_viewmodel(pre_rendered)
     associated_views

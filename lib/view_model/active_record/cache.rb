@@ -47,13 +47,16 @@ class ViewModel::ActiveRecord::Cache
     data_serializations = Array.new(ids.size)
     worker = CacheWorker.new(serialize_context: serialize_context)
 
-    # If initial root viewmodels were provided, ensure that they are visible.
-    # Other than this, no visibility checking is performed, as a view may be
-    # resolved from the cache without ever loading its viewmodel. Note that if
-    # unlocked, these views will be reloaded as part of obtaining a share lock.
-    # If the visibility of this viewmodel can change due to edits, it is
-    # necessary to obtain a lock before calling `fetch`.
-    initial_viewmodels&.each { |v| serialize_context.visible!(v) }
+    # If initial root viewmodels were provided, visit them to ensure that they
+    # are visible. Other than this, no traversal callbacks are performed, as a
+    # view may be resolved from the cache without ever loading its viewmodel.
+    # Note that if unlocked, these views will be reloaded as part of obtaining a
+    # share lock. If the visibility of this viewmodel can change due to edits,
+    # it is necessary to obtain a lock before calling `fetch`.
+    initial_viewmodels&.each do |v|
+      serialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeVisit, v)
+      serialize_context.run_callback(ViewModel::Callbacks::Hook::AfterVisit, v)
+    end
 
     # Collect input array positions for each id, allowing duplicates
     positions = ids.each_with_index.with_object({}) do |(id, i), h|

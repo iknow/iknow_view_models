@@ -94,11 +94,14 @@ module ARVMTestUtilities
   def assert_serializes(vm, model, serialize_context: vm.new_serialize_context)
     h = vm.new(model).to_hash(serialize_context: serialize_context)
     assert_kind_of(Hash, h)
+    refs = serialize_context.serialize_references_to_hash
+    assert_kind_of(Hash, refs)
   end
 
   def refute_serializes(vm, model, message = nil, serialize_context: vm.new_serialize_context)
     ex = assert_raises(ViewModel::AccessControlError) do
       vm.new(model).to_hash(serialize_context: serialize_context)
+      serialize_context.serialize_references_to_hash
     end
     assert_match(message, ex.message) if message
     ex

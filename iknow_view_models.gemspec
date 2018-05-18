@@ -27,6 +27,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "deep_preloader"
   spec.add_dependency "iknow_cache"
   spec.add_dependency "iknow_params"
+  spec.add_dependency "safe_values"
 
   spec.add_dependency "concurrent-ruby"
   spec.add_dependency "jbuilder"
