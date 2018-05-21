@@ -194,30 +194,30 @@ class ViewModel::ActiveRecord
 
             debug "<- #{debug_name}: Updated pointed-to association '#{reflection.name}'"
           end
-        end
-      end
 
-      if self.released_children.present?
-        # Released children that were not reclaimed by other parents during the
-        # build phase will be deleted: check access control.
-        debug "-> #{debug_name}: Checking released children permissions"
-        self.released_children.reject(&:claimed?).each do |released_child|
-          debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
-          child_vm = released_child.viewmodel
-          child_association_data = released_child.association_data
-          child_context = deserialize_context.for_child(viewmodel,
-                                                        association_name: child_association_data.association_name,
-                                                        root: child_association_data.shared?)
+          if self.released_children.present?
+            # Released children that were not reclaimed by other parents during the
+            # build phase will be deleted: check access control.
+            debug "-> #{debug_name}: Checking released children permissions"
+            self.released_children.reject(&:claimed?).each do |released_child|
+              debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
+              child_vm = released_child.viewmodel
+              child_association_data = released_child.association_data
+              child_context = deserialize_context.for_child(viewmodel,
+                                                            association_name: child_association_data.association_name,
+                                                            root: child_association_data.shared?)
 
-          ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |hook_control|
-            changes = ViewModel::Changes.new(deleted: true)
-            child_context.run_callback(ViewModel::Callbacks::Hook::OnChange,
-                                       child_vm,
-                                       changes: changes)
-            hook_control.record_changes(changes)
+              ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |hook_control|
+                changes = ViewModel::Changes.new(deleted: true)
+                child_context.run_callback(ViewModel::Callbacks::Hook::OnChange,
+                                           child_vm,
+                                           changes: changes)
+                hook_control.record_changes(changes)
+              end
+            end
+            debug "<- #{debug_name}: Finished checking released children permissions"
           end
         end
-        debug "<- #{debug_name}: Finished checking released children permissions"
       end
 
       debug "<- #{debug_name}: Leaving"

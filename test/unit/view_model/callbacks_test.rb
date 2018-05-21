@@ -121,13 +121,13 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm_child),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm_child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm_child),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm_child)])
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm_child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on old and new when replacing' do
@@ -145,13 +145,13 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
            Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child)])
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on old and new when moving' do
@@ -212,13 +212,14 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
            Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child)])
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+          ])
       end
     end
 
@@ -249,8 +250,6 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          new_child),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  new_child),
            Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_1),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_1),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child_1),
@@ -260,7 +259,9 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_2),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child_2),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child_2)])
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child_2),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on append_associated' do
@@ -322,13 +323,14 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
            Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       child),
            Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
            Visit.new(ViewModel::Callbacks::Hook::OnChange,          child),
            Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        child)])
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        child),
+           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+])
         ## At present, children aren't deeplyvisited on delete.
         # Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       grandchild),
         # Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, grandchild),
