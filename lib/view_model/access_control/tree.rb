@@ -127,7 +127,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     @root_editability_store.delete(view.object_id)
   end
 
-  after_deserialize do
+  after_visit do
     cleanup_descendent_results(view) if context.root?
   end
 
