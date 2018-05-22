@@ -34,7 +34,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     vms = association_scope.map { |model| associated_viewmodel.new(model) }
 
     if eager_include
-      child_context = serialize_context.for_child(self, association_name: association_name)
+      child_context = serialize_context.for_child(self, association_name: association_name, root: association_data.shared?)
       ViewModel.preload_for_serialization(vms, serialize_context: child_context)
     end
 
@@ -131,7 +131,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
             end
           end
 
-          updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self, association_name: association_name))
+          updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self, association_name: association_name, root: association_data.shared?))
 
           if association_data.through?
             updated_viewmodels.map! do |direct_vm|
