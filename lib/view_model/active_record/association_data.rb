@@ -26,6 +26,14 @@ class ViewModel::ActiveRecord::AssociationData
     end
 
     if through?
+      # Through associations must always be an owned direct association to a
+      # shared indirect target. We expect the user to set shared: true to
+      # express the ownership of the indirect target, but this direct
+      # association to the intermediate is in fact owned. This ownership
+      # property isn't directly used anywhere: the synthetic intermediate
+      # viewmodel is only used in the deserialization update operations, which
+      # directly understands the semantics of through associations.
+      raise ArgumentError.new("Through associations must be to a shared target") unless @shared
       raise ArgumentError.new("Through associations must be `has_many`") unless direct_reflection.macro == :has_many
     end
   end

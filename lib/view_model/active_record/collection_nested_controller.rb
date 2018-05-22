@@ -50,7 +50,6 @@ module ViewModel::ActiveRecord::CollectionNestedController
         raise ViewModel::DeserializationError::InvalidSyntax.new("Can not provide both `before` and `after` anchors for a collection append")
       end
 
-
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
 
       assoc_view = owner_view.append_associated(association_name,
@@ -60,7 +59,9 @@ module ViewModel::ActiveRecord::CollectionNestedController
                                                 after:      after,
                                                 deserialize_context: deserialize_context)
 
-      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name)
+      association_data = owner_viewmodel._association_data(association_name)
+      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name, root: association_data.shared?)
+
       ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
       prerender_viewmodel(assoc_view, serialize_context: child_context)
     end
