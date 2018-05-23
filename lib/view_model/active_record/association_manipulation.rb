@@ -48,14 +48,16 @@ module ViewModel::ActiveRecord::AssociationManipulation
     end
   end
 
-  # Replace the current members of an associated collection with the provided hashes.
+  # Replace the current member(s) of an association with the provided hash(es).
   def replace_associated(association_name, subtree_hashes, references: {}, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
 
-    if association_data.through?
-      association_references = convert_updates_to_references(subtree_hashes)
-      references.merge!(association_references)
-      subtree_hashes = association_references.map { |ref, _upd| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+    if association_data.through? || association_data.shared?
+      subtree_hashes = ViewModel::Utils.wrap_one_or_many(subtree_hashes) do |sh|
+        association_references = convert_updates_to_references(sh)
+        references.merge!(association_references)
+        association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+      end
     end
 
     root_update_hash = {
