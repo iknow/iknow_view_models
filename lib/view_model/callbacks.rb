@@ -153,12 +153,21 @@ module ViewModel::Callbacks
   end
 
   def run_callback(hook, view, context, **args)
+    return if ineligible(view)
+
     callback_env = hook.env_class.create(self, view, context, **args)
 
     view_name = view.class.view_name
     self.class.each_callback(hook, view_name) do |callback|
       callback_env.instance_exec(&callback)
     end
+  end
+
+  def ineligible(view)
+    # ARVM synthetic views are considered part of their association and as such
+    # are not visited by callbacks. Eligibility exclusion is intended to be
+    # library-internal: subclasses should not attempt to extend this.
+    view.is_a?(ViewModel::ActiveRecord) && view.class.synthetic
   end
 
   def self.wrap_serialize(viewmodel, context:)

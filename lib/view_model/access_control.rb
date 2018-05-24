@@ -90,8 +90,6 @@ class ViewModel::AccessControl
   include ViewModel::Callbacks
 
   before_visit do
-    next if ineligible(view)
-
     result = visible_check(self)
 
     raise_if_error!(result) do
@@ -102,16 +100,12 @@ class ViewModel::AccessControl
   end
 
   before_deserialize do
-    next if ineligible(view)
-
     initial_result = editable_check(self)
 
     save_editability(view, initial_result)
   end
 
   on_change do
-    next if ineligible(view)
-
     initial_result = fetch_editability(view)
     result = initial_result.merge do
       valid_edit_check(self)
@@ -125,7 +119,6 @@ class ViewModel::AccessControl
   end
 
   after_deserialize do
-    next if ineligible(view)
     # If there was no change to consume the initial editability we still want to clean it up
     cleanup_editability(view)
   end
@@ -148,13 +141,6 @@ class ViewModel::AccessControl
 
   def cleanup_editability(view)
     @initial_editability_store.delete(view.object_id)
-  end
-
-  def ineligible(view)
-    # ARVM synthetic views are considered part of their association and as such
-    # are not edit checked. Eligibility exclusion is intended to be
-    # library-internal: subclasses should not attempt to extend this.
-    view.is_a?(ViewModel::ActiveRecord) && view.class.synthetic
   end
 
   def raise_if_error!(result)
