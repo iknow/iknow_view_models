@@ -91,10 +91,6 @@ class ViewModel::ActiveRecord
     # Processes parsed (UpdateData) root updates and referenced updates into
     # @root_update_operations and @referenced_update_operations.
     def build_root_update_operations(root_updates, referenced_updates)
-      # Store a reference to the update data for references so we can load
-      # models with appropriate preloading.
-      @referenced_update_data = referenced_updates
-
       # Look up viewmodel classes for each tree with eager_includes. Note this
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
@@ -108,7 +104,7 @@ class ViewModel::ActiveRecord
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
       updates_by_viewmodel_class.each do |viewmodel_class, updates|
-        dependencies = updates.map { |_, upd| upd.preload_dependencies(referenced_updates) }
+        dependencies = updates.map { |_, upd| upd.preload_dependencies }
                        .inject { |acc, deps| acc.merge!(deps) }
 
         model_ids = updates.map { |_, update_data| update_data.id unless update_data.new? }.compact
@@ -220,7 +216,7 @@ class ViewModel::ActiveRecord
 
           @worklist.delete(key)
 
-          child_dependencies = deferred_update.update_data.preload_dependencies(@referenced_update_data)
+          child_dependencies = deferred_update.update_data.preload_dependencies
 
           child_model = begin
                           key.viewmodel_class.model_class.find(key.model_id)
