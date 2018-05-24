@@ -201,7 +201,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless association_data.is_a?(AssociationData)
         next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
 
-        child_context = serialize_context.for_child(nil, association_name: assoc_name, root: association_data.shared?)
+        child_context =
+          if self.synthetic
+            serialize_context
+          elsif association_data.shared?
+            serialize_context.for_references
+          else
+            serialize_context.for_child(nil, association_name: assoc_name)
+          end
 
         case
         when association_data.through?
@@ -294,7 +301,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       member_context =
         case member_data
         when AssociationData
-          serialize_context.for_child(self, association_name: member_name, root: member_data.shared?)
+          self.context_for_child(member_name, context: serialize_context)
         else
           serialize_context
         end
@@ -388,6 +395,20 @@ class ViewModel::ActiveRecord < ViewModel::Record
       associated_viewmodel_class = association_data.viewmodel_class_for_model!(associated.class)
       associated_viewmodel_class.new(associated)
     end
+  end
+
+  def context_for_child(member_name, context:)
+    # Synthetic viewmodels don't exist as far as the traversal context is
+    # concerned: pass through the child context received from the parent
+    return context if self.class.synthetic
+
+    # Shared associations start a new tree
+    member_data = self.class._members[member_name.to_s]
+    if member_data.is_a?(AssociationData) && member_data.shared?
+      return context.for_references
+    end
+
+    super
   end
 
   self.abstract_class = true

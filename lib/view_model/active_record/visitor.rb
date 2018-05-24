@@ -33,7 +33,7 @@ class ViewModel::ActiveRecord::Visitor
         children = Array.wrap(view._read_association(name))
         children.each do |child|
           if context
-            child_context = context.for_child(view, association_name: name, root: member_data.shared?)
+            child_context = view.context_for_child(name, context: context)
           end
           self.visit(child, context: child_context)
         end

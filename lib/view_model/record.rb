@@ -305,7 +305,7 @@ class ViewModel::Record < ViewModel
     end
 
     json.set! vm_attr_name do
-      serialize_context = serialize_context.for_child(self, association_name: vm_attr_name) if attr_data.using_viewmodel?
+      serialize_context = self.context_for_child(vm_attr_name, context: serialize_context) if attr_data.using_viewmodel?
       self.class.serialize(value, json, serialize_context: serialize_context)
     end
   end
@@ -322,7 +322,7 @@ class ViewModel::Record < ViewModel
       when serialized_value.nil?
         serialized_value
       when attr_data.using_viewmodel?
-        ctx = deserialize_context.for_child(self, association_name: vm_attr_name)
+        ctx = self.context_for_child(vm_attr_name, context: deserialize_context)
         attr_data.map_value(serialized_value) do |sv|
           attr_data.attribute_viewmodel.deserialize_from_view(sv, references: references, deserialize_context: ctx)
         end

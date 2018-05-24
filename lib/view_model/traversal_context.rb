@@ -39,22 +39,29 @@ class ViewModel::TraversalContext
   # Overloaded constructor for initialization of descendent node contexts.
   # Shared context is the same, ancestry is established, and subclasses can
   # override to maintain other node-specific state.
-  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:, parent_association:, root:)
+  def initialize_as_child(shared_context:, parent_context:, parent_viewmodel:, parent_association:)
     @shared_context     = shared_context
     @parent_context     = parent_context
     @parent_viewmodel   = parent_viewmodel
     @parent_association = parent_association
-    @root               = root
+    @root               = false
   end
 
-  def for_child(parent_viewmodel, association_name:, root: false, **rest)
+  def for_child(parent_viewmodel, association_name:, **rest)
     self.class.new_child(
       shared_context:     shared_context,
       parent_context:     self,
       parent_viewmodel:   parent_viewmodel,
       parent_association: association_name,
-      root:               root,
       **rest)
+  end
+
+  # Obtain a semi-independent context for descending through a shared reference:
+  # keep the same shared context, but drop any tree location specific local
+  # context (since a shared reference could equally have been reached via any
+  # parent)
+  def for_references
+    self.class.new(shared_context: shared_context)
   end
 
   def parent_context(idx = 0)
