@@ -23,6 +23,14 @@ module ViewModelSpecHelpers
       Object
     end
 
+    def viewmodel_base
+      ViewModelBase
+    end
+
+    def model_base
+      ApplicationRecord
+    end
+
     def model_class
       viewmodel_class.model_class
     end
@@ -32,11 +40,19 @@ module ViewModelSpecHelpers
     end
 
     def viewmodel_class
-      @viewmodel_class ||= define_viewmodel_class(:Model, spec: model_attributes, namespace: namespace)
+      @viewmodel_class ||= define_viewmodel_class(:Model,
+                                                  spec:           model_attributes,
+                                                  namespace:      namespace,
+                                                  viewmodel_base: viewmodel_base,
+                                                  model_base:     model_base)
     end
 
     def child_viewmodel_class
-      @child_viewmodel_class ||= define_viewmodel_class(:Child, spec: child_attributes, namespace: namespace)
+      @child_viewmodel_class ||= define_viewmodel_class(:Child,
+                                                        spec:           child_attributes,
+                                                        namespace:      namespace,
+                                                        viewmodel_base: viewmodel_base,
+                                                        model_base:     model_base)
     end
 
     def create_viewmodel!
@@ -68,6 +84,14 @@ module ViewModelSpecHelpers
       @builders << builder
       builder.viewmodel
     end
+
+    def subject_association
+      raise RuntimeError.new('Test model does not have a child association')
+    end
+
+    def subject_association_name
+      subject_association.association_name
+    end
   end
 
   module Single
@@ -94,6 +118,10 @@ module ViewModelSpecHelpers
       child_viewmodel_class
       super
     end
+
+    def subject_association
+      viewmodel_class._association_data('child')
+    end
   end
 
   module List
@@ -107,6 +135,10 @@ module ViewModelSpecHelpers
                     has_one :previous, class_name: self.name, foreign_key: :next_id, inverse_of: :next
                   },
                   viewmodel: ->(v) { association :next })
+    end
+
+    def subject_association
+      viewmodel_class._association_data('next')
     end
   end
 
@@ -133,6 +165,10 @@ module ViewModelSpecHelpers
       viewmodel_class
       super
     end
+
+    def subject_association
+      viewmodel_class._association_data('child')
+    end
   end
 
   module ParentAndHasManyChildren
@@ -158,6 +194,10 @@ module ViewModelSpecHelpers
       viewmodel_class
       super
     end
+
+    def subject_association
+      viewmodel_class._association_data('children')
+    end
   end
 
   module ParentAndSharedChild
@@ -182,6 +222,10 @@ module ViewModelSpecHelpers
     def viewmodel_class
       child_viewmodel_class
       super
+    end
+
+    def subject_association
+      viewmodel_class._association_data('child')
     end
   end
 
@@ -225,6 +269,10 @@ module ViewModelSpecHelpers
           end
           ModelChild
         end
+    end
+
+    def subject_association
+      viewmodel_class._association_data('children')
     end
   end
 end

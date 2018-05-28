@@ -298,7 +298,7 @@ module ViewModel::ActiveRecord::PolyTest
 
       def test_dependencies
         root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
-        assert_equal(DeepPreloader::Spec.new('poly' => DeepPreloader::PolymorphicSpec.new), root_updates.first.preload_dependencies(ref_updates))
+        assert_equal(DeepPreloader::Spec.new('poly' => DeepPreloader::PolymorphicSpec.new), root_updates.first.preload_dependencies)
         assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
       end
 

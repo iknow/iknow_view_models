@@ -34,7 +34,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     vms = association_scope.map { |model| associated_viewmodel.new(model) }
 
     if eager_include
-      child_context = serialize_context.for_child(self, association_name: association_name, root: association_data.shared?)
+      child_context = self.context_for_child(association_name, context: serialize_context)
       ViewModel.preload_for_serialization(vms, serialize_context: child_context)
     end
 
@@ -48,14 +48,16 @@ module ViewModel::ActiveRecord::AssociationManipulation
     end
   end
 
-  # Replace the current members of an associated collection with the provided hashes.
+  # Replace the current member(s) of an association with the provided hash(es).
   def replace_associated(association_name, subtree_hashes, references: {}, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
 
-    if association_data.through?
-      association_references = convert_updates_to_references(subtree_hashes)
-      references.merge!(association_references)
-      subtree_hashes = association_references.map { |ref, _upd| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+    if association_data.through? || association_data.shared?
+      subtree_hashes = ViewModel::Utils.wrap_one_or_many(subtree_hashes) do |sh|
+        association_references = convert_updates_to_references(sh)
+        references.merge!(association_references)
+        association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+      end
     end
 
     root_update_hash = {
@@ -131,7 +133,8 @@ module ViewModel::ActiveRecord::AssociationManipulation
             end
           end
 
-          updated_viewmodels = update_context.run!(deserialize_context: deserialize_context.for_child(self, association_name: association_name, root: association_data.shared?))
+          child_context = self.context_for_child(association_name, context: deserialize_context)
+          updated_viewmodels = update_context.run!(deserialize_context: child_context)
 
           if association_data.through?
             updated_viewmodels.map! do |direct_vm|
@@ -198,7 +201,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
                   blame_reference)
         end
 
-        child_context = deserialize_context.for_child(self, association_name: association_name)
+        child_context = self.context_for_child(association_name, context: deserialize_context)
         child_vm = direct_viewmodel.new(models.first)
 
         ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |child_hook_control|

@@ -14,7 +14,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
         associated_views = yield(associated_views) if block_given?
 
-        child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name, root: association_data.shared?)
+        child_context = owner_view.context_for_child(association_name, context: serialize_context)
         prerender_viewmodel(associated_views, serialize_context: child_context)
       end
     end
@@ -33,7 +33,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
                                                        references: refs,
                                                        deserialize_context: deserialize_context)
 
-      child_context = serialize_context.for_child(owner_viewmodel, association_name: association_name, root: association_data.shared?)
+      child_context = owner_view.context_for_child(association_name, context: serialize_context)
       ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
       prerender_viewmodel(association_view, serialize_context: child_context)
     end

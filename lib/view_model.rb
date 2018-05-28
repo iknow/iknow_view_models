@@ -250,6 +250,10 @@ class ViewModel
     to_reference
   end
 
+  def context_for_child(member_name, context:)
+    context.for_child(self, association_name: member_name)
+  end
+
   def preload_for_serialization(lock: nil, serialize_context: self.class.new_serialize_context)
     ViewModel.preload_for_serialization([self], lock: lock, serialize_context: serialize_context)
   end

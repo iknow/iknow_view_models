@@ -137,7 +137,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
     assert_equal(DeepPreloader::Spec.new,
-                 root_updates.first.preload_dependencies(ref_updates),
+                 root_updates.first.preload_dependencies,
                  'nothing loaded by default')
 
     root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
@@ -146,7 +146,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       { 'r1' => { '_type' => 'Tag' } })
 
     assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
-                 root_updates.first.preload_dependencies(ref_updates),
+                 root_updates.first.preload_dependencies,
                  'mentioning tags and child_tags causes through association loading')
   end
 
@@ -614,7 +614,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     def test_dependencies
       root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
-                   root_updates.first.preload_dependencies(ref_updates))
+                   root_updates.first.preload_dependencies)
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
@@ -653,7 +653,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     def test_preload_dependencies
       root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
       assert_equal(DeepPreloader::Spec.new,
-                   root_updates.first.preload_dependencies(ref_updates),
+                   root_updates.first.preload_dependencies,
                    'nothing loaded by default')
 
       root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
@@ -662,7 +662,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
-                   root_updates.first.preload_dependencies(ref_updates),
+                   root_updates.first.preload_dependencies,
                    'mentioning tags and child_tags causes through association loading, excluding shared')
     end
 
@@ -677,7 +677,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
-                   root_updates.first.preload_dependencies(ref_updates),
+                   root_updates.first.preload_dependencies,
                    'mentioning tags and child_tags in functional update value causes through association loading, ' \
                    'excluding shared')
 

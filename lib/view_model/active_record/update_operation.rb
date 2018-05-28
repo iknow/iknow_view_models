@@ -110,14 +110,13 @@ class ViewModel::ActiveRecord
             debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
             association = model.association(reflection.name)
-            child_model = if child_operation
-                            ctx = deserialize_context.for_child(viewmodel,
-                                                                association_name: association_data.association_name,
-                                                                root: association_data.shared?)
-                            child_operation.run!(deserialize_context: ctx).model
-                          else
-                            nil
-                          end
+            child_model =
+              if child_operation
+                child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
+                child_operation.run!(deserialize_context: child_ctx).model
+              else
+                nil
+              end
             association.replace(child_model)
             debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
           end
@@ -175,9 +174,7 @@ class ViewModel::ActiveRecord
             debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
 
             association = model.association(reflection.name)
-            child_ctx = deserialize_context.for_child(viewmodel,
-                                                      association_name: association_data.association_name,
-                                                      root: association_data.shared?)
+            child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
 
             new_target =
               case child_operation
@@ -203,16 +200,14 @@ class ViewModel::ActiveRecord
               debug "-> #{debug_name}: Checking #{released_child.viewmodel.to_reference}"
               child_vm = released_child.viewmodel
               child_association_data = released_child.association_data
-              child_context = deserialize_context.for_child(viewmodel,
-                                                            association_name: child_association_data.association_name,
-                                                            root: child_association_data.shared?)
+              child_ctx = viewmodel.context_for_child(child_association_data.association_name, context: deserialize_context)
 
-              ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_context) do |hook_control|
+              ViewModel::Callbacks.wrap_deserialize(child_vm, deserialize_context: child_ctx) do |child_hook_control|
                 changes = ViewModel::Changes.new(deleted: true)
-                child_context.run_callback(ViewModel::Callbacks::Hook::OnChange,
-                                           child_vm,
-                                           changes: changes)
-                hook_control.record_changes(changes)
+                child_ctx.run_callback(ViewModel::Callbacks::Hook::OnChange,
+                                       child_vm,
+                                       changes: changes)
+                child_hook_control.record_changes(changes)
               end
             end
             debug "<- #{debug_name}: Finished checking released children permissions"

@@ -595,15 +595,15 @@ class ViewModel::ActiveRecord
       deps
     end
 
-    def build_preload_specs(association_data, updates, referenced_updates)
+    def build_preload_specs(association_data, updates)
       if association_data.polymorphic?
         updates.map do |update_data|
           target_model = update_data.viewmodel_class.model_class
           DeepPreloader::PolymorphicSpec.new(
-            target_model.name => update_data.preload_dependencies(referenced_updates))
+            target_model.name => update_data.preload_dependencies)
         end
       else
-        updates.map { |update_data| update_data.preload_dependencies(referenced_updates) }
+        updates.map { |update_data| update_data.preload_dependencies }
       end
     end
 
@@ -614,15 +614,14 @@ class ViewModel::ActiveRecord
 
     # Updates in terms of activerecord associations: used for preloading subtree
     # associations necessary to perform update.
-    def preload_dependencies(referenced_updates)
+    def preload_dependencies
       deps = {}
 
       (associations.merge(referenced_associations)).each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
         preload_specs = build_preload_specs(association_data,
-                                            to_sequence(assoc_name, reference),
-                                            referenced_updates)
+                                            to_sequence(assoc_name, reference))
 
         referenced_deps = merge_preload_specs(association_data, preload_specs)
 

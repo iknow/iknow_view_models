@@ -40,12 +40,6 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
           **rest)
   end
 
-  # Obtain a semi-independent context for serializing references: keep the same
-  # shared context, but drop any tree location specific local context.
-  def for_references
-    self.class.new(shared_context: shared_context)
-  end
-
   def includes_member?(member_name, default)
     member_name = member_name.to_s
 

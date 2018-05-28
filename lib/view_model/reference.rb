@@ -12,6 +12,10 @@ class ViewModel
       "'#{viewmodel_class.view_name}(id=#{model_id})'"
     end
 
+    def inspect
+      "<Ref:#{self}>"
+    end
+
     def ==(other)
       other.class             == self.class &&
         other.viewmodel_class == viewmodel_class &&
