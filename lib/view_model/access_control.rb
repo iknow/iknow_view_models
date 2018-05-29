@@ -79,11 +79,11 @@ class ViewModel::AccessControl
   end
 
   def editable!(view, deserialize_context:, changes:)
-    run_callback(ViewModel::Callbacks::Hook::BeforeVisit,       view, context)
-    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, context)
-    run_callback(ViewModel::Callbacks::Hook::OnChange,          view, context, changes: changes) if changes
-    run_callback(ViewModel::Callbacks::Hook::AfterDeserialize,  view, context, changes: changes)
-    run_callback(ViewModel::Callbacks::Hook::AfterVisit,        view, context)
+    run_callback(ViewModel::Callbacks::Hook::BeforeVisit,       view, deserialize_context)
+    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, deserialize_context)
+    run_callback(ViewModel::Callbacks::Hook::OnChange,          view, deserialize_context, changes: changes) if changes
+    run_callback(ViewModel::Callbacks::Hook::AfterDeserialize,  view, deserialize_context, changes: changes)
+    run_callback(ViewModel::Callbacks::Hook::AfterVisit,        view, deserialize_context)
   end
 
   # Edit checks are invoked via traversal callbacks:
