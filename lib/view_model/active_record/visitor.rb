@@ -1,17 +1,18 @@
 # frozen_string_literal: true
 
 class ViewModel::ActiveRecord::Visitor
-  attr_reader :visit_shared
+  attr_reader :visit_shared, :for_edit
 
-  def initialize(visit_shared: true)
+  def initialize(visit_shared: true, for_edit: false)
     @visit_shared = visit_shared
+    @for_edit     = for_edit
   end
 
   def visit(view, context: nil)
     return unless pre_visit(view, context: context)
 
     run_callback(ViewModel::Callbacks::Hook::BeforeVisit, view, context: context)
-    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, context: context)
+    run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, view, context: context) if for_edit
 
     class_name = view.class.name.underscore.gsub('/', '__')
     visit      = :"visit_#{class_name}"
@@ -42,9 +43,12 @@ class ViewModel::ActiveRecord::Visitor
 
     self.send(end_visit, view, context: context) if respond_to?(end_visit, true)
 
-    view_changes = changes(view)
-    run_callback(ViewModel::Callbacks::Hook::OnChange, view, context: context, changes: view_changes) if view_changes
-    run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, view, context: context, changes: view_changes)
+    if for_edit
+      view_changes = changes(view)
+      run_callback(ViewModel::Callbacks::Hook::OnChange, view, context: context, changes: view_changes) if view_changes
+      run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, view, context: context, changes: view_changes)
+    end
+
     run_callback(ViewModel::Callbacks::Hook::AfterVisit, view, context: context)
 
     post_visit(view, context: context)
