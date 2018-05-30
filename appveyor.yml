@@ -1,0 +1,22 @@
+---
+version: "{build}"
+image: ubuntu
+
+stack:
+  - ruby 2.5.0, postgresql
+
+build: off
+
+install:
+  - sudo -u postgres createdb -O appveyor iknow_view_models
+  - sudo apt-get update
+  - sudo apt-get -y install postgresql-server-dev-10
+  - gem install bundler
+  - bundle install
+
+before_test:
+  - ruby -v
+  - bundle -v
+
+test_script:
+  - bundle exec rake
