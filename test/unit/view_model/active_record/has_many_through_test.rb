@@ -135,12 +135,12 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     # TODO not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
-    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
+    root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
     assert_equal(DeepPreloader::Spec.new,
                  root_updates.first.preload_dependencies,
                  'nothing loaded by default')
 
-    root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+    root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
       [{ '_type' => 'Parent',
          'tags' => [{ '_ref' => 'r1' }] }],
       { 'r1' => { '_type' => 'Tag' } })
@@ -374,10 +374,9 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
   def test_functional_update_remove_stale
     # remove an entity that's no longer part of the collection
-    c1 = c2 = nil
     ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
-        c1, c2 = tags
+        _c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
         { :actions => [{ '_type'  => 'remove',
                          'values' => [{ '_type' => 'Tag', 'id' => c2.id }] }],
@@ -389,10 +388,9 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
   def test_functional_update_append_after_corpse
     # append after something that no longer exists
-    c1 = c2 = nil
     ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
-        c1, c2 = tags
+        _c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
         { :actions => [{ '_type'  => 'append',
                          'after'  => { '_type' => 'Tag', 'id' => c2.id },
@@ -612,7 +610,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
                    root_updates.first.preload_dependencies)
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
@@ -651,12 +649,12 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     def test_preload_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
       assert_equal(DeepPreloader::Spec.new,
                    root_updates.first.preload_dependencies,
                    'nothing loaded by default')
 
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
            'tags' => [{ '_ref' => 'r1' }] }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
@@ -670,7 +668,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       append_r1 = { '_type'  => 'append',
                     'values' => [{ '_ref' => 'r1' }] }
 
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
            'tags'  => { '_type'   => '_update',
                         'actions' => [append_r1] } }],
