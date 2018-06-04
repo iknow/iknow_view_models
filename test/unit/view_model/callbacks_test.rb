@@ -313,8 +313,8 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       end
 
       it 'calls hooks deeply on delete' do
-        child      = vm.next
-        grandchild = child.next
+        child = vm.next
+        # grandchild = child.next
 
         alter_by_view!(viewmodel_class, vm.model) do |view, _refs|
           view['next'] = nil

@@ -912,13 +912,13 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     end
 
     def test_dependencies
-      root_updates, ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('children' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies)
       assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ParentView, @parent) do |view, refs|
+      alter_by_view!(ParentView, @parent) do |view, _refs|
         assert_equal([{ 'id'       => @parent.children.first.id,
                         '_type'    => 'Child',
                         '_version' => 1,
