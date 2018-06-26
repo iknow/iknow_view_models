@@ -48,7 +48,7 @@ module ViewModel::ActiveRecord::Cache::CacheableView
   # edited but the root is untouched.
   def before_deserialize(*)
     super
-    CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction
+    CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction unless new_model?
   end
 
   def destroy!(*)
