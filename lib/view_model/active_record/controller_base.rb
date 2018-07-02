@@ -1,4 +1,4 @@
-require "iknow_params/parser"
+require 'iknow_params'
 
 class ViewModel::ActiveRecord
 module ControllerBase
