@@ -45,6 +45,10 @@ module ControllerBase
       @access_control
     end
 
+    def model_class
+      viewmodel.model_class
+    end
+
     protected
 
     def viewmodel_name=(name)
@@ -75,7 +79,7 @@ module ControllerBase
   end
 
   included do
-    delegate :viewmodel, :access_control, to: 'self.class'
+    delegate :viewmodel, :model_class, :access_control, to: 'self.class'
   end
 end
 end
