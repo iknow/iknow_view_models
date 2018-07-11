@@ -40,10 +40,15 @@ module ViewModel::Controller
   # JSON string terminals. Useful for rendering cached views without parsing
   # then re-serializing the cached JSON.
   def render_json_view(json_view, json_references: {}, status: nil)
+    prerender = prerender_json_view(json_view, json_references: json_references)
+    finish_render_viewmodel(prerender, status: status)
+  end
+
+  def prerender_json_view(json_view, json_references: {})
     json_view = wrap_json_view(json_view)
     json_references = wrap_json_view(json_references)
 
-    response = Jbuilder.encode do |json|
+    Jbuilder.encode do |json|
       json.data json_view
       if json_references.present?
         json.references do
@@ -54,8 +59,6 @@ module ViewModel::Controller
       end
       yield(json) if block_given?
     end
-
-    render_json_string(response, status: status)
   end
 
   def render_error(error_view, status = 500)
