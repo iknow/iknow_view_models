@@ -18,7 +18,7 @@ module ViewModel::ActiveRecord::Controller
       view = yield(view) if block_given?
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     view
   end
 
@@ -29,7 +29,7 @@ module ViewModel::ActiveRecord::Controller
       views = yield(views) if block_given?
       prerender_viewmodel(views, serialize_context: serialize_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     views
   end
 
@@ -45,7 +45,7 @@ module ViewModel::ActiveRecord::Controller
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     view
   end
 

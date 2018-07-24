@@ -18,7 +18,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
         prerender_viewmodel(associated_views, serialize_context: child_context)
       end
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     associated_views
   end
 
@@ -37,7 +37,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
       ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
       prerender_viewmodel(association_view, serialize_context: child_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     association_view
   end
 

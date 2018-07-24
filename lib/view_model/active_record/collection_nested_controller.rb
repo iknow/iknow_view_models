@@ -63,7 +63,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
       ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
       prerender_viewmodel(assoc_view, serialize_context: child_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     assoc_view
   end
 
