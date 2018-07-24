@@ -2,8 +2,6 @@ require 'view_model/active_record/controller_base'
 module ViewModel::ActiveRecord::NestedControllerBase
   extend ActiveSupport::Concern
 
-  protected
-
   def show_association(scope: nil, serialize_context: new_serialize_context)
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
@@ -21,6 +19,8 @@ module ViewModel::ActiveRecord::NestedControllerBase
     render_json_string(pre_rendered)
     associated_views
   end
+
+  protected
 
   def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     association_view = nil

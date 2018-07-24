@@ -183,8 +183,19 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   #### Controller for nested model
 
-  def test_nested_collection_index
+  def test_nested_collection_index_associated
     childcontroller = ChildController.new(parent_id: @parent.id)
+
+    childcontroller.invoke(:index_association)
+
+    assert_equal(200, childcontroller.status)
+
+    assert_equal({ 'data' => @parent.children.map { |c| ChildView.new(c).to_hash } },
+                 childcontroller.hash_response)
+  end
+
+  def test_nested_collection_index
+    childcontroller = ChildController.new
 
     childcontroller.invoke(:index)
 
@@ -352,8 +363,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_parent
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id, label_id: old_label.id)
-    labelcontroller.invoke(:show)
+    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller.invoke(:show_association)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
@@ -395,7 +406,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_id
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id, label_id: old_label.id)
+    labelcontroller = LabelController.new(id: old_label.id)
     labelcontroller.invoke(:show)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)

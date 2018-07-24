@@ -92,7 +92,7 @@ module ActionDispatch
           except             = options.delete(:except){ [] }
           add_shallow_routes = options.delete(:add_shallow_routes){ true }
 
-          only_routes  = [:index, :create]
+          only_routes  = [:create]
           only_routes += [:show, :destroy] if add_shallow_routes
           only_routes -= except
 
@@ -102,9 +102,11 @@ module ActionDispatch
             if shallow_nesting_depth > 1
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
-                put    '', action: :append,  as: ''  unless except.include?(:append)
-                post   '', action: :replace          unless except.include?(:replace)
-                delete '', action: :disassociate_all unless except.include?(:disassociate_all)
+                name_route = { as: '' } # Only one route may take the name
+                get('',    action: :index_association, **name_route.extract!(:as)) unless except.include?(:index)
+                put('',    action: :append,            **name_route.extract!(:as)) unless except.include?(:append)
+                post('',   action: :replace,           **name_route.extract!(:as)) unless except.include?(:replace)
+                delete('', action: :disassociate_all,  **name_route.extract!(:as)) unless except.include?(:disassociate_all)
               end
 
               scope shallow: false do
@@ -128,11 +130,13 @@ module ActionDispatch
           except             = options.delete(:except){ [] }
           add_shallow_routes = options.delete(:add_shallow_routes){ true }
 
-          only_routes = [:show, :destroy, :create] - except
+          only_routes = [:destroy, :create] - except
           is_shallow = false
           resource resource_name, shallow: true, only: only_routes, **options do
             is_shallow = shallow_nesting_depth > 1
             instance_eval(&block) if block_given?
+
+            get '', action: :show_association, as: '' unless except.include?(:show)
           end
 
           # nested singular resources provide collection accessors at the top level

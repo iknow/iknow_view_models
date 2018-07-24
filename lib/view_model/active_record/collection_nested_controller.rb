@@ -4,7 +4,7 @@ require 'view_model/active_record/nested_controller_base'
 # Contributes the following routes:
 # PUT    /parents/:parent_id/children            #append  -- deserialize (possibly existing) children and append to collection
 # POST   /parents/:parent_id/children            #replace -- deserialize (possibly existing) children, replacing existing collection
-# GET    /parents/:parent_id/children            #index   -- list collection
+# GET    /parents/:parent_id/children            #index_association -- list collection
 # DELETE /parents/:parent_id/children/:child_id  #disassociate -- delete relationship between parent/child (possibly garbage-collecting child)
 # DELETE /parents/:parent_id/children            #disassociate_all -- delete relationship from parent to all children
 
@@ -17,13 +17,8 @@ module ViewModel::ActiveRecord::CollectionNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  # List items associated with the owner
-  def index(scope: nil, serialize_context: new_serialize_context, &block)
-    if owner_viewmodel_id(required: false).nil?
-      super(scope: scope, serialize_context: serialize_context, &block)
-    else
-      show_association(scope: scope, serialize_context: serialize_context, &block)
-    end
+  def index_association(scope: nil, serialize_context: new_serialize_context)
+    show_association(scope: scope, serialize_context: serialize_context)
   end
 
   # Deserialize items of the associated type and associate them with the owner,
