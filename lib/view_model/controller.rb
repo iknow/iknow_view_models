@@ -36,8 +36,8 @@ module ViewModel::Controller
   # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
   # JSON string terminals. Useful for rendering cached views without parsing
   # then re-serializing the cached JSON.
-  def render_json_view(json_view, json_references: {}, status: nil)
-    prerender = prerender_json_view(json_view, json_references: json_references)
+  def render_json_view(json_view, json_references: {}, status: nil, &block)
+    prerender = prerender_json_view(json_view, json_references: json_references, &block)
     render_json_string(prerender, status: status)
   end
 
