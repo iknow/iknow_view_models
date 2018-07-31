@@ -103,10 +103,10 @@ module ActionDispatch
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
                 name_route = { as: '' } # Only one route may take the name
-                get('',    action: :index_association, **name_route.extract!(:as)) unless except.include?(:index)
-                put('',    action: :append,            **name_route.extract!(:as)) unless except.include?(:append)
-                post('',   action: :replace,           **name_route.extract!(:as)) unless except.include?(:replace)
-                delete('', action: :disassociate_all,  **name_route.extract!(:as)) unless except.include?(:disassociate_all)
+                get('',    action: :index_associated, **name_route.extract!(:as)) unless except.include?(:index)
+                put('',    action: :append,           **name_route.extract!(:as)) unless except.include?(:append)
+                post('',   action: :replace,          **name_route.extract!(:as)) unless except.include?(:replace)
+                delete('', action: :disassociate_all, **name_route.extract!(:as)) unless except.include?(:disassociate_all)
               end
 
               scope shallow: false do
@@ -130,13 +130,17 @@ module ActionDispatch
           except             = options.delete(:except){ [] }
           add_shallow_routes = options.delete(:add_shallow_routes){ true }
 
-          only_routes = [:destroy, :create] - except
+          only_routes = []
           is_shallow = false
           resource resource_name, shallow: true, only: only_routes, **options do
             is_shallow = shallow_nesting_depth > 1
             instance_eval(&block) if block_given?
 
-            get '', action: :show_association, as: '' unless except.include?(:show)
+            name_route = { as: '' } # Only one route may take the name
+
+            post('',   action: :create_associated,  **name_route.extract!(:as)) unless except.include?(:create)
+            get('',    action: :show_associated,    **name_route.extract!(:as)) unless except.include?(:show)
+            delete('', action: :destroy_associated, **name_route.extract!(:as)) unless except.include?(:destroy)
           end
 
           # nested singular resources provide collection accessors at the top level
@@ -144,7 +148,8 @@ module ActionDispatch
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
               shallow_scope do
                 collection do
-                  post '', action: :create unless except.include?(:create)
+                  post '', action: :create, as: '' unless except.include?(:create)
+                  get  '', action: :index unless except.include?(:index)
                 end
               end
             end

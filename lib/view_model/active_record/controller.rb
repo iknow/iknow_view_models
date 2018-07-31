@@ -1,4 +1,6 @@
 require 'view_model/active_record/controller_base'
+require 'view_model/active_record/collection_nested_controller'
+require 'view_model/active_record/singular_nested_controller'
 
 # Controller for accessing an ViewModel::ActiveRecord
 # Provides for the following routes:
@@ -10,6 +12,8 @@ require 'view_model/active_record/controller_base'
 module ViewModel::ActiveRecord::Controller
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::ControllerBase
+  include ViewModel::ActiveRecord::CollectionNestedController
+  include ViewModel::ActiveRecord::SingularNestedController
 
   def show(scope: nil, serialize_context: new_serialize_context)
     view = nil
@@ -57,24 +61,6 @@ module ViewModel::ActiveRecord::Controller
     render_viewmodel(nil)
   end
 
-  class_methods do
-    def nested_in(owner, as:)
-      if as.to_s.singularize == as.to_s
-        include ViewModel::ActiveRecord::SingularNestedController
-      else
-        include ViewModel::ActiveRecord::CollectionNestedController
-      end
-
-      unless owner.is_a?(Class) && owner < ViewModel::Record
-        owner = ViewModel::Registry.for_view_name(owner.to_s.camelize)
-      end
-
-      self.owner_viewmodel = owner
-      raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
-      self.association_name = as
-    end
-  end
-
   included do
     etag { self.viewmodel.deep_schema_version }
   end
@@ -84,5 +70,4 @@ module ViewModel::ActiveRecord::Controller
   def viewmodel_id
     parse_param(:id)
   end
-
 end

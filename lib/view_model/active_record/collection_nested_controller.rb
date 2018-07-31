@@ -1,10 +1,15 @@
+# frozen_string_literal: true
+
 require 'view_model/active_record/nested_controller_base'
-# Controller for accessing a ViewModel which is necessarily owned in a collection by a parent model.
+
+# Controller mixin for accessing a root ViewModel which can be accessed in a
+# collection by a parent model. Enabled by calling `nested_in :parent, as:
+# :children` on the viewmodel controller
 
 # Contributes the following routes:
 # PUT    /parents/:parent_id/children            #append  -- deserialize (possibly existing) children and append to collection
 # POST   /parents/:parent_id/children            #replace -- deserialize (possibly existing) children, replacing existing collection
-# GET    /parents/:parent_id/children            #index_association -- list collection
+# GET    /parents/:parent_id/children            #index_associated -- list collection
 # DELETE /parents/:parent_id/children/:child_id  #disassociate -- delete relationship between parent/child (possibly garbage-collecting child)
 # DELETE /parents/:parent_id/children            #disassociate_all -- delete relationship from parent to all children
 
@@ -17,7 +22,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def index_association(scope: nil, serialize_context: new_serialize_context)
+  def index_associated(scope: nil, serialize_context: new_serialize_context)
     show_association(scope: scope, serialize_context: serialize_context)
   end
 
