@@ -121,7 +121,10 @@ module ActionDispatch
                   get  '', action: :index          unless except.include?(:index)  || !add_shallow_routes
                 end
               end
-
+            else
+              collection do
+                get('', action: :index, as: '') unless except.include?(:index)
+              end
             end
           end
         end
@@ -138,12 +141,18 @@ module ActionDispatch
 
             name_route = { as: '' } # Only one route may take the name
 
-            post('',   action: :create_associated,  **name_route.extract!(:as)) unless except.include?(:create)
-            get('',    action: :show_associated,    **name_route.extract!(:as)) unless except.include?(:show)
-            delete('', action: :destroy_associated, **name_route.extract!(:as)) unless except.include?(:destroy)
+            if is_shallow
+              post('',   action: :create_associated,  **name_route.extract!(:as)) unless except.include?(:create)
+              get('',    action: :show_associated,    **name_route.extract!(:as)) unless except.include?(:show)
+              delete('', action: :destroy_associated, **name_route.extract!(:as)) unless except.include?(:destroy)
+            else
+              post('',   action: :create,  **name_route.extract!(:as)) unless except.include?(:create)
+              get('',    action: :show,    **name_route.extract!(:as)) unless except.include?(:show)
+              delete('', action: :destroy, **name_route.extract!(:as)) unless except.include?(:destroy)
+            end
           end
 
-          # nested singular resources provide collection accessors at the top level
+          # singularly nested resources provide collection accessors at the top level
           if is_shallow && add_shallow_routes
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
               shallow_scope do
