@@ -184,24 +184,28 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   #### Controller for nested model
 
   def test_nested_collection_index_associated
-    childcontroller = ChildController.new(parent_id: @parent.id)
+    _distractor = Parent.create(name: 'p2', children: [Child.new(name: 'c3', position: 1)])
 
+    childcontroller = ChildController.new(parent_id: @parent.id)
     childcontroller.invoke(:index_associated)
 
     assert_equal(200, childcontroller.status)
 
-    assert_equal({ 'data' => @parent.children.map { |c| ChildView.new(c).to_hash } },
+    expected_children = @parent.children
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
                  childcontroller.hash_response)
   end
 
   def test_nested_collection_index
+    distractor = Parent.create(name: 'p2', children: [Child.new(name: 'c3', position: 1)])
     childcontroller = ChildController.new
 
     childcontroller.invoke(:index)
 
     assert_equal(200, childcontroller.status)
 
-    assert_equal({ 'data' => @parent.children.map { |c| ChildView.new(c).to_hash } },
+    expected_children = @parent.children + distractor.children
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
                  childcontroller.hash_response)
   end
 
