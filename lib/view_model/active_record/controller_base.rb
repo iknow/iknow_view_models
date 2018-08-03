@@ -89,8 +89,8 @@ module ActionDispatch
     class Mapper
       module Resources
         def arvm_resources(resource_name, options = {}, &block)
-          except             = options.delete(:except){ [] }
-          add_shallow_routes = options.delete(:add_shallow_routes){ true }
+          except             = options.delete(:except) { [] }
+          add_shallow_routes = options.delete(:add_shallow_routes) { true }
 
           only_routes  = [:create]
           only_routes += [:show, :destroy] if add_shallow_routes
@@ -117,8 +117,9 @@ module ActionDispatch
               # without providing parent context
               shallow_scope do
                 collection do
-                  post '', action: :create, as: '' unless except.include?(:create) || !add_shallow_routes
-                  get  '', action: :index          unless except.include?(:index)  || !add_shallow_routes
+                  name_route = { as: '' } # Only one route may take the name
+                  post('', action: :create, **name_route.extract!(:as)) unless except.include?(:create) || !add_shallow_routes
+                  get('',  action: :index,  **name_route.extract!(:as)) unless except.include?(:index)  || !add_shallow_routes
                 end
               end
             else
@@ -130,8 +131,8 @@ module ActionDispatch
         end
 
         def arvm_resource(resource_name, options = {}, &block)
-          except             = options.delete(:except){ [] }
-          add_shallow_routes = options.delete(:add_shallow_routes){ true }
+          except             = options.delete(:except) { [] }
+          add_shallow_routes = options.delete(:add_shallow_routes) { true }
 
           only_routes = []
           is_shallow = false
@@ -157,8 +158,9 @@ module ActionDispatch
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
               shallow_scope do
                 collection do
-                  post '', action: :create, as: '' unless except.include?(:create)
-                  get  '', action: :index unless except.include?(:index)
+                  name_route = { as: '' } # Only one route may take the name
+                  post('', action: :create, **name_route.extract!(:as)) unless except.include?(:create)
+                  get('',  action: :index,  **name_route.extract!(:as)) unless except.include?(:index)
                 end
               end
             end
