@@ -13,9 +13,10 @@ module ViewModel::Controller
 
   def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context), &block)
     prerender = prerender_viewmodel(viewmodel, serialize_context: serialize_context, &block)
-    finish_render_viewmodel(prerender, status: status)
+    render_json_string(prerender, status: status)
   end
 
+  # Render viewmodel(s) to a JSON API response as a String
   def prerender_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
     Jbuilder.encode do |json|
       json.data do
@@ -32,18 +33,19 @@ module ViewModel::Controller
     end
   end
 
-  def finish_render_viewmodel(pre_rendered, status: nil)
-    render_json_string(pre_rendered, status: status)
-  end
-
   # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
   # JSON string terminals. Useful for rendering cached views without parsing
   # then re-serializing the cached JSON.
-  def render_json_view(json_view, json_references: {}, status: nil)
+  def render_json_view(json_view, json_references: {}, status: nil, &block)
+    prerender = prerender_json_view(json_view, json_references: json_references, &block)
+    render_json_string(prerender, status: status)
+  end
+
+  def prerender_json_view(json_view, json_references: {})
     json_view = wrap_json_view(json_view)
     json_references = wrap_json_view(json_references)
 
-    response = Jbuilder.encode do |json|
+    Jbuilder.encode do |json|
       json.data json_view
       if json_references.present?
         json.references do
@@ -54,8 +56,6 @@ module ViewModel::Controller
       end
       yield(json) if block_given?
     end
-
-    render_json_string(response, status: status)
   end
 
   def render_error(error_view, status = 500)
@@ -112,7 +112,7 @@ module ViewModel::Controller
     render_json_string(response, status: status)
   end
 
-  def render_json_string(response, status:)
+  def render_json_string(response, status: nil)
     render(json: response, status: status)
   end
 

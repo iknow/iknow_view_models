@@ -1,12 +1,17 @@
-# Controller for accessing a ViewModel which is necessarily owned in a collection by a parent model.
+# frozen_string_literal: true
+
+# Controller mixin for accessing a root ViewModel which can be accessed
+# individually by a parent model. Enabled by calling `nested_in :parent, as:
+# :child` on the viewmodel controller
 
 # Contributes the following routes:
-# POST   /parents/:parent_id/child   #create  -- deserialize (possibly existing) child, replacing existing child
-# GET    /parents/:parent_id/child   #show    -- show child of parent
-# DELETE /parents/:parent_id/child   #destroy -- delete relationship between parent and its child (possibly garbage-collecting child)
+# POST   /parents/:parent_id/child   #create_associated  -- deserialize (possibly existing) child, replacing existing child
+# GET    /parents/:parent_id/child   #show_associated    -- show child of parent
+# DELETE /parents/:parent_id/child   #destroy_associated -- delete relationship between parent and its child (possibly garbage-collecting child)
 
 ## Inherits the following routes to manipulate children directly:
 # POST   /children      #create -- create or update without parent
+# GET    /children      #index  -- list all child models regardless of parent
 # GET    /children/:id  #show
 # DELETE /children/:id  #destroy
 
@@ -15,31 +20,15 @@ module ViewModel::ActiveRecord::SingularNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def index
-    raise ArgumentError.new("Index unavailable for nested view")
+  def show_associated(scope: nil, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+    show_association(scope: scope, serialize_context: serialize_context)
   end
 
-  def show(serialize_context: new_serialize_context, &block)
-    if owner_viewmodel_id(required: false).nil?
-      super(serialize_context: serialize_context, &block)
-    else
-      show_association(serialize_context: serialize_context, &block)
-    end
+  def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
   end
 
-  def create(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    if owner_viewmodel_id(required: false).nil?
-      super(serialize_context: serialize_context, deserialize_context: deserialize_context)
-    else
-      write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
-    end
-  end
-
-  def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    if owner_viewmodel_id(required: false).nil?
-      super(serialize_context: serialize_context, deserialize_context: deserialize_context)
-    else
-      destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context)
-    end
+  def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+    destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context)
   end
 end

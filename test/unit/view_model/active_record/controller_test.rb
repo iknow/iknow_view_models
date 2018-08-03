@@ -183,14 +183,29 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   #### Controller for nested model
 
-  def test_nested_collection_index
+  def test_nested_collection_index_associated
+    _distractor = Parent.create(name: 'p2', children: [Child.new(name: 'c3', position: 1)])
+
     childcontroller = ChildController.new(parent_id: @parent.id)
+    childcontroller.invoke(:index_associated)
+
+    assert_equal(200, childcontroller.status)
+
+    expected_children = @parent.children
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
+                 childcontroller.hash_response)
+  end
+
+  def test_nested_collection_index
+    distractor = Parent.create(name: 'p2', children: [Child.new(name: 'c3', position: 1)])
+    childcontroller = ChildController.new
 
     childcontroller.invoke(:index)
 
     assert_equal(200, childcontroller.status)
 
-    assert_equal({ 'data' => @parent.children.map { |c| ChildView.new(c).to_hash } },
+    expected_children = @parent.children + distractor.children
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
                  childcontroller.hash_response)
   end
 
@@ -333,7 +348,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     data = {'_type' => 'Label', 'text' => 'new label'}
     labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
-    labelcontroller.invoke(:create)
+    labelcontroller.invoke(:create_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
@@ -352,8 +367,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_parent
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id, label_id: old_label.id)
-    labelcontroller.invoke(:show)
+    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller.invoke(:show_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
@@ -364,8 +379,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_destroy_from_parent
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id, label_id: old_label.id)
-    labelcontroller.invoke(:destroy)
+    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller.invoke(:destroy_associated)
 
     @parent.reload
 
@@ -376,12 +391,12 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_predicate(Label.where(id: old_label.id), :empty?)
   end
 
-  def test_nested_singular_update
+  def test_nested_singular_update_from_parent
     old_label = @parent.label
 
     data = {'_type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
-    labelcontroller = LabelController.new(data: data)
-    labelcontroller.invoke(:create)
+    labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
+    labelcontroller.invoke(:create_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
@@ -395,7 +410,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_id
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id, label_id: old_label.id)
+    labelcontroller = LabelController.new(id: old_label.id)
     labelcontroller.invoke(:show)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
@@ -421,5 +436,20 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_predicate(Target.where(id: old_target.id), :empty?)
   end
 
+  def test_nested_singular_update
+    old_label = @parent.label
+
+    data = {'_type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
+    labelcontroller = LabelController.new(data: data)
+    labelcontroller.invoke(:create)
+
+    assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
+
+    old_label.reload
+
+    assert_equal('new label', old_label.text)
+    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
+                 labelcontroller.hash_response)
+  end
 
 end

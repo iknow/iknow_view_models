@@ -1,4 +1,9 @@
+# frozen_string_literal: true
+
 require 'view_model/active_record/controller_base'
+
+# Controller mixin defining machinery for accessing viewmodels nested under a
+# parent. Used by Singular- and CollectionNestedControllers
 module ViewModel::ActiveRecord::NestedControllerBase
   extend ActiveSupport::Concern
 
@@ -18,7 +23,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
         prerender_viewmodel(associated_views, serialize_context: child_context)
       end
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     associated_views
   end
 
@@ -37,7 +42,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
       ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
       prerender_viewmodel(association_view, serialize_context: child_context)
     end
-    finish_render_viewmodel(pre_rendered)
+    render_json_string(pre_rendered)
     association_view
   end
 
@@ -76,7 +81,17 @@ module ViewModel::ActiveRecord::NestedControllerBase
     delegate :owner_viewmodel, :association_name, to: 'self.class'
   end
 
-  module ClassMethods
+  class_methods do
     attr_accessor :owner_viewmodel, :association_name
+
+    def nested_in(owner, as:)
+      unless owner.is_a?(Class) && owner < ViewModel::Record
+        owner = ViewModel::Registry.for_view_name(owner.to_s.camelize)
+      end
+
+      self.owner_viewmodel = owner
+      raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
+      self.association_name = as
+    end
   end
 end
