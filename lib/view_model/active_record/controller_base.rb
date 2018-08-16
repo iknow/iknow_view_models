@@ -1,7 +1,8 @@
+# frozen_string_literal: true
+
 require 'iknow_params'
 
-class ViewModel::ActiveRecord
-module ControllerBase
+module ViewModel::ActiveRecord::ControllerBase
   extend ActiveSupport::Concern
   include IknowParams::Parser
   include ViewModel::Controller
@@ -17,17 +18,17 @@ module ControllerBase
     super(viewmodel, serialize_context: serialize_context, **args)
   end
 
-  def new_deserialize_context(access_control: self.class.access_control.new, **args)
-    viewmodel.new_deserialize_context(access_control: access_control, **args)
+  def new_deserialize_context(viewmodel_class: self.class.viewmodel_class, access_control: self.class.access_control.new, **args)
+    viewmodel_class.new_deserialize_context(access_control: access_control, **args)
   end
 
-  def new_serialize_context(access_control: self.class.access_control.new, **args)
-    viewmodel.new_serialize_context(access_control: access_control, **args)
+  def new_serialize_context(viewmodel_class: self.class.viewmodel_class, access_control: self.class.access_control.new, **args)
+    viewmodel_class.new_serialize_context(access_control: access_control, **args)
   end
 
   class_methods do
-    def viewmodel
-      unless instance_variable_defined?(:@viewmodel)
+    def viewmodel_class
+      unless instance_variable_defined?(:@viewmodel_class)
         # try to autodetect the viewmodel based on our name
         if (match = /(.*)Controller$/.match(self.name))
           self.viewmodel_name = match[1].singularize
@@ -35,7 +36,7 @@ module ControllerBase
           raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'") if match.nil?
         end
       end
-      @viewmodel
+      @viewmodel_class
     end
 
     def access_control
@@ -46,24 +47,24 @@ module ControllerBase
     end
 
     def model_class
-      viewmodel.model_class
+      viewmodel_class.model_class
     end
 
     protected
 
     def viewmodel_name=(name)
-      self.viewmodel = ViewModel::Registry.for_view_name(name)
+      self.viewmodel_class = ViewModel::Registry.for_view_name(name)
     end
 
-    def viewmodel=(type)
-      if instance_variable_defined?(:@viewmodel)
+    def viewmodel_class=(type)
+      if instance_variable_defined?(:@viewmodel_class)
         raise ArgumentError.new("ViewModel class for Controller '#{self.name}' already set")
       end
 
       unless type < ViewModel
         raise ArgumentError.new("'#{type.inspect}' is not a valid ViewModel")
       end
-      @viewmodel = type
+      @viewmodel_class = type
     end
 
     def access_control=(access_control)
@@ -79,9 +80,8 @@ module ControllerBase
   end
 
   included do
-    delegate :viewmodel, :model_class, :access_control, to: 'self.class'
+    delegate :viewmodel_class, :model_class, :access_control, to: 'self.class'
   end
-end
 end
 
 module ActionDispatch

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'view_model/active_record/controller_base'
 require 'view_model/active_record/collection_nested_controller'
 require 'view_model/active_record/singular_nested_controller'
@@ -15,10 +17,10 @@ module ViewModel::ActiveRecord::Controller
   include ViewModel::ActiveRecord::CollectionNestedController
   include ViewModel::ActiveRecord::SingularNestedController
 
-  def show(scope: nil, serialize_context: new_serialize_context)
+  def show(scope: nil, viewmodel_class: self.class.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     view = nil
-    pre_rendered = viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
+    pre_rendered = viewmodel_class.transaction do
+      view = viewmodel_class.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
       view = yield(view) if block_given?
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
@@ -26,10 +28,10 @@ module ViewModel::ActiveRecord::Controller
     view
   end
 
-  def index(scope: nil, serialize_context: new_serialize_context)
+  def index(scope: nil, viewmodel_class: self.class.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     views = nil
-    pre_rendered = viewmodel.transaction do
-      views = viewmodel.load(scope: scope, serialize_context: serialize_context)
+    pre_rendered = viewmodel_class.transaction do
+      views = viewmodel_class.load(scope: scope, serialize_context: serialize_context)
       views = yield(views) if block_given?
       prerender_viewmodel(views, serialize_context: serialize_context)
     end
@@ -41,8 +43,8 @@ module ViewModel::ActiveRecord::Controller
     update_hash, refs = parse_viewmodel_updates
 
     view = nil
-    pre_rendered = viewmodel.transaction do
-      view = viewmodel.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
+    pre_rendered = viewmodel_class.transaction do
+      view = viewmodel_class.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
 
       serialize_context.add_includes(deserialize_context.updated_associations)
 
@@ -54,15 +56,15 @@ module ViewModel::ActiveRecord::Controller
   end
 
   def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    viewmodel.transaction do
-      view = viewmodel.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
+    viewmodel_class.transaction do
+      view = viewmodel_class.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
       view.destroy!(deserialize_context: deserialize_context)
     end
     render_viewmodel(nil)
   end
 
   included do
-    etag { self.viewmodel.deep_schema_version }
+    etag { self.viewmodel_class.deep_schema_version }
   end
 
   private
