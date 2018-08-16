@@ -12,7 +12,7 @@ class ViewModel::ActiveRecord::Cache
 
   def initialize(viewmodel_class)
     @viewmodel_class = viewmodel_class
-    @cache_group = IknowCache.register_group(cache_name, :id)
+    @cache_group = IknowCache.register_group(cache_name, :id, static_version: cache_version)
     @caches = {}
     @caches[[nil, nil]] = @cache_group.register_cache(:serializations)
   end
@@ -264,15 +264,14 @@ class ViewModel::ActiveRecord::Cache
     end
   end
 
-  # Name the cache based on the deep schema versions of the viewmodels, so that
-  # viewmodel changes force invalidation.
   def cache_name
-    version_string = @viewmodel_class.deep_schema_version(include_shared: false).to_a.sort.join(",")
-    hashed_version = urlsafe_hash(version_string)
-    "#{@viewmodel_class.name}_#{hashed_version}"
+    @viewmodel_class.name
   end
 
-  def urlsafe_hash(string)
-    Base64.urlsafe_encode64(Digest::MD5.digest(string))
+  # Statically version the cache based on the deep schema versions of the
+  # constituent viewmodels, so that viewmodel changes force invalidation.
+  def cache_version
+    version_string = @viewmodel_class.deep_schema_version(include_shared: false).to_a.sort.join(',')
+    Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
   end
 end
