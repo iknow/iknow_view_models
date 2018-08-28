@@ -49,21 +49,45 @@ module ViewModel::ActiveRecord::AssociationManipulation
   end
 
   # Replace the current member(s) of an association with the provided hash(es).
-  def replace_associated(association_name, subtree_hashes, references: {}, deserialize_context: self.class.new_deserialize_context)
+  def replace_associated(association_name, update_hash, references: {}, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
 
+    # TODO: structure checking
+
     if association_data.through? || association_data.shared?
-      subtree_hashes = ViewModel::Utils.wrap_one_or_many(subtree_hashes) do |sh|
-        association_references = convert_updates_to_references(sh)
-        references.merge!(association_references)
-        association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+      is_fupdate =
+        association_data.collection? &&
+        update_hash.is_a?(Hash) &&
+        update_hash[ViewModel::ActiveRecord::TYPE_ATTRIBUTE] == ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE
+
+      if is_fupdate
+        update_hash[ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE].each_with_index do |action, i|
+          action_type_name = action[ViewModel::ActiveRecord::TYPE_ATTRIBUTE]
+          if action_type_name == ViewModel::ActiveRecord::FunctionalUpdate::Remove::NAME
+            # Remove actions are always type/id refs; others need to be translated to proper refs
+            next
+          end
+
+          association_references = convert_updates_to_references(
+            action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE],
+            key: "#{action_type_name}_#{i}")
+          references.merge!(association_references)
+          action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE] =
+            association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+        end
+      else
+        update_hash = ViewModel::Utils.wrap_one_or_many(update_hash) do |sh|
+          association_references = convert_updates_to_references(sh, key: 'replace')
+          references.merge!(association_references)
+          association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+        end
       end
     end
 
     root_update_hash = {
       ViewModel::ID_ATTRIBUTE   => self.id,
       ViewModel::TYPE_ATTRIBUTE => self.class.view_name,
-      association_name.to_s     => subtree_hashes,
+      association_name.to_s     => update_hash,
     }
 
     root_update_viewmodel = self.class.deserialize_from_view(root_update_hash, references: references, deserialize_context: deserialize_context)
@@ -231,7 +255,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     indirect_update_data, referenced_update_data = ViewModel::ActiveRecord::UpdateData.parse_hashes(subtree_hashes, references)
 
     # Convert associated update data to references
-    indirect_references = convert_updates_to_references(indirect_update_data)
+    indirect_references = convert_updates_to_references(indirect_update_data, key: 'indirect_append')
     referenced_update_data.merge!(indirect_references)
 
     # Find any existing models for the direct association: need to re-use any
@@ -270,9 +294,9 @@ module ViewModel::ActiveRecord::AssociationManipulation
     return direct_update_data, referenced_update_data
   end
 
-  def convert_updates_to_references(indirect_update_data)
+  def convert_updates_to_references(indirect_update_data, key:)
     indirect_update_data.each.with_index.with_object({}) do |(update, i), indirect_references|
-      indirect_references["__append_ref_#{i}"] = update
+      indirect_references["__#{key}_ref_#{i}"] = update
     end
   end
 

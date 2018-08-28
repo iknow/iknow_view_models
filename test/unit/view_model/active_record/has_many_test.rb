@@ -222,6 +222,38 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal([], Child.where(id: old_children.map(&:id)))
   end
 
+  def test_replace_associated_has_many_functional
+    old_children = @parent1.children
+
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    update = build_fupdate do
+      append([{ '_type' => 'Child', 'name' => 'new_child' }])
+      remove([{ '_type' => 'Child', 'id' => old_children.last.id }])
+      update([{ '_type' => 'Child', 'id' => old_children.first.id, 'name' => 'renamed p1c1'}])
+    end
+
+    nc = pv.replace_associated(:children, update, deserialize_context: context)
+
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView,  nil),
+                            ViewModel::Reference.new(ChildView, old_children.first.id),
+                            ViewModel::Reference.new(ChildView, old_children.last.id)]
+
+    assert_equal(Set.new(expected_edit_checks),
+                 context.valid_edit_refs.to_set)
+
+    assert_equal(3, nc.size)
+    assert_equal('renamed p1c1', nc[0].name)
+
+    @parent1.reload
+    assert_equal(['renamed p1c1', 'p1c2', 'new_child'], @parent1.children.map(&:name))
+    assert_equal([], Child.where(id: old_children.last.id))
+  end
+
+
   def test_remove_has_many
     old_children = @parent1.children
     _, context = alter_by_view!(ParentView, @parent1) do |view, refs|

@@ -477,6 +477,37 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     assert_equal(['new_tag'], tags(@parent1).map(&:name))
   end
 
+  # Test that each of the functional updates actions work through
+  # replace_associated. The main tests for functional updates are
+  # earlier in this file.
+  def test_replace_associated_functional
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    tag1 = @tag1
+    tag2 = @tag2
+
+    update = build_fupdate do
+      append([{ '_type' => 'Tag', 'name' => 'new_tag' }])
+      remove([{ '_type' => 'Tag', 'id' => tag2.id }])
+      update([{ '_type' => 'Tag', 'id' => tag1.id, 'name' => 'renamed tag1' }])
+    end
+
+    nc = pv.replace_associated(:tags, update, deserialize_context: context)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(TagView, @tag1.id),
+                            ViewModel::Reference.new(TagView,  nil)]
+
+    assert_equal(Set.new(expected_edit_checks),
+                 context.valid_edit_refs.to_set)
+
+    assert_equal(2, nc.size)
+
+    @parent1.reload
+    assert_equal(['renamed tag1', 'new_tag'], tags(@parent1).map(&:name))
+  end
+
   def test_delete_associated_has_many
     t1, t2 = tags(@parent1)
 
