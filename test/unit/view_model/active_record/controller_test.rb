@@ -3,6 +3,7 @@
 require "bundler/setup"
 Bundler.require
 
+require_relative "../../../helpers/callback_tracer.rb"
 require_relative "../../../helpers/controller_test_helpers.rb"
 
 require 'byebug'
@@ -15,6 +16,73 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ControllerTestModels
   include ControllerTestControllers
 
+  def visit(hook, view)
+    CallbackTracer::Visit.new(hook, view)
+  end
+
+  def each_hook_span(trace)
+    return enum_for(:each_hook_span, trace) unless block_given?
+
+    hook_nesting = []
+
+    trace.each_with_index do |t, i|
+      case t.hook.name
+      when /^On/
+        # ignore
+
+      when /^Before/
+        hook_nesting.push([t, i])
+
+      when /^After/
+        (nested_top, nested_index) = hook_nesting.pop
+
+        unless nested_top.hook.name == t.hook.name.sub(/^After/, 'Before')
+          raise "Invalid nesting, processing '#{t.hook.name}', expected matching '#{nested_top.hook.name}'"
+        end
+
+        unless nested_top.view == t.view
+          raise "Invalid nesting, processing '#{t.hook.name}', " \
+                  "expected viewmodel '#{t.view}' to match '#{nested_top.view}'"
+        end
+
+        yield t.view, (nested_index..i), t.hook.name.sub(/^After/, '')
+
+      else
+        raise 'Unexpected hook type'
+      end
+    end
+  end
+
+  def show_span(view, range, hook)
+    "#{view.class.name}(#{view.id}) #{range} #{hook}"
+  end
+
+  def enclosing_hooks(spans, inner_range)
+    spans.select do |_view, range, _hook|
+      inner_range != range && range.cover?(inner_range.min) && range.cover?(inner_range.max)
+    end
+  end
+
+  def assert_all_hooks_nested_inside_parent_hook(trace)
+    spans = each_hook_span(trace).to_a
+
+    spans.reject { |view, _range, _hook| view.class == ParentView }.each do |view, range, hook|
+      enclosing_spans = enclosing_hooks(spans, range)
+
+      enclosing_parent_hook = enclosing_spans.detect do |other_view, _other_range, other_hook|
+        other_hook == hook && other_view.class == ParentView
+      end
+
+      next if enclosing_parent_hook
+
+      self_str      = show_span(view, range, hook)
+      enclosing_str = enclosing_spans.map { |ov, ora, oh| show_span(ov, ora, oh) }.join("\n")
+      assert_not_nil(
+        enclosing_parent_hook,
+        "Invalid nesting of hook: #{self_str}\nEnclosing hooks:\n#{enclosing_str}")
+    end
+  end
+
   def setup
     super
     @parent = Parent.create(name: 'p',
@@ -22,22 +90,27 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                                        Child.new(name: 'c2', position: 2.0)],
                             label: Label.new,
                             target: Target.new)
+
+    @parent_view = ParentView.new(@parent)
+
     enable_logging!
   end
-
 
   def test_show
     parentcontroller = ParentController.new(id: @parent.id)
     parentcontroller.invoke(:show)
 
-    assert_equal({ 'data' => ParentView.new(@parent).to_hash },
+    assert_equal({ 'data' => @parent_view.to_hash },
                  parentcontroller.hash_response)
 
     assert_equal(200, parentcontroller.status)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
   def test_index
-    p2 = Parent.create(name: "p2")
+    p2      = Parent.create(name: "p2")
+    p2_view = ParentView.new(p2)
 
     parentcontroller = ParentController.new
     parentcontroller.invoke(:index)
@@ -45,7 +118,9 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, parentcontroller.status)
 
     assert_equal(parentcontroller.hash_response,
-                 { "data" => [ParentView.new(@parent).to_hash, ParentView.new(p2).to_hash] })
+                 { "data" => [@parent_view.to_hash, p2_view.to_hash] })
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
   def test_create
@@ -63,12 +138,15 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(200, parentcontroller.status)
 
-    p = Parent.where(name: 'p2').first
-    assert(p.present?, 'p created')
+    p2      = Parent.where(name: 'p2').first
+    p2_view = ParentView.new(p2)
+    assert(p2.present?, 'p2 created')
 
     context = ParentView.new_serialize_context(include: 'children')
-    assert_equal({ 'data' => ParentView.new(p).to_hash(serialize_context: context) },
+    assert_equal({ 'data' => p2_view.to_hash(serialize_context: context) },
                  parentcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
   def test_create_empty
@@ -98,8 +176,10 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal('new', @parent.name)
-    assert_equal({ 'data' => ParentView.new(@parent).to_hash },
+    assert_equal({ 'data' => @parent_view.to_hash },
                  parentcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
   def test_destroy
@@ -112,6 +192,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal({ 'data' => nil },
                  parentcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
   def test_show_missing
@@ -194,6 +276,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     expected_children = @parent.children
     assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
                  childcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_index
@@ -222,6 +306,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(%w{c1 c2 c3}, @parent.children.order(:position).pluck(:name))
     assert_equal({ 'data' => ChildView.new(@parent.children.last).to_hash },
                  childcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_append_many
@@ -239,6 +325,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     new_children_hashes = @parent.children.last(2).map{ |c| ChildView.new(c).to_hash }
     assert_equal({ 'data' => new_children_hashes },
                  childcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_replace
@@ -257,6 +345,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(%w{newc1 newc2}, @parent.children.order(:position).pluck(:name))
     assert_predicate(Child.where(id: old_children.map(&:id)), :empty?)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_replace_bad_data
@@ -266,6 +356,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     childcontroller.invoke(:replace)
 
     assert_equal(400, childcontroller.status)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_disassociate_one
@@ -279,6 +371,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(%w{c2}, @parent.children.order(:position).pluck(:name))
     assert_predicate(Child.where(id: old_child.id), :empty?)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   def test_nested_collection_disassociate_many
@@ -293,6 +387,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_predicate(@parent.children, :empty?)
     assert_predicate(Child.where(id: old_children.map(&:id)), :empty?)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
   # direct methods on nested controller
@@ -362,6 +458,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     refute_equal(old_label, @parent.label)
     assert_equal('new label', @parent.label.text)
+
+    assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
   end
 
   def test_nested_singular_show_from_parent
@@ -374,6 +472,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
   end
 
   def test_nested_singular_destroy_from_parent
@@ -389,6 +489,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_nil(@parent.label)
     assert_predicate(Label.where(id: old_label.id), :empty?)
+
+    assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
   end
 
   def test_nested_singular_update_from_parent
@@ -405,6 +507,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal('new label', old_label.text)
     assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
   end
 
   def test_nested_singular_show_from_id

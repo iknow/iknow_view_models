@@ -58,10 +58,11 @@ module ViewModel::ActiveRecord::CollectionNestedController
                                                 before:     before,
                                                 after:      after,
                                                 deserialize_context: deserialize_context)
-
-      child_context = owner_view.context_for_child(association_name, context: serialize_context)
-      ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
-      prerender_viewmodel(assoc_view, serialize_context: child_context)
+      ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
+        child_context = owner_view.context_for_child(association_name, context: serialize_context)
+        ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
+        prerender_viewmodel(assoc_view, serialize_context: child_context)
+      end
     end
     render_json_string(pre_rendered)
     assoc_view
