@@ -92,14 +92,17 @@ module ActionDispatch
           except             = options.delete(:except) { [] }
           add_shallow_routes = options.delete(:add_shallow_routes) { true }
 
-          only_routes  = [:create]
+          nested = shallow_nesting_depth > 0
+
+          only_routes = []
+          only_routes += [:create] unless nested
           only_routes += [:show, :destroy] if add_shallow_routes
           only_routes -= except
 
           resources resource_name, shallow: true, only: only_routes, **options do
             instance_eval(&block) if block_given?
 
-            if shallow_nesting_depth > 1
+            if nested
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
                 name_route = { as: '' } # Only one route may take the name
