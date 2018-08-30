@@ -2,6 +2,7 @@
 
 require_relative '../../helpers/arvm_test_utilities.rb'
 require_relative '../../helpers/arvm_test_models.rb'
+require_relative '../../helpers/callback_tracer.rb'
 require_relative '../../helpers/viewmodel_spec_helpers.rb'
 
 require 'minitest/autorun'
@@ -42,26 +43,8 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
   let(:vm) { create_viewmodel! }
 
   describe 'tracing each callback' do
-    Visit = Struct.new(:hook, :view)
-
-    class CallbackTracer
-      include ViewModel::Callbacks
-
-      attr_reader :hook_trace
-
-      def initialize
-        @hook_trace = []
-      end
-
-      ViewModel::Callbacks::Hook.each do |hook|
-        send(hook.dsl_add_hook_name) do
-          hook_trace << Visit.new(hook, view)
-        end
-      end
-
-      def log!
-        puts hook_trace.map { |t| [t.hook.name, t.view.class, t.view.model].inspect }
-      end
+    def visit(hook, view)
+      CallbackTracer::Visit.new(hook, view)
     end
 
     let(:callback) { CallbackTracer.new }
@@ -76,23 +59,23 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       it 'visits in correct order when serializing' do
         serialize(vm)
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit, vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit, vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,  vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,  vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit, vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit, vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,  vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,  vm)])
       end
 
       it 'visits in correct order when deserializing' do
         alter_by_view!(viewmodel_class, vm.model) {}
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls edit hook when updating' do
@@ -100,15 +83,15 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           view['name'] = 'q'
         end
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls edit hook when deleting' do
@@ -118,16 +101,16 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         end
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm_child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm_child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm_child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on old and new when replacing' do
@@ -137,21 +120,21 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         end
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          old_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on old and new when moving' do
@@ -163,37 +146,37 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         end
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm2),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm2),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm2)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm2),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm2),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm2),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm2),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm2)])
       end
 
       it 'calls hooks on delete' do
         ctx = vm_deserialize_context(viewmodel_class)
         vm.destroy!(deserialize_context: ctx)
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
         ## At present, children aren't visited on delete.
-        # Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
-        # Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
-        # Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child),
-        # Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
-        # Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child))
+        # visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
+        # visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
+        # visit(ViewModel::Callbacks::Hook::OnChange,          old_child),
+        # visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
+        # visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child))
       end
 
       it 'calls hooks on replace associated' do
@@ -204,21 +187,21 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         vm.model.reload
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm.child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm.child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm.child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm.child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          old_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),
           ])
       end
     end
@@ -242,26 +225,26 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         vm.model.reload
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       new_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, new_child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        new_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child_2),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       new_child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, new_child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          new_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  new_child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        new_child),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_1),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_1),
+           visit(ViewModel::Callbacks::Hook::OnChange,          old_child_1),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_1),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child_1),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_2),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_2),
+           visit(ViewModel::Callbacks::Hook::OnChange,          old_child_2),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_2),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child_2),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on append_associated' do
@@ -271,16 +254,16 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         vm.model.reload
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       new_child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, new_child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        new_child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       new_child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, new_child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          new_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  new_child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        new_child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
 
       it 'calls hooks on delete_associated' do
@@ -292,16 +275,16 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         vm.model.reload
 
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        old_child_1),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child_1),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child_1),
+           visit(ViewModel::Callbacks::Hook::OnChange,          old_child_1),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  old_child_1),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        old_child_1),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
       end
     end
 
@@ -320,23 +303,23 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           view['next'] = nil
         end
         value(callback.hook_trace).must_equal(
-          [Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          vm),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       child),
-           Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
-           Visit.new(ViewModel::Callbacks::Hook::OnChange,          child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        child),
-           Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        vm),
+          [visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
+           visit(ViewModel::Callbacks::Hook::OnChange,          vm),
+           visit(ViewModel::Callbacks::Hook::BeforeVisit,       child),
+           visit(ViewModel::Callbacks::Hook::BeforeDeserialize, child),
+           visit(ViewModel::Callbacks::Hook::OnChange,          child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  child),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        child),
+           visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),
 ])
         ## At present, children aren't deeplyvisited on delete.
-        # Visit.new(ViewModel::Callbacks::Hook::BeforeVisit,       grandchild),
-        # Visit.new(ViewModel::Callbacks::Hook::BeforeDeserialize, grandchild),
-        # Visit.new(ViewModel::Callbacks::Hook::OnChange,          grandchild),
-        # Visit.new(ViewModel::Callbacks::Hook::AfterDeserialize,  grandchild),
-        # Visit.new(ViewModel::Callbacks::Hook::AfterVisit,        grandchild)
+        # visit(ViewModel::Callbacks::Hook::BeforeVisit,       grandchild),
+        # visit(ViewModel::Callbacks::Hook::BeforeDeserialize, grandchild),
+        # visit(ViewModel::Callbacks::Hook::OnChange,          grandchild),
+        # visit(ViewModel::Callbacks::Hook::AfterDeserialize,  grandchild),
+        # visit(ViewModel::Callbacks::Hook::AfterVisit,        grandchild)
       end
     end
   end
