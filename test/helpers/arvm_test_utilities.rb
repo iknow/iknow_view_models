@@ -137,22 +137,23 @@ module ARVMTestUtilities
         @builder = builder
       end
 
-      def append(hashes)
+      def append(hashes, **rest)
         @builder.append_action(
-          type:     ViewModel::ActiveRecord::FunctionalUpdate::Append,
-          contents: hashes)
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Append,
+          values: hashes,
+          **rest)
       end
 
       def remove(hashes)
         @builder.append_action(
-          type:     ViewModel::ActiveRecord::FunctionalUpdate::Remove,
-          contents: hashes)
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Remove,
+          values: hashes)
       end
 
       def update(hashes)
         @builder.append_action(
-          type:     ViewModel::ActiveRecord::FunctionalUpdate::Update,
-          contents: hashes)
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Update,
+          values: hashes)
       end
     end
 
@@ -160,12 +161,12 @@ module ARVMTestUtilities
       @actions = []
     end
 
-    def append_action(type:, contents:)
+    def append_action(type:, values:, **rest)
       @actions.push(
         {
           ViewModel::ActiveRecord::TYPE_ATTRIBUTE   => type::NAME,
-          ViewModel::ActiveRecord::VALUES_ATTRIBUTE => contents
-        }
+          ViewModel::ActiveRecord::VALUES_ATTRIBUTE => values,
+        }.merge(rest.transform_keys(&:to_s))
       )
     end
 
