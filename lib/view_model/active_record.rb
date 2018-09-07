@@ -261,8 +261,9 @@ class ViewModel::ActiveRecord < ViewModel::Record
         end
     end
 
-    def cacheable!
+    def cacheable!(**opts)
       include ViewModel::ActiveRecord::Cache::CacheableView
+      create_viewmodel_cache!(**opts)
     end
 
     # internal

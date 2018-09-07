@@ -21,17 +21,13 @@ module ViewModel::ActiveRecord::Cache::CacheableView
     end
   end
 
-  included do
-    @viewmodel_cache = ViewModel::ActiveRecord::Cache.new(self)
-  end
-
   class_methods do
-    def viewmodel_cache
-      @viewmodel_cache
+    def create_viewmodel_cache!(**opts)
+      @viewmodel_cache = ViewModel::ActiveRecord::Cache.new(self, **opts)
     end
 
-    def specialize_cache!(name, prune: nil, include: nil)
-      viewmodel_cache.add_specialization(name, prune: prune, include: include)
+    def viewmodel_cache
+      @viewmodel_cache
     end
 
     def serialize_from_cache(views, serialize_context:)

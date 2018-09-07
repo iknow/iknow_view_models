@@ -80,8 +80,9 @@ class ViewModel::ActiveRecord
     end
 
     # Extract the iKnowCaches to verify their contents
-    def cache_for(viewmodel)
-      viewmodel.viewmodel_cache.send(:cache_specialization_for, viewmodel.new_serialize_context)
+    def read_cache(viewmodel_class, id)
+      vm_cache = viewmodel_class.viewmodel_cache
+      vm_cache.send(:cache).read(vm_cache.key_for(id))
     end
 
     def serialize_from_database
@@ -120,12 +121,12 @@ class ViewModel::ActiveRecord
         end
 
         it 'writes to the cache after fetching' do
-          cached_value = cache_for(viewmodel_class).read({ id: root.id })
+          cached_value = read_cache(viewmodel_class, root.id)
           value(cached_value).wont_be(:present?)
 
           fetch_with_cache
 
-          cached_value = cache_for(viewmodel_class).read({ id: root.id })
+          cached_value = read_cache(viewmodel_class, root.id)
           value(cached_value).must_be(:present?)
         end
 
@@ -133,7 +134,7 @@ class ViewModel::ActiveRecord
           data, refs = fetch_with_cache
           value(data.size).must_equal(1)
 
-          cached_root = cache_for(viewmodel_class).read({ id: root.id })
+          cached_root = read_cache(viewmodel_class, root.id)
           value(cached_root).must_be(:present?)
           value(cached_root[:data]).must_equal(data.first)
 
@@ -155,7 +156,7 @@ class ViewModel::ActiveRecord
             # cached.
             next unless view_name == "Shared"
             value(id).must_equal(shared.id)
-            cached_shared = cache_for(shared_viewmodel_class).read({ id: id })
+            cached_shared = read_cache(shared_viewmodel_class, id)
             value(cached_shared).must_be(:present?)
             value(cached_shared[:data]).must_equal(ref_data)
             value(cached_shared[:ref_cache]).must_be(:blank?)

@@ -10,22 +10,11 @@ class ViewModel::ActiveRecord::Cache
 
   attr_reader :viewmodel_class
 
-  def initialize(viewmodel_class)
+  # If cache_group: is specified, it must be a group of a single key: `:id`
+  def initialize(viewmodel_class, cache_group: nil)
     @viewmodel_class = viewmodel_class
-    @cache_group = IknowCache.register_group(cache_name, :id, static_version: cache_version)
-    @caches = {}
-    @caches[[nil, nil]] = @cache_group.register_cache(:serializations)
-  end
-
-  def add_specialization(name, prune: nil, include: nil)
-    prune   = ViewModel::SerializeContext.normalize_includes(prune)
-    include = ViewModel::SerializeContext.normalize_includes(include)
-    if @caches.has_key?([prune, include])
-      raise ArgumentError.new(
-              "Viewmodel '#{@viewmodel_class.debug_name}' already "\
-              "defines a cache specialization for #{prune}/#{include}")
-    end
-    @caches[[prune, include]] = @cache_group.register_cache(name)
+    @cache_group = cache_group || create_default_cache_group # requires @viewmodel_class
+    @cache = @cache_group.register_cache(cache_name)
   end
 
   def delete(*ids)
@@ -237,39 +226,38 @@ class ViewModel::ActiveRecord::Cache
   end
 
   def key_for(id)
-    { id: id }
+    cache.key.new(id)
   end
 
   def id_for(key)
     key[:id]
   end
 
-  # Save the provided serialization and reference data in the appropriate cache specialization
+  # Save the provided serialization and reference data in the cache
   def store(id, data_serialization, ref_cache, serialize_context:)
-    cache = cache_specialization_for(serialize_context)
     cache.write(key_for(id), { data: data_serialization, ref_cache: ref_cache })
   end
 
   def load(ids, serialize_context:)
     keys = ids.map { |id| key_for(id) }
-    results = cache_specialization_for(serialize_context).read_multi(keys)
+    results = cache.read_multi(keys)
     results.transform_keys! { |key| id_for(key) }
   end
 
-  def cache_specialization_for(serialize_context)
-    @caches.fetch([serialize_context.prune, serialize_context.include]) do
-      raise UncacheableViewModelError.new(
-              "Viewmodel #{@viewmodel_class.debug_name} has no cache specialization for "\
-              "prune: #{serialize_context.prune.inspect}, include: #{serialize_context.include.inspect}")
-    end
+  private
+
+  attr_reader :cache
+
+  def create_default_cache_group
+    IknowCache.register_group(@viewmodel_class.name, :id)
   end
 
+  # Statically version the terminal cache based on the deep schema versions of
+  # the constituent viewmodels, so that viewmodel changes force invalidation.
   def cache_name
-    @viewmodel_class.name
+    "#{@viewmodel_class.name}_#{cache_version}"
   end
 
-  # Statically version the cache based on the deep schema versions of the
-  # constituent viewmodels, so that viewmodel changes force invalidation.
   def cache_version
     version_string = @viewmodel_class.deep_schema_version(include_shared: false).to_a.sort.join(',')
     Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
