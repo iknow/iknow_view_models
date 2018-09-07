@@ -41,7 +41,12 @@ class ViewModel::ActiveRecord
         )
       end
 
+      def shared_cache_group
+        @shared_cache_group ||= IknowCache.register_group(:shared, :id)
+      end
+
       def shared_viewmodel_class
+        shared_cache_group = self.shared_cache_group
         @shared_viewmodel_class ||= define_viewmodel_class(:Shared, namespace: namespace) do
           define_schema do |t|
             t.string :name
@@ -53,7 +58,7 @@ class ViewModel::ActiveRecord
 
           define_viewmodel do
             attributes :name
-            cacheable!
+            cacheable!(cache_group: shared_cache_group)
           end
         end
       end
@@ -212,6 +217,16 @@ class ViewModel::ActiveRecord
         it 'can clear a referenced cache' do
           change_in_database
           shared_viewmodel_class.viewmodel_cache.clear
+
+          # Shared view invalidated, but root view not
+          cache_data, cache_hrefs = serialize_with_cache
+          value(cache_data[0]["name"]).must_equal("root1")
+          value(cache_hrefs.values[0]["name"]).must_equal("CHANGEDSHARED")
+        end
+
+        it 'can clear a cache via its external cache group' do
+          change_in_database
+          shared_cache_group.invalidate_cache_group
 
           # Shared view invalidated, but root view not
           cache_data, cache_hrefs = serialize_with_cache
