@@ -121,7 +121,9 @@ module ActionDispatch
               end
 
               scope shallow: false do
-                delete '', action: :disassociate, as: '' unless except.include?(:disassociate)
+                member do
+                  delete '', action: :disassociate, as: '' unless except.include?(:disassociate)
+                end
               end
 
               # Add top level `create` route to manipulate existing viewmodels

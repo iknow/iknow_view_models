@@ -362,7 +362,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_nested_collection_disassociate_one
     old_child = @parent.children.first
-    childcontroller = ChildController.new(parent_id: @parent.id, child_id: old_child.id)
+    childcontroller = ChildController.new(parent_id: @parent.id, id: old_child.id)
     childcontroller.invoke(:disassociate)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
