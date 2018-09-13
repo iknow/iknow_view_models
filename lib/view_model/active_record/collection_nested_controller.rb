@@ -71,7 +71,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
   def disassociate(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
-      owner_view.delete_associated(association_name, viewmodel_id, deserialize_context: deserialize_context)
+      owner_view.delete_associated(association_name, viewmodel_id, type: viewmodel_class, deserialize_context: deserialize_context)
       render_viewmodel(nil)
     end
   end
