@@ -33,6 +33,7 @@ module ControllerTestModels
         has_many :parents
       end
       define_viewmodel do
+        root!
         attributes :name
       end
     end
@@ -77,11 +78,12 @@ module ControllerTestModels
         belongs_to :category
       end
       define_viewmodel do
+        root!
         attributes   :name
         associations :label, :target
-        association  :children, optional: true
+        association  :children
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
-        association  :category, shared: true
+        association  :category, external: true
       end
     end
 
@@ -99,7 +101,7 @@ module ControllerTestModels
       define_model do
         belongs_to :parent, inverse_of: :children
         acts_as_manual_list scope: :parent
-        validates :age, numericality: {less_than: 42}, allow_nil: true
+        validates :age, numericality: { less_than: 42 }, allow_nil: true
       end
       define_viewmodel do
         attributes :name, :age

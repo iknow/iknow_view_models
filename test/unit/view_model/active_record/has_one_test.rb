@@ -1,5 +1,6 @@
 require_relative "../../../helpers/arvm_test_utilities.rb"
 require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/viewmodel_spec_helpers.rb'
 
 require "minitest/autorun"
 
@@ -8,80 +9,41 @@ require "view_model/active_record"
 class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   include ARVMTestUtilities
 
-  def self.build_target(arvm_test_case)
-    arvm_test_case.build_viewmodel(:Target) do
-      define_schema do |t|
-        t.string :text
-        t.references :parent, foreign_key: true
-      end
-
-      define_model do
-        belongs_to :parent, inverse_of: :target
-      end
-
-      define_viewmodel do
-        attributes :text
-      end
-    end
-  end
-
-
-  def self.build_parent(arvm_test_case)
-    arvm_test_case.build_viewmodel(:Parent) do
-      define_schema do |t|
-        t.string :name
-      end
-
-      define_model do
-        has_one    :target, dependent: :destroy, inverse_of: :parent
-      end
-
-      define_viewmodel do
-        attributes   :name
-        associations :target
-      end
-    end
-  end
-
-  def before_all
-    super
-
-    self.class.build_parent(self)
-    self.class.build_target(self)
-  end
+  extend Minitest::Spec::DSL
+  include ViewModelSpecHelpers::ParentAndHasOneChild
 
   def setup
     super
 
-    # TODO make a `has_list?` that allows a parent to set all children as an array
-    @parent1 = Parent.new(name: "p1",
-                          target: Target.new(text: "p1t"))
-    @parent1.save!
+    # TODO make a `has_list?` that allows a model to set all children as an array
+    @model1 = model_class.new(name: "p1",
+                          child: child_model_class.new(name: "p1t"))
+    @model1.save!
 
-    @parent2 = Parent.new(name: "p2",
-                          target: Target.new(text: "p2t"))
+    @model2 = model_class.new(name: "p2",
+                          child: child_model_class.new(name: "p2t"))
 
-    @parent2.save!
+    @model2.save!
 
     enable_logging!
   end
 
   def test_loading_batching
     log_queries do
-      serialize(ParentView.load)
+      serialize(ModelView.load)
     end
-    assert_equal(['Parent Load', 'Target Load'],
+    assert_equal(['Model Load', 'Child Load'],
                  logged_load_queries)
   end
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      "_type"    => "Model",
       "name"     => "p",
-      "target"   => { "_type" => "Target", "text" => "t" },
+      "child"   => { "_type" => "Child", "name" => "t" },
     }
 
-    pv = ParentView.deserialize_from_view(view)
+    pv = ModelView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -90,192 +52,383 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     assert_equal("p", p.name)
 
 
-    assert(p.target.present?)
-    assert_equal("t", p.target.text)
+    assert(p.child.present?)
+    assert_equal("t", p.child.name)
   end
 
   def test_serialize_view
-    view, _refs = serialize_with_references(ParentView.new(@parent1))
-    assert_equal({ "_type"    => "Parent",
+    view, _refs = serialize_with_references(ModelView.new(@model1))
+    assert_equal({ "_type"    => "Model",
                    "_version" => 1,
-                   "id"       => @parent1.id,
-                   "name"     => @parent1.name,
-                   "target"   => { "_type"    => "Target",
+                   "id"       => @model1.id,
+                   "name"     => @model1.name,
+                   "child"   => { "_type"    => "Child",
                                    "_version" => 1,
-                                   "id"       => @parent1.target.id,
-                                   "text"     => @parent1.target.text } },
+                                   "id"       => @model1.child.id,
+                                   "name"     => @model1.child.name } },
                  view)
   end
 
   def test_swap_has_one
-    @parent1.update(target: t1 = Target.new)
-    @parent2.update(target: t2 = Target.new)
+    @model1.update(child: t1 = Child.new)
+    @model2.update(child: t2 = Child.new)
 
     deserialize_context = ViewModelBase.new_deserialize_context
 
-    ParentView.deserialize_from_view(
-      [update_hash_for(ParentView, @parent1) { |p| p['target'] = update_hash_for(TargetView, t2) },
-       update_hash_for(ParentView, @parent2) { |p| p['target'] = update_hash_for(TargetView, t1) }],
+    ModelView.deserialize_from_view(
+      [update_hash_for(ModelView, @model1) { |p| p['child'] = update_hash_for(ChildView, t2) },
+       update_hash_for(ModelView, @model2) { |p| p['child'] = update_hash_for(ChildView, t1) }],
       deserialize_context: deserialize_context)
 
-    assert_equal(Set.new([ViewModel::Reference.new(ParentView, @parent1.id),
-                          ViewModel::Reference.new(ParentView, @parent2.id)]),
+    assert_equal(Set.new([ViewModel::Reference.new(ModelView, @model1.id),
+                          ViewModel::Reference.new(ModelView, @model2.id)]),
                  deserialize_context.valid_edit_refs.to_set)
 
-    @parent1.reload
-    @parent2.reload
+    @model1.reload
+    @model2.reload
 
-    assert_equal(@parent1.target, t2)
-    assert_equal(@parent2.target, t1)
+    assert_equal(@model1.child, t2)
+    assert_equal(@model2.child, t1)
   end
 
   def test_has_one_create_nil
-    view = { '_type' => 'Parent', 'name' => 'p', 'target' => nil }
-    pv = ParentView.deserialize_from_view(view)
-    assert_nil(pv.model.target)
+    view = { '_type' => 'Model', 'name' => 'p', 'child' => nil }
+    pv = ModelView.deserialize_from_view(view)
+    assert_nil(pv.model.child)
   end
 
   def test_has_one_create
-    @parent1.update(target: nil)
+    @model1.update(child: nil)
 
-    alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['target'] = { '_type' => 'Target', 'text' => 't' }
+    alter_by_view!(ModelView, @model1) do |view, refs|
+      view['child'] = { '_type' => 'Child', 'name' => 't' }
     end
 
-    assert_equal('t', @parent1.target.text)
+    assert_equal('t', @model1.child.name)
   end
 
   def test_has_one_update
-    alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['target']['text'] = "hello"
+    alter_by_view!(ModelView, @model1) do |view, refs|
+      view['child']['name'] = "hello"
     end
 
-    assert_equal('hello', @parent1.target.text)
+    assert_equal('hello', @model1.child.name)
   end
 
   def test_has_one_destroy
-    old_target = @parent1.target
-    alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['target'] = nil
+    old_child = @model1.child
+    alter_by_view!(ModelView, @model1) do |view, refs|
+      view['child'] = nil
     end
-    assert(Target.where(id: old_target.id).blank?)
+    assert(Child.where(id: old_child.id).blank?)
   end
 
   def test_has_one_move_and_replace
-    old_parent1_target = @parent1.target
-    old_parent2_target = @parent2.target
+    old_model1_child = @model1.child
+    old_model2_child = @model2.child
 
-    alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
-      p2['target'] = p1['target']
-      p1['target'] = nil
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+      p2['child'] = p1['child']
+      p1['child'] = nil
     end
 
-    assert(@parent1.target.blank?)
-    assert_equal(old_parent1_target, @parent2.target)
-    assert(Target.where(id: old_parent2_target).blank?)
+    assert(@model1.child.blank?)
+    assert_equal(old_model1_child, @model2.child)
+    assert(Child.where(id: old_model2_child).blank?)
   end
 
   def test_has_one_cannot_duplicate_unreleased_child
-    # p2 shouldn't be able to copy p1's target
+    # p2 shouldn't be able to copy p1's child
     assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
-        p2['target'] = p1['target'].dup
+      alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
+        p2['child'] = p1['child'].dup
       end
     end
   end
 
   def test_has_one_cannot_duplicate_implicitly_unreleased_child
-    # p2 shouldn't be able to copy p1's target, even when p1 doesn't explicitly
+    # p2 shouldn't be able to copy p1's child, even when p1 doesn't explicitly
     # specify the association
     assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
-        p2['target'] = p1['target']
-        p1.delete('target')
+      alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
+        p2['child'] = p1['child']
+        p1.delete('child')
       end
     end
   end
 
   def test_has_one_cannot_take_from_outside_tree
-    t3 = Parent.create(target: Target.new(text: 'hi')).target
+    t3 = Model.create(child: Child.new(name: 'hi')).child
 
     assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-      alter_by_view!(ParentView, [@parent1]) do |(p1), _refs|
-        p1['target'] = update_hash_for(TargetView, t3)
+      alter_by_view!(ModelView, [@model1]) do |(p1), _refs|
+        p1['child'] = update_hash_for(ChildView, t3)
       end
     end
   end
 
-  def test_has_one_cannot_take_unparented_from_outside_tree
-    t3 = Target.create(text: 'hi') # no parent
+  def test_has_one_cannot_take_unmodeled_from_outside_tree
+    t3 = Child.create(name: 'hi') # no model
 
     assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-      alter_by_view!(ParentView, @parent1) do |p1, _refs|
-        p1['target'] = update_hash_for(TargetView, t3)
+      alter_by_view!(ModelView, @model1) do |p1, _refs|
+        p1['child'] = update_hash_for(ChildView, t3)
       end
     end
   end
 
   def test_bad_single_association
     view = {
-      "_type" => "Parent",
-      "target" => []
+      "_type" => "Model",
+      "child" => []
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
-      ParentView.deserialize_from_view(view)
+      ModelView.deserialize_from_view(view)
     end
     assert_match(/not an object/, ex.message)
   end
 
+  describe 'owned reference child' do
+    def child_attributes
+      super.merge(viewmodel: ->(v) { root! })
+    end
 
-  class RenameTest < ActiveSupport::TestCase
-    include ARVMTestUtilities
+    def new_model
+      model_class.new(name: 'm1', child: child_model_class.new(name: 'c1'))
+    end
 
-    def before_all
-      super
+    it 'makes a reference association' do
+      assert(subject_association.referenced?)
+    end
 
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-        end
+    it 'makes an owned association' do
+      assert(subject_association.owned?)
+    end
 
-        define_model do
-          has_one    :target, dependent: :destroy, inverse_of: :parent
-        end
+    it 'loads and batches' do
+      create_model!
 
-        define_viewmodel do
-          attributes   :name
-          association :target, as: :something_else
-        end
+      log_queries do
+        serialize(ModelView.load)
       end
 
-      ViewModel::ActiveRecord::HasOneTest.build_target(self)
+      assert_equal(['Model Load', 'Child Load'], logged_load_queries)
+    end
+
+    it 'serializes' do
+      model = create_model!
+      view, refs = serialize_with_references(ModelView.new(model))
+      child1_ref = refs.detect { |_, v| v['_type'] == 'Child' }.first
+
+      assert_equal({ child1_ref => { '_type'    => 'Child',
+                                     '_version' => 1,
+                                     'id'       => model.child.id,
+                                     'name'     => model.child.name } },
+                   refs)
+
+      assert_equal({ '_type'    => 'Model',
+                     '_version' => 1,
+                     'id'       => model.id,
+                     'name'     => model.name,
+                     'child' => { '_ref' => child1_ref } },
+                   view)
+    end
+
+    it 'creates from view' do
+      view = {
+        '_type' => 'Model',
+        'name'  => 'p',
+        'child' => { '_ref' => 'r1' },
+      }
+
+      refs = {
+        'r1' => { '_type' => 'Child', 'name' => 'newkid' },
+      }
+
+      pv = ModelView.deserialize_from_view(view, references: refs)
+      p = pv.model
+
+      assert(!p.changed?)
+      assert(!p.new_record?)
+
+      assert_equal('p', p.name)
+
+      assert(p.child.present?)
+      assert_equal('newkid', p.child.name)
+    end
+
+    it 'updates' do
+      model = create_model!
+
+      alter_by_view!(ModelView, model) do |view, refs|
+        ref = view['child']['_ref']
+        refs[ref]['name'] = 'newchildname'
+      end
+
+      assert_equal('newchildname', model.child.name)
+    end
+
+    describe 'without a child' do
+      let(:new_model) {
+        model_class.new(name: 'm1', child: nil)
+      }
+
+      it 'can add a child' do
+        model = create_model!
+
+        alter_by_view!(ModelView, model) do |view, refs|
+          view['child'] = { '_ref' => 'ref1' }
+          refs['ref1'] = {
+            '_type' => 'Child',
+            'name' => 'newchildname',
+          }
+        end
+
+        assert(model.child.present?)
+        assert_equal('newchildname', model.child.name)
+      end
+    end
+
+    it 'replaces a child with a new child' do
+      model = create_model!
+      old_child = model.child
+
+      alter_by_view!(ModelView, model) do |view, refs|
+        ref = view['child']['_ref']
+        refs[ref] = { '_type' => 'Child', 'name' => 'newchildname' }
+      end
+      model.reload
+
+      assert_equal('newchildname', model.child.name)
+      refute_equal(old_child, model.child)
+      assert(Child.where(id: old_child.id).blank?)
+    end
+
+    it 'takes a released child from another parent' do
+      model1 = create_model!
+      model2 = create_model!
+
+      old_child1 = model1.child
+      old_child2 = model2.child
+
+      alter_by_view!(ModelView, [model1, model2]) do |(view1, view2), refs|
+        ref1 = view1['child']['_ref']
+        ref2 = view2['child']['_ref']
+        refs.delete(ref1)
+        view1['child'] = { '_ref' => ref2 }
+        view2['child'] = nil
+      end
+
+      assert_equal(model1.child, old_child2)
+      assert_nil(model2.child)
+      assert(Child.where(id: old_child1.id).blank?)
+    end
+
+    it 'prevents taking an unreleased reference out-of-tree' do
+      model1 = create_model!
+      child2 = Child.create!(name: 'dummy')
+
+      assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+        alter_by_view!(ModelView, model1) do |view, refs|
+          refs.clear
+          view['child']['_ref'] = 'r1'
+          refs['r1'] = { '_type' => 'Child', 'id' => child2.id }
+        end
+      end
+    end
+
+    it 'prevents taking an unreleased reference in-tree' do
+      model1 = create_model!
+      model2 = create_model!
+
+      assert_raises(ViewModel::DeserializationError::DuplicateOwner) do
+        alter_by_view!(ModelView, [model1, model2]) do |(view1, view2), refs|
+          refs.delete(view1['child']['_ref'])
+          view1['child']['_ref'] = view2['child']['_ref']
+        end
+      end
+    end
+
+    it 'prevents two parents taking the same new reference' do
+      model1 = create_model!
+      model2 = create_model!
+
+      assert_raises(ViewModel::DeserializationError::DuplicateOwner) do
+        alter_by_view!(ModelView, [model1, model2]) do |(view1, view2), refs|
+          refs.clear
+          refs['ref1'] = { '_type' => 'Child', 'name' => 'new' }
+          view1['child']['_ref'] = 'ref1'
+          view2['child']['_ref'] = 'ref1'
+        end
+      end
+    end
+
+    it 'swaps children' do
+      model1 = create_model!
+      model2 = create_model!
+
+      old_child1 = model1.child
+      old_child2 = model2.child
+
+      alter_by_view!(ModelView, [model1, model2]) do |(view1, view2), _refs|
+        ref1 = view1['child']
+        ref2 = view2['child']
+        view1['child'] = ref2
+        view2['child'] = ref1
+      end
+
+      assert_equal(model1.child, old_child2)
+      assert_equal(model2.child, old_child1)
+    end
+
+    it 'deletes a child' do
+      model = create_model!
+      old_child = model.child
+
+      alter_by_view!(ModelView, model) do |view, refs|
+        refs.clear
+        view['child'] = nil
+      end
+
+      assert_nil(model.child)
+      assert(Child.where(id: old_child.id).blank?)
+    end
+
+    it 'eager includes' do
+      includes = viewmodel_class.eager_includes
+      assert_equal(DeepPreloader::Spec.new('child' => DeepPreloader::Spec.new), includes)
+    end
+  end
+
+  describe 'renaming associations' do
+    def subject_association_features
+      { as: :something_else }
     end
 
     def setup
       super
 
-      @parent = Parent.create(target: Target.new(text: 'target text'))
+      @model = model_class.create(child: child_model_class.new(name: 'child name'))
 
       enable_logging!
     end
 
     def test_dependencies
-      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
-      assert_equal(DeepPreloader::Spec.new('target' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies)
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Model', 'something_else' => nil }])
+      assert_equal(DeepPreloader::Spec.new('child' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies)
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ParentView, @parent) do |view, refs|
-        assert_equal({ 'id'       => @parent.target.id,
-                       '_type'    => 'Target',
+      alter_by_view!(ModelView, @model) do |view, refs|
+        assert_equal({ 'id'       => @model.child.id,
+                       '_type'    => 'Child',
                        '_version' => 1,
-                       'text'     => 'target text' },
+                       'name'     => 'child name' },
                      view['something_else'])
-        view['something_else']['text'] = 'target new text'
+        view['something_else']['name'] = 'child new name'
       end
 
-      assert_equal('target new text',  @parent.target.text)
+      assert_equal('child new name',  @model.child.name)
     end
   end
 

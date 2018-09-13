@@ -21,13 +21,13 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
       end
     end
 
-
     build_viewmodel(:Target) do
       define_schema {}
       define_model do
         has_one :parent, inverse_of: :target
       end
       define_viewmodel do
+        root!
         self.schema_version = 20
       end
     end
@@ -44,8 +44,9 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
       end
       define_viewmodel do
         self.schema_version = 5
+        root!
         association :child, viewmodels: [:ChildA]
-        association :target, shared: true, optional: false
+        association :target
       end
     end
   end

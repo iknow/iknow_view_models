@@ -20,6 +20,7 @@ class ViewModel
     attr_accessor :_attributes
     attr_accessor :schema_version
     attr_reader   :view_aliases
+    attr_writer   :view_name
 
     def inherited(subclass)
       subclass.initialize_as_viewmodel
@@ -41,13 +42,21 @@ class ViewModel
         end
     end
 
-    def view_name=(name)
-      @view_name = name
-    end
-
     def add_view_alias(as)
       view_aliases << as
       ViewModel::Registry.register(self, as: as)
+    end
+
+    # ViewModels are either roots or children. Root viewmodels may be
+    # (de)serialized directly, whereas child viewmodels are always nested within
+    # their parent. Associations to root viewmodel types always use indirect
+    # references.
+    def root?
+      false
+    end
+
+    def root!
+      define_singleton_method(:root?) { true }
     end
 
     # ViewModels are typically going to be pretty simple structures. Make it a
@@ -59,7 +68,7 @@ class ViewModel
 
     def attribute(attr, **_args)
       unless attr.is_a?(Symbol)
-        raise ArgumentError.new("ViewModel attributes must be symbols")
+        raise ArgumentError.new('ViewModel attributes must be symbols')
       end
 
       attr_accessor attr
@@ -116,7 +125,7 @@ class ViewModel
     # If this viewmodel represents an AR model, what associations does it make
     # use of? Returns a includes spec appropriate for DeepPreloader, either as
     # AR-style nested hashes or DeepPreloader::Spec.
-    def eager_includes(serialize_context: new_serialize_context, include_shared: true)
+    def eager_includes(serialize_context: new_serialize_context, include_referenced: true)
       {}
     end
 
@@ -225,10 +234,10 @@ class ViewModel
       schema_version == self.schema_version
     end
 
-    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_shared: true, lock: nil)
+    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_referenced: true, lock: nil)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|
         DeepPreloader.preload(views.map(&:model),
-                              type.eager_includes(serialize_context: serialize_context, include_shared: include_shared),
+                              type.eager_includes(serialize_context: serialize_context, include_referenced: include_referenced),
                               lock: lock)
       end
     end

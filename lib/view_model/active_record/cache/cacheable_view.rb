@@ -39,12 +39,12 @@ module ViewModel::ActiveRecord::Cache::CacheableView
     end
   end
 
-  # Clear the cache if the view or its owned children were changed during
+  # Clear the cache if the view or its nested children were changed during
   # deserialization
   def after_deserialize(deserialize_context:, changes:)
     super if defined?(super)
 
-    if !changes.new? && changes.changed_tree?
+    if !changes.new? && changes.changed_nested_tree?
       CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction
     end
   end

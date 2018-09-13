@@ -1,7 +1,7 @@
 with import <nixpkgs> {};
 
 (bundlerEnv {
-  name = "dev";
+  name = "iknow-view-models-shell";
   gemdir = ./nix/gem;
 
   gemConfig = (defaultGemConfig.override { postgresql = postgresql_11; });

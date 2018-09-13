@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'active_support/core_ext'
 require 'view_model/traversal_context'
 
@@ -17,52 +19,6 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
   end
 
   delegate :references, :flatten_references, to: :shared_context
-
-  attr_reader :include, :prune
-
-  def initialize(include: nil, prune: nil, **rest)
-    super(**rest)
-    @include = self.class.normalize_includes(include)
-    @prune   = self.class.normalize_includes(prune)
-  end
-
-  def initialize_as_child(include:, prune:, **rest)
-    super(**rest)
-    @include = include
-    @prune   = prune
-  end
-
-  def for_child(parent_viewmodel, association_name:, **rest)
-    super(parent_viewmodel,
-          association_name: association_name,
-          include: @include.try { |i| i[association_name] },
-          prune:   @prune.try   { |p| p[association_name] },
-          **rest)
-  end
-
-  def includes_member?(member_name, default)
-    member_name = member_name.to_s
-
-    # Every node in the include tree is to be included
-    included = @include.try { |is| is.has_key?(member_name) }
-    # whereas only the leaves of the prune tree are to be removed
-    pruned   = @prune.try { |ps| ps.fetch(member_name, :sentinel).nil? }
-
-    (default || included) && !pruned
-  end
-
-  def add_includes(includes)
-    return if includes.blank?
-    @include ||= {}
-    @include.deep_merge!(self.class.normalize_includes(includes))
-  end
-
-  def add_prunes(prunes)
-    return if prunes.blank?
-    @prune ||= {}
-    @prune.deep_merge!(self.class.normalize_includes(prunes))
-  end
-
   delegate :add_reference, :has_references?, to: :references
 
   # Return viewmodels referenced during serialization and clear @references.
@@ -97,22 +53,5 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
 
   def serialize_references_to_hash
     Jbuilder.new { |json| serialize_references(json) }.attributes!
-  end
-
-  def self.normalize_includes(includes)
-    case includes
-    when Array
-      includes.each_with_object({}) do |v, new_includes|
-        new_includes.merge!(normalize_includes(v))
-      end
-    when Hash
-      includes.each_with_object({}) do |(k,v), new_includes|
-        new_includes[k.to_s] = normalize_includes(v)
-      end
-    when nil
-      nil
-    else
-      { includes.to_s => nil }
-    end
   end
 end

@@ -4,6 +4,12 @@ require 'minitest/hooks'
 require 'view_model'
 require 'view_model/test_helpers'
 
+unless ViewModel::Config.configured?
+  ViewModel::Config.configure! do
+    debug_deserialization true
+  end
+end
+
 require_relative 'query_logging.rb'
 
 ActiveSupport::TestCase.include(Minitest::Hooks)

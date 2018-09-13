@@ -36,22 +36,30 @@ class ViewModel::Record < ViewModel
     end
 
     # Specifies an attribute from the model to be serialized in this view
-    def attribute(attr, as: nil, read_only: false, write_once: false, using: nil, format: nil, array: false, optional: false)
+    def attribute(attr, as: nil, read_only: false, write_once: false, using: nil, format: nil, array: false)
       model_attribute_name = attr.to_s
       vm_attribute_name    = (as || attr).to_s
 
       if using && format
-        raise ArgumentError.new("Only one of :using and :format may be specified")
+        raise ArgumentError.new("Only one of ':using' and ':format' may be specified")
       end
       if using && !(using.is_a?(Class) && using < ViewModel)
         raise ArgumentError.new("Invalid 'using:' viewmodel: not a viewmodel class")
+      end
+      if using && using.root?
+        raise ArgumentError.new("Invalid 'using:' viewmodel: is a root")
       end
       if format && !format.respond_to?(:dump) && !format.respond_to?(:load)
         raise ArgumentError.new("Invalid 'format:' serializer: must respond to :dump and :load")
       end
 
-      attr_data = AttributeData.new(vm_attribute_name, model_attribute_name, using, format,
-                                    array, optional, read_only, write_once)
+      attr_data = AttributeData.new(name: vm_attribute_name,
+                                    model_attr_name: model_attribute_name,
+                                    attribute_viewmodel: using,
+                                    attribute_serializer: format,
+                                    array: array,
+                                    read_only: read_only,
+                                    write_once: write_once)
       _members[vm_attribute_name] = attr_data
 
       @generated_accessor_module.module_eval do
@@ -166,9 +174,10 @@ class ViewModel::Record < ViewModel
 
     self.model = model
 
-    @new_model          = false
-    @changed_attributes = []
-    @changed_children   = false
+    @new_model                     = false
+    @changed_attributes            = []
+    @changed_nested_children       = false
+    @changed_referenced_children   = false
   end
 
   # VM::Record identity matches the identity of its model. If the model has a
@@ -189,8 +198,12 @@ class ViewModel::Record < ViewModel
     @new_model
   end
 
-  def changed_children?
-    @changed_children
+  def changed_nested_children?
+    @changed_nested_children
+  end
+
+  def changed_referenced_children?
+    @changed_referenced_children
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
@@ -202,9 +215,7 @@ class ViewModel::Record < ViewModel
   end
 
   def serialize_members(json, serialize_context:)
-    self.class._members.each do |member_name, member_data|
-      next unless serialize_context.includes_member?(member_name, !member_data.optional?)
-
+    self.class._members.each do |member_name, _member_data|
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
     end
   end
@@ -227,22 +238,29 @@ class ViewModel::Record < ViewModel
     @changed_attributes << attr_name.to_s
   end
 
-  def children_changed!
-    @changed_children = true
+  def nested_children_changed!
+    @changed_nested_children = true
+  end
+
+  def referenced_children_changed!
+    @changed_referenced_children = true
   end
 
   def changes
     ViewModel::Changes.new(
-      new:                new_model?,
-      changed_attributes: changed_attributes,
-      changed_children:   changed_children?)
+      new:                         new_model?,
+      changed_attributes:          changed_attributes,
+      changed_nested_children:     changed_nested_children?,
+      changed_referenced_children: changed_referenced_children?,
+    )
   end
 
   def clear_changes!
-    @previous_changes   = changes
-    @new_model          = false
-    @changed_attributes = []
-    @changed_children   = false
+    @previous_changes           = changes
+    @new_model                  = false
+    @changed_attributes         = []
+    @changed_nested_children    = false
+    @changed_referenced_children = false
     previous_changes
   end
 
@@ -348,9 +366,11 @@ class ViewModel::Record < ViewModel
       model.public_send("#{attr_data.model_attr_name}=", value)
     end
 
-    if attr_data.using_viewmodel? &&
-       Array.wrap(value).any? { |v| v.respond_to?(:previous_changes) && v.previous_changes.changed_tree? }
-      self.children_changed!
+    if attr_data.using_viewmodel?
+      previous_changes = Array.wrap(value).select { |v| v.respond_to?(:previous_changes) }.map!(&:previous_changes)
+
+      self.nested_children_changed!     if previous_changes.any? { |pc| pc.changed_nested_tree? }
+      self.referenced_children_changed! if previous_changes.any? { |pc| pc.changed_referenced_children? }
     end
   end
 

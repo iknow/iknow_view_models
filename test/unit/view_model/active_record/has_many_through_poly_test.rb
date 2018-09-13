@@ -20,6 +20,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name
       end
     end
@@ -37,6 +38,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name
       end
     end
@@ -53,8 +55,9 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name
-        association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView]
+        association :tags, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView]
       end
     end
   end
@@ -86,10 +89,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     self.class.build_parent_tag_join_model(self)
   end
 
-  private def context_with(*args)
-    ParentView.new_serialize_context(include: args)
-  end
-
   def setup
     super
 
@@ -108,14 +107,14 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   def test_roundtrip
     # Objects are serialized to a view and deserialized, and should not be different when complete.
 
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) {}
+    alter_by_view!(ParentView, @parent1) {}
     assert_equal('p1', @parent1.name)
     assert_equal([@tag_a1, @tag_a2, @tag_b1, @tag_b2],
                  @parent1.parents_tags.order(:position).map(&:tag))
   end
 
   def test_loading_batching
-    context = context_with(:tags)
+    context = ParentView.new_serialize_context
     log_queries do
       parent_views = ParentView.load(serialize_context: context)
       serialize(parent_views, serialize_context: context)
@@ -126,7 +125,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_eager_includes
-    includes = ParentView.eager_includes(serialize_context: context_with(:tags))
+    includes = ParentView.eager_includes
     assert_equal(DeepPreloader::Spec.new(
                   'parents_tags' => DeepPreloader::Spec.new(
                     'tag' => DeepPreloader::PolymorphicSpec.new(
@@ -157,8 +156,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
 
   def test_serialize
-    view, refs = serialize_with_references(ParentView.new(@parent1),
-                                           serialize_context: context_with(:tags))
+    view, refs = serialize_with_references(ParentView.new(@parent1))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
     assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A1' },
@@ -188,7 +186,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_reordering_swap_type
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, refs|
       t1, t2, t3, t4 = view['tags']
       view['tags'] = [t3, t2, t1, t4]
     end
@@ -223,8 +221,9 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
+          root!
           attributes :name
-          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView], as: :something_else
+          association :tags, through: :parents_tags, through_order_attr: :position, viewmodels: [TagAView, TagBView], as: :something_else
         end
       end
 
@@ -244,12 +243,10 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
       # Compare to non-polymorphic, which will also load the tags
       deps = root_updates.first.preload_dependencies
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::PolymorphicSpec.new)), deps)
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
-
     def test_renamed_roundtrip
-      context = ParentView.new_serialize_context(include: :something_else)
+      context = ParentView.new_serialize_context
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
         assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
                                            '_type'    => 'TagA',

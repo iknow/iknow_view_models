@@ -17,7 +17,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     build_viewmodel(:Trivial) do
       define_schema
       define_model {}
-      define_viewmodel {}
+      define_viewmodel { root! }
     end
 
     build_viewmodel(:Parent) do
@@ -35,6 +35,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name, :lock_version
         attribute :one, read_only: true
       end
@@ -376,66 +377,6 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
   end
 
-  # Tests for functionality common to all ARVM instances, but require some kind
-  # of relationship.
-  class RelationshipTests < ActiveSupport::TestCase
-    include ARVMTestUtilities
-
-    def before_all
-      super
-
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-        end
-
-        define_model do
-          has_many :children, dependent: :destroy, inverse_of: :parent
-        end
-
-        define_viewmodel do
-          attributes :name
-          associations :children
-        end
-      end
-
-      build_viewmodel(:Child) do
-        define_schema do |t|
-          t.references :parent, null: false, foreign_key: true
-          t.string :name
-        end
-
-        define_model do
-          belongs_to :parent, inverse_of: :children
-        end
-
-        define_viewmodel do
-          attributes :name
-        end
-      end
-    end
-
-    def test_updated_associations_returned
-      # This test ensures the data is passed back through the context. The tests
-      # for the values are in the relationship-specific tests.
-
-      updated_by_view = ->(view) do
-        context = ViewModelBase.new_deserialize_context
-        ParentView.deserialize_from_view(view, deserialize_context: context)
-        context.updated_associations
-      end
-
-      assert_equal({},
-                   updated_by_view.({ '_type' => 'Parent',
-                                      'name' => 'p' }))
-
-      assert_equal({ 'children' => {} },
-                   updated_by_view.({ '_type' => 'Parent',
-                                      'name' => 'p',
-                                      'children' => [] }))
-    end
-  end
-
   # Parent view should be correctly passed down the tree when deserializing
   class DeserializationParentContextTest < ActiveSupport::TestCase
     include ARVMTestUtilities
@@ -499,7 +440,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
   end
 
-    # Parent view should be correctly passed down the tree when deserializing
+  # Parent view should be correctly passed down the tree when deserializing
   class DeferredConstraintTest < ActiveSupport::TestCase
     include ARVMTestUtilities
 
@@ -516,7 +457,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
-          association :child, shared: true
+          root!
+          association :child
         end
       end
       List.connection.execute("ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED")

@@ -348,6 +348,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         alter_by_view!(viewmodel_class, vm.model) do |view, _refs|
           view['next'] = nil
         end
+
         value(callback.hook_trace).must_equal(
           [
             visit(ViewModel::Callbacks::Hook::BeforeVisit,       vm),
