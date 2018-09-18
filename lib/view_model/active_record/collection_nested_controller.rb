@@ -58,10 +58,11 @@ module ViewModel::ActiveRecord::CollectionNestedController
                                                 before:     before,
                                                 after:      after,
                                                 deserialize_context: deserialize_context)
-
-      child_context = owner_view.context_for_child(association_name, context: serialize_context)
-      ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
-      prerender_viewmodel(assoc_view, serialize_context: child_context)
+      ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
+        child_context = owner_view.context_for_child(association_name, context: serialize_context)
+        ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
+        prerender_viewmodel(assoc_view, serialize_context: child_context)
+      end
     end
     render_json_string(pre_rendered)
     assoc_view
@@ -70,7 +71,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
   def disassociate(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
-      owner_view.delete_associated(association_name, associated_id, deserialize_context: deserialize_context)
+      owner_view.delete_associated(association_name, viewmodel_id, type: viewmodel_class, deserialize_context: deserialize_context)
       render_viewmodel(nil)
     end
   end

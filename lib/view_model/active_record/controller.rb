@@ -17,7 +17,7 @@ module ViewModel::ActiveRecord::Controller
   include ViewModel::ActiveRecord::CollectionNestedController
   include ViewModel::ActiveRecord::SingularNestedController
 
-  def show(scope: nil, viewmodel_class: self.class.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
+  def show(scope: nil, viewmodel_class: self.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     view = nil
     pre_rendered = viewmodel_class.transaction do
       view = viewmodel_class.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
@@ -28,7 +28,7 @@ module ViewModel::ActiveRecord::Controller
     view
   end
 
-  def index(scope: nil, viewmodel_class: self.class.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
+  def index(scope: nil, viewmodel_class: self.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     views = nil
     pre_rendered = viewmodel_class.transaction do
       views = viewmodel_class.load(scope: scope, serialize_context: serialize_context)

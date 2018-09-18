@@ -18,11 +18,11 @@ module ViewModel::ActiveRecord::ControllerBase
     super(viewmodel, serialize_context: serialize_context, **args)
   end
 
-  def new_deserialize_context(viewmodel_class: self.class.viewmodel_class, access_control: self.class.access_control.new, **args)
+  def new_deserialize_context(viewmodel_class: self.viewmodel_class, access_control: self.access_control.new, **args)
     viewmodel_class.new_deserialize_context(access_control: access_control, **args)
   end
 
-  def new_serialize_context(viewmodel_class: self.class.viewmodel_class, access_control: self.class.access_control.new, **args)
+  def new_serialize_context(viewmodel_class: self.viewmodel_class, access_control: self.access_control.new, **args)
     viewmodel_class.new_serialize_context(access_control: access_control, **args)
   end
 
@@ -79,8 +79,16 @@ module ViewModel::ActiveRecord::ControllerBase
     end
   end
 
-  included do
-    delegate :viewmodel_class, :model_class, :access_control, to: 'self.class'
+  def viewmodel_class
+    self.class.viewmodel_class
+  end
+
+  def model_class
+    self.class.model_class
+  end
+
+  def access_control
+    self.class.access_control
   end
 end
 
@@ -92,14 +100,17 @@ module ActionDispatch
           except             = options.delete(:except) { [] }
           add_shallow_routes = options.delete(:add_shallow_routes) { true }
 
-          only_routes  = [:create]
+          nested = shallow_nesting_depth > 0
+
+          only_routes = []
+          only_routes += [:create] unless nested
           only_routes += [:show, :destroy] if add_shallow_routes
           only_routes -= except
 
           resources resource_name, shallow: true, only: only_routes, **options do
             instance_eval(&block) if block_given?
 
-            if shallow_nesting_depth > 1
+            if nested
               # Nested controllers also get :append and :disassociate, and alias a top level create.
               collection do
                 name_route = { as: '' } # Only one route may take the name
@@ -110,7 +121,9 @@ module ActionDispatch
               end
 
               scope shallow: false do
-                delete '', action: :disassociate, as: '' unless except.include?(:disassociate)
+                member do
+                  delete '', action: :disassociate, as: '' unless except.include?(:disassociate)
+                end
               end
 
               # Add top level `create` route to manipulate existing viewmodels

@@ -251,13 +251,10 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
   def fupdate_tags(parent)
     tags          = self.tags(parent)
-    actions, refs = yield(tags).values_at(:actions, :refs)
+    fupdate, refs = yield(tags).values_at(:fupdate, :refs)
     op_view       = { '_type' => 'Parent',
                       'id'    => parent.id,
-                      'tags'  => {
-                        '_type'   => '_update',
-                        'actions' => actions
-                      } }
+                      'tags'  => fupdate }
     ParentView.deserialize_from_view(op_view, references: refs || {})
     parent.reload
   end
@@ -266,8 +263,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'values' => [{ '_ref' => 'new_tag' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }]) },
         :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
       }
     end
@@ -279,9 +275,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'before' => {'_type' => 'Tag', 'id' => c2.id},
-                       'values' => [{ '_ref' => 'new_tag' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }],
+                                           before: { '_type' => 'Tag', 'id' => c2.id }) },
         :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
       }
     end
@@ -293,9 +288,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'before' => {'_type' => 'Tag', 'id' => c1.id},
-                       'values' => [{ '_ref' => 'new_tag' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }],
+                                           before: { '_type' => 'Tag', 'id' => c1.id }) },
         :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
       }
     end
@@ -307,9 +301,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'before' => {'_type' => 'Tag', 'id' => c1.id},
-                       'values' => [{ '_ref' => 'c2' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'c2' }],
+                                           before: { '_type' => 'Tag', 'id' => c1.id }) },
         :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id } }
       }
     end
@@ -322,9 +315,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'after' => {'_type' => 'Tag', 'id' => c1.id},
-                       'values' => [{ '_ref' => 'new_tag' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }],
+                                           after: { '_type' => 'Tag', 'id' => c1.id }) },
         :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
       }
     end
@@ -336,9 +328,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'after' => {'_type' => 'Tag', 'id' => c2.id},
-                       'values' => [{ '_ref' => 'new_tag' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }],
+                                           after: { '_type' => 'Tag', 'id' => c2.id }) },
         :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag' } }
       }
     end
@@ -350,9 +341,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'append',
-                       'after'  => { '_type' => 'Tag', 'id' => c2.id },
-                       'values' => [{ '_ref' => 'c1' }] }],
+      { :fupdate => build_fupdate { append([{ '_ref' => 'c1' }],
+                                           after: { '_type' => 'Tag', 'id' => c2.id }) },
         :refs    => { 'c1' => { '_type' => 'Tag', 'id' => c1.id } }
       }
     end
@@ -364,9 +354,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'remove',
-                       'values' => [{ '_type' => 'Tag', 'id' => c1.id }] }],
-      }
+      { :fupdate => build_fupdate { remove([{ '_type' => 'Tag', 'id' => c1.id }]) } }
     end
     assert_equal([c2.name],
                  tags(@parent1).map(&:name))
@@ -378,9 +366,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       fupdate_tags(@parent1) do |tags|
         _c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
-        { :actions => [{ '_type'  => 'remove',
-                         'values' => [{ '_type' => 'Tag', 'id' => c2.id }] }],
-        }
+        { :fupdate => build_fupdate { remove([{ '_type' => 'Tag', 'id' => c2.id }]) } }
       end
     end
     assert_equal('tags', ex.association)
@@ -392,9 +378,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       fupdate_tags(@parent1) do |tags|
         _c1, c2 = tags
         @parent1.parents_tags.where(tag_id: c2.id).destroy_all
-        { :actions => [{ '_type'  => 'append',
-                         'after'  => { '_type' => 'Tag', 'id' => c2.id },
-                         'values' => [{ '_ref' => 'new_tag' }] }],
+        { :fupdate => build_fupdate { append([{ '_ref' => 'new_tag' }],
+                                             after: { '_type' => 'Tag', 'id' => c2.id }) },
           :refs    => { 'new_tag' => { '_type' => 'Tag', 'name' => 'new tag name' } }
         }
       end
@@ -407,8 +392,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :actions => [{ '_type'  => 'update',
-                       'values' => [{ '_ref' => 'c1' }] }],
+      { :fupdate => build_fupdate { update([{ '_ref' => 'c1' }])},
         :refs    => { 'c1' => { '_type' => 'Tag', 'id' => c1.id, 'name' => 'c1 new name' } }
       }
     end
@@ -426,8 +410,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
 #        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
-        { :actions => [{ '_type'  => 'update',
-                         'values' => [{ '_ref' => 'c2' }] }],
+        { :fupdate => build_fupdate { update([{ '_ref' => 'c2' }]) },
           :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id, 'name' => 'c2 new name' } }
         }
       end
@@ -439,11 +422,13 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   def test_functional_update_edit_checks
     d_context = ParentView.new_deserialize_context
 
+    fupdate = build_fupdate do
+      append([{ '_ref' => 't_new' }])
+    end
+
     view = { '_type' => 'Parent',
              'id'    => @parent1.id,
-             'tags'  => { '_type'   => '_update',
-                          'actions' => [{ '_type'  => 'append',
-                                          'values' => [{ '_ref' => 't_new' }] }] } }
+             'tags'  => fupdate }
 
     refs = { 't_new' => { '_type' => 'Tag', 'name' => 'newest tag' } }
 
@@ -475,6 +460,37 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     @parent1.reload
     assert_equal(['new_tag'], tags(@parent1).map(&:name))
+  end
+
+  # Test that each of the functional updates actions work through
+  # replace_associated. The main tests for functional updates are
+  # earlier in this file.
+  def test_replace_associated_functional
+    pv = ParentView.new(@parent1)
+    context = ParentView.new_deserialize_context
+
+    tag1 = @tag1
+    tag2 = @tag2
+
+    update = build_fupdate do
+      append([{ '_type' => 'Tag', 'name' => 'new_tag' }])
+      remove([{ '_type' => 'Tag', 'id' => tag2.id }])
+      update([{ '_type' => 'Tag', 'id' => tag1.id, 'name' => 'renamed tag1' }])
+    end
+
+    nc = pv.replace_associated(:tags, update, deserialize_context: context)
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(TagView, @tag1.id),
+                            ViewModel::Reference.new(TagView,  nil)]
+
+    assert_equal(Set.new(expected_edit_checks),
+                 context.valid_edit_refs.to_set)
+
+    assert_equal(2, nc.size)
+
+    @parent1.reload
+    assert_equal(['renamed tag1', 'new_tag'], tags(@parent1).map(&:name))
   end
 
   def test_delete_associated_has_many
@@ -665,13 +681,13 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     def test_preload_dependencies_functional
-      append_r1 = { '_type'  => 'append',
-                    'values' => [{ '_ref' => 'r1' }] }
+      fupdate = build_fupdate do
+        append([{ '_ref' => 'r1' }])
+      end
 
       root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
-           'tags'  => { '_type'   => '_update',
-                        'actions' => [append_r1] } }],
+           'tags'  => fupdate }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
@@ -693,13 +709,13 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     def test_updated_associations_functional
-      append_r1 = { '_type'  => 'append',
-                    'values' => [{ '_ref' => 'r1' }] }
+      fupdate = build_fupdate do
+        append([{ '_ref' => 'r1' }])
+      end
 
       root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
         [{ '_type' => 'Parent',
-           'tags'  => { '_type'   => '_update',
-                        'actions' => [append_r1] } }],
+           'tags'  => fupdate }],
         { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
 
       assert_equal({ 'tags' => { } },

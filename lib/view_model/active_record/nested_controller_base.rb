@@ -38,9 +38,11 @@ module ViewModel::ActiveRecord::NestedControllerBase
                                                        references: refs,
                                                        deserialize_context: deserialize_context)
 
-      child_context = owner_view.context_for_child(association_name, context: serialize_context)
-      ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
-      prerender_viewmodel(association_view, serialize_context: child_context)
+      ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
+        child_context = owner_view.context_for_child(association_name, context: serialize_context)
+        ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
+        prerender_viewmodel(association_view, serialize_context: child_context)
+      end
     end
     render_json_string(pre_rendered)
     association_view
@@ -67,12 +69,6 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
   def owner_viewmodel_id(required: true)
     id_param_name = owner_viewmodel.view_name.downcase + '_id'
-    default = required ? {} : { default: nil }
-    parse_param(id_param_name, **default)
-  end
-
-  def associated_id(required: true)
-    id_param_name = association_name.to_s.singularize + '_id'
     default = required ? {} : { default: nil }
     parse_param(id_param_name, **default)
   end

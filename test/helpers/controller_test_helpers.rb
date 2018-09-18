@@ -209,6 +209,21 @@ module ActionController
   end
 end
 
+module CallbackTracing
+  attr_reader :callback_tracer
+  delegate :hook_trace, to: :callback_tracer
+
+  def new_deserialize_context(**args)
+    @callback_tracer ||= CallbackTracer.new
+    super(callbacks: [@callback_tracer])
+  end
+
+  def new_serialize_context(**args)
+    @callback_tracer ||= CallbackTracer.new
+    super(callbacks: [@callback_tracer])
+  end
+end
+
 module ControllerTestControllers
   def before_all
     super
@@ -216,12 +231,14 @@ module ControllerTestControllers
     Class.new(DummyController) do |c|
       Object.const_set(:ParentController, self)
       include ViewModel::ActiveRecord::Controller
+      include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
     end
 
     Class.new(DummyController) do |c|
       Object.const_set(:ChildController, self)
       include ViewModel::ActiveRecord::Controller
+      include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
       nested_in :parent, as: :children
     end
@@ -229,6 +246,7 @@ module ControllerTestControllers
     Class.new(DummyController) do |c|
       Object.const_set(:LabelController, self)
       include ViewModel::ActiveRecord::Controller
+      include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
       nested_in :parent, as: :label
     end
@@ -236,6 +254,7 @@ module ControllerTestControllers
     Class.new(DummyController) do |c|
       Object.const_set(:TargetController, self)
       include ViewModel::ActiveRecord::Controller
+      include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
       nested_in :parent, as: :target
     end

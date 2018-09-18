@@ -130,4 +130,60 @@ module ARVMTestUtilities
     assert_match(message, ex.message) if message
     ex
   end
+
+  class FupdateBuilder
+    class DSL
+      def initialize(builder)
+        @builder = builder
+      end
+
+      def append(hashes, **rest)
+        @builder.append_action(
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Append,
+          values: hashes,
+          **rest)
+      end
+
+      def remove(hashes)
+        @builder.append_action(
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Remove,
+          values: hashes)
+      end
+
+      def update(hashes)
+        @builder.append_action(
+          type:   ViewModel::ActiveRecord::FunctionalUpdate::Update,
+          values: hashes)
+      end
+    end
+
+    def initialize
+      @actions = []
+    end
+
+    def append_action(type:, values:, **rest)
+      @actions.push(
+        {
+          ViewModel::ActiveRecord::TYPE_ATTRIBUTE   => type::NAME,
+          ViewModel::ActiveRecord::VALUES_ATTRIBUTE => values,
+        }.merge(rest.transform_keys(&:to_s))
+      )
+    end
+
+    def build!(&block)
+      DSL.new(self).instance_eval(&block)
+
+      {
+        ViewModel::ActiveRecord::TYPE_ATTRIBUTE    =>
+          ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE,
+
+        ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE =>
+          @actions,
+      }
+    end
+  end
+
+  def build_fupdate(attrs = {}, &block)
+    FupdateBuilder.new.build!(&block).merge(attrs)
+  end
 end
