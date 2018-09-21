@@ -249,7 +249,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal('renamed p1c1', nc[0].name)
 
     @parent1.reload
-    assert_equal(['renamed p1c1', 'p1c2', 'new_child'], @parent1.children.map(&:name))
+    assert_equal(['renamed p1c1', 'p1c2', 'new_child'], @parent1.children.order(:position).map(&:name))
     assert_equal([], Child.where(id: old_children.last.id))
   end
 
