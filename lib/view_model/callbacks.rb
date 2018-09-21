@@ -81,6 +81,10 @@ module ViewModel::Callbacks
     def dsl_add_hook_name
       name.underscore
     end
+
+    def dsl_viewmodel_callback_method
+      name.underscore.to_sym
+    end
   end
 
   # Placeholder for callbacks to invoked for all view types

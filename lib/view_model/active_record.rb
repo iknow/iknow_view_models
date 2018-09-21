@@ -279,12 +279,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
     @changed_associations = []
   end
 
-  # Allows a viewmodel to set a hook when a record is visited during
-  # deserialization, for example for conservative cache clearing.
-  def before_deserialize(deserialize_context:)
-    # hook method; no default behaviour
-  end
-
   # Allows a viewmodel to set a hook before a record is saved when
   # changes have been made during deserialization, for example for
   # setting default values. Any changes introduced here are still
