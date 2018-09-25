@@ -43,7 +43,7 @@ module ViewModel::ActiveRecord::Cache::CacheableView
   # This ensures that the cache is also cleared when owned children are
   # edited but the root is untouched.
   def before_deserialize(*)
-    super
+    super if defined?(super)
     CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction unless new_model?
   end
 
