@@ -96,6 +96,10 @@ class ViewModel::TraversalContext
     callbacks.each do |callback|
       callback.run_callback(hook, view, self, **args)
     end
+
+    if view.respond_to?(hook.dsl_viewmodel_callback_method)
+      view.public_send(hook.dsl_viewmodel_callback_method, hook.context_name => self, **args)
+    end
   end
 
   def root?
