@@ -76,10 +76,9 @@ class ViewModel::ActiveRecord
       @root_update_operations       = [] # The subject(s) of this update
       @referenced_update_operations = {} # Shared data updates, referred to by a ref hash
 
-      # hash of { ViewModel::Reference => :implicit || :explicit }; used to assert
-      # only a single update is present for each viewmodel, and prevents conflicts
-      # by explicit and implicit updates for the same model.
-      @updates_by_viewmodel = {}
+      # Set of ViewModel::Reference used to assert only a single update is
+      # present for each viewmodel
+      @updated_viewmodel_references = Set.new
 
       # hash of { ViewModel::Reference => deferred UpdateOperation }
       # for linked partially-constructed node updates
@@ -176,74 +175,11 @@ class ViewModel::ActiveRecord
       while @worklist.present?
         key = @worklist.keys.detect { |k| @release_pool.include?(k) }
         if key.nil?
-          # All worklist viewmodels are unresolvable from roots. We need to
-          # manually load unresolvable VMs, and additionally add their previous
-          # parents (if present) as otherwise-unmodified roots with
-          # `association_changed!` set, in order that we can correctly
-          # `editable_check` them.
-
-          # If the foreign key is from child to parent, the child update has a
-          # `parent_data` for the new parent set, which will include the
-          # reflection inverse and viewmodel. We can use that information to load
-          # the previous parent.
-
-          # TODO: If the foreign key is from the parent to the child however, it's
-          # a little bit less safe. Even if we have the inverse relationship
-          # recorded, if multiple other viewmodels are allowed to point into the
-          # child (but only one at a time!) there's no way to safely move in all
-          # conditions. One option would be to _try_ the inverse relationship: if
-          # the inverse relationship resolves into a parent (of the same type) to
-          # move from, we know it's safe to move (assuming the single-pointer
-          # invariant previously held). If it doesn't though, we have no way of
-          # knowing if it's actually unparented or if it's merely referred to from
-          # a different parent type, so we are required to forbid the update.
-
-          # Note that this would require slightly more code plumbing to achieve,
-          # because we'd need to update the pointer in the old parent (versus only
-          # in the child itself).
-
-          # Additionally we need to forbid specifying the same out-of-tree
-          # viewmodel twice. Otherwise we would correctly transfer from the old
-          # parent, but then subsequently destroy the first transfer when
-          # performing the second.
-
-          key, deferred_update = @worklist.detect { |k, upd| upd.reparent_to.present? }
-          if key.nil?
-            raise ViewModel::DeserializationError::ParentNotFound.new(@worklist.keys)
-          end
-
-          # We are guaranteed to make progress or fail entirely.
-
-          @worklist.delete(key)
-
-          child_dependencies = deferred_update.update_data.preload_dependencies
-
-          child_model = begin
-                          key.viewmodel_class.model_class.find(key.model_id)
-                        rescue ::ActiveRecord::RecordNotFound
-                          raise ViewModel::DeserializationError::NotFound.new(key)
-                        end
-
-          child_viewmodel = key.viewmodel_class.new(child_model)
-          DeepPreloader.preload(child_model, child_dependencies)
-
-          deferred_update.viewmodel = child_viewmodel
-
-          # We have progressed the item, but we must enforce the constraint that we can edit the parent.
-
-          parent_assoc_name = deferred_update.reparent_to.association_reflection.name
-          parent_viewmodel_class = deferred_update.reparent_to.viewmodel.class
-
-          # This will create an update for the parent. Note that if we enter here
-          # we may already have seen an explicit update to the parent, but this
-          # case is always in error. If we didn't, we guarantee it won't exist
-          # TODO how? by expanding all subtrees/releases first?.
-          ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_assoc_name)
-        else
-          deferred_update = @worklist.delete(key)
-          deferred_update.viewmodel = @release_pool.claim_from_pool(key)
+          raise ViewModel::DeserializationError::ParentNotFound.new(@worklist.keys)
         end
 
+        deferred_update = @worklist.delete(key)
+        deferred_update.viewmodel = @release_pool.claim_from_pool(key)
         deferred_update.build!(self)
       end
 
@@ -255,35 +191,6 @@ class ViewModel::ActiveRecord
       self
     end
 
-    # When a child holds the pointer and has a parent that is not part of the
-    # update tree, we create a dummy update that asserts we have the ability to
-    # edit the parent. However, we only want to do this once for each parent.
-    def ensure_parent_edit_assertion_update(child_viewmodel, parent_viewmodel_class, parent_association_name)
-      assoc = child_viewmodel.model.association(parent_association_name)
-
-      parent_model_id = child_viewmodel.model.send(
-        child_viewmodel.model.association(parent_association_name).reflection.foreign_key)
-
-      return if parent_model_id.nil?
-
-      ref = ViewModel::Reference.new(
-        parent_viewmodel_class, parent_model_id)
-
-      return if @updates_by_viewmodel[ref] == :implicit
-
-      old_parent_model     = assoc.klass.find(parent_model_id)
-      old_parent_viewmodel = parent_viewmodel_class.new(old_parent_model)
-
-      update = new_update(old_parent_viewmodel,
-                          UpdateData.empty_update_for(old_parent_viewmodel),
-                          update_type: :implicit)
-
-      update.build!(self)
-      old_parent_viewmodel.association_changed!(parent_association_name)
-      @root_update_operations << update
-      update
-    end
-
     ## Methods for objects being built in this context
 
     # We require the updates to be recorded in the context so we can enforce the
@@ -293,40 +200,24 @@ class ViewModel::ActiveRecord
     def new_deferred_update(viewmodel_reference, update_data, reparent_to: nil, reposition_to: nil)
       update_operation = ViewModel::ActiveRecord::UpdateOperation.new(
         nil, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
-      set_update_type(viewmodel_reference, :explicit)
+      check_unique_update!(viewmodel_reference)
       @worklist[viewmodel_reference] = update_operation
     end
 
-    def new_update(viewmodel, update_data, reparent_to: nil, reposition_to: nil, update_type: :explicit)
+    def new_update(viewmodel, update_data, reparent_to: nil, reposition_to: nil)
       update = ViewModel::ActiveRecord::UpdateOperation.new(
         viewmodel, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
 
       if (vm_ref = update.viewmodel_reference).present?
-        set_update_type(vm_ref, update_type)
+        check_unique_update!(vm_ref)
       end
 
       update
     end
 
-    def set_update_type(vm_ref, new_type)
-      if (current_type = @updates_by_viewmodel[vm_ref]).nil?
-        @updates_by_viewmodel[vm_ref] = new_type
-      elsif current_type == :implicit && new_type == :implicit
-        return
-      elsif current_type == :explicit && new_type == :explicit
-        # explicit -> explicit; updating the same thing twice
+    def check_unique_update!(vm_ref)
+      unless @updated_viewmodel_references.add?(vm_ref)
         raise ViewModel::DeserializationError::DuplicateNodes.new(vm_ref.viewmodel_class.view_name, vm_ref)
-      elsif current_type == :implicit && new_type == :explicit
-        # implicit -> explicit; internal error, user update processed after implicit update
-        raise ViewModel::DeserializationError::Internal.new("Internal error: explicit user update processed after implicit update", vm_ref)
-      elsif current_type == :explicit && new_type == :implicit
-        # explicit -> implicit; trying to take something twice, once from user, then once again
-        # Occurs if trying to implicitly reparent a child of a node that is present in the tree, but doesn't specify that association.
-        raise ViewModel::DeserializationError::InvalidStructure.new(
-                "Attempted to implicitly move a child view of a parent which is present in the tree "\
-                "but does not include any update for the child association", vm_ref)
-      else
-        raise ViewModel::DeserializationError::Internal.new("Internal error: Not a valid type transition: #{current_type} -> #{new_type}", vm_ref)
       end
     end
 

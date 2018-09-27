@@ -182,20 +182,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert(Label.where(id: old_p2_label).blank?, 'p2 old label deleted')
   end
 
-  def test_belongs_to_move_and_replace_from_outside_tree
-    old_p1_label = @parent1.label
-
-    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-      set_by_view!(ParentView, @parent2) do |p2, refs|
-        p2['label'] = update_hash_for(LabelView, old_p1_label)
-      end
-    end
-
-    # For now, we don't allow moving unless the pointer is from child to parent,
-    # as it's more involved to safely resolve the old parent in the other
-    # direction.
-  end
-
   def test_belongs_to_swap
     old_p1_label = @parent1.label
     old_p2_label = @parent2.label

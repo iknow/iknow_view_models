@@ -142,18 +142,32 @@ module ViewModel::ActiveRecord::AssociationManipulation
             end
           end
 
-          # Ensure that previous parents (other than this model) will be edit-checked.
+          # Because append_associated can take from other parents, edit-check previous parents (other than this model)
           unless association_data.through?
             inverse_assoc_name = direct_reflection.inverse_of.name
 
-            update_context.root_updates.dup.each do |update|
+            previous_parent_ids = Set.new
+            update_context.root_updates.each do |update|
               update_model    = update.viewmodel.model
               parent_model_id = update_model.read_attribute(update_model
                                                               .association(inverse_assoc_name)
                                                               .reflection.foreign_key)
-              next if parent_model_id == self.id
 
-              update_context.ensure_parent_edit_assertion_update(update.viewmodel, self.class, inverse_assoc_name)
+              if parent_model_id && parent_model_id != self.id
+                previous_parent_ids << parent_model_id
+              end
+            end
+
+            if previous_parent_ids.present?
+              previous_parents = self.class.find(previous_parent_ids.to_a, eager_include: false)
+
+              previous_parents.each do |parent_view|
+                ViewModel::Callbacks.wrap_deserialize(parent_view, deserialize_context: deserialize_context) do |pp_hook_control|
+                  changes = ViewModel::Changes.new(changed_associations: [association_name])
+                  deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, parent_view, changes: changes)
+                  pp_hook_control.record_changes(changes)
+                end
+              end
             end
           end
 

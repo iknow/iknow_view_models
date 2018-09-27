@@ -226,7 +226,7 @@ class ViewModel
 
     class ParentNotFound < NotFound
       def detail
-        "Could not resolve previous parents for the following referenced viewmodels: " +
+        "Could not resolve release from previous parent for the following owned viewmodel(s): " +
           nodes.map(&:to_s).join(", ")
       end
     end
