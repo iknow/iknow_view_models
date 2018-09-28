@@ -177,65 +177,43 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     assert(Target.where(id: old_parent2_target).blank?)
   end
 
-  def test_has_one_move_and_replace_from_outside_tree
-    old_parent1_target = @parent1.target
-    old_parent2_target = @parent2.target
-
-    alter_by_view!(ParentView, @parent2) do |p2, refs|
-      p2['target'] = update_hash_for(TargetView, old_parent1_target)
-    end
-
-    @parent1.reload
-
-    assert(@parent1.target.blank?)
-    assert_equal(old_parent1_target, @parent2.target)
-    assert(Target.where(id: old_parent2_target).blank?)
-  end
-
-  def test_has_one_cannot_duplicate_from_outside_tree
-    # p2 shouldn't be able to copy p1's target, because attempting to take t1
-    # from outside the tree will create an new update operation for it, which
-    # will conflict with the one already present in p1.
-    # (Test "explicit -> explicit")
+  def test_has_one_cannot_duplicate_unreleased_child
+    # p2 shouldn't be able to copy p1's target
     assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
         p2['target'] = p1['target'].dup
       end
     end
   end
 
-  def test_has_one_cannot_duplicate_implicitly_from_outside_tree
-    # p2 shouldn't be able to copy p1's target even when p1 doesn't explicitly
-    # specify it, because attempting to take t1 from outside the tree will
-    # create an new update operation for its old parent (p1), which will
-    # conflict with the p1 update.
-    # (Test "explicit -> implicit")
-    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
+  def test_has_one_cannot_duplicate_implicitly_unreleased_child
+    # p2 shouldn't be able to copy p1's target, even when p1 doesn't explicitly
+    # specify the association
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
         p2['target'] = p1['target']
         p1.delete('target')
       end
     end
-    assert_match(/Attempted to implicitly move a child view/, ex.message)
   end
 
-  def test_has_one_cannot_take_twice_from_outside_tree
-    # (Test "explicit -> explicit")
+  def test_has_one_cannot_take_from_outside_tree
     t3 = Parent.create(target: Target.new(text: 'hi')).target
 
-    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
-      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+      alter_by_view!(ParentView, [@parent1]) do |(p1), _refs|
         p1['target'] = update_hash_for(TargetView, t3)
-        p2['target'] = update_hash_for(TargetView, t3)
       end
     end
   end
 
-  def test_has_one_take_unparented_from_outside_tree
+  def test_has_one_cannot_take_unparented_from_outside_tree
     t3 = Target.create(text: 'hi') # no parent
 
-    alter_by_view!(ParentView, @parent1) do |p1, refs|
-      p1['target'] = update_hash_for(TargetView, t3)
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+      alter_by_view!(ParentView, @parent1) do |p1, _refs|
+        p1['target'] = update_hash_for(TargetView, t3)
+      end
     end
   end
 
@@ -343,19 +321,16 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
       end
     end
 
-
-    def test_move
-      skip "Issue #8"
+    def test_reclaim_grandchild_from_deleted_child
+      skip 'Issue #8'
 
       model = Aye.create(bee: Bee.new(cee: Cee.new))
 
-      # This test currently fails because we allow the new to Bee to resolve the
-      # Cee directly from the database when its old parent Bee (in the previous
-      # tree) has been put on the release pool and is about to delete it.
-      alter_by_view!(AyeView, model) do |view, refs|
-        view['bee'].delete("id")
+      # This test currently fails because we only release the top of the deleted
+      # subtree to the release pool, and so its children cannot be reclaimed.
+      alter_by_view!(AyeView, model) do |view, _refs|
+        view['bee'].delete('id')
       end
     end
   end
-
 end

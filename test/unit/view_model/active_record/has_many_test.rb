@@ -467,71 +467,31 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal(moved_child, new_children.first)
   end
 
-  def test_move_child_to_new_with_implicit_release
+  def test_has_many_cannot_take_from_outside_tree
     old_children = @parent1.children.order(:position)
-    moved_child = old_children[1]
-    retained_children = old_children - [moved_child]
 
-    moved_child_ref = update_hash_for(ChildView, moved_child)
-
-    view = { '_type'    => 'Parent',
-             'name'     => 'new_p',
-             'children' => [moved_child_ref,
-                            { '_type' => 'Child', 'name' => 'new' }] }
-
-    deserialize_context = ViewModelBase.new_deserialize_context
-
-    new_parent_view = ParentView.deserialize_from_view(view, deserialize_context: deserialize_context)
-
-    new_parent = new_parent_view.model
-    new_parent.reload
-
-    assert_equal({ ViewModel::Reference.new(ParentView, nil)            => 1,
-                   ViewModel::Reference.new(ChildView,  nil)            => 1,
-                   ViewModel::Reference.new(ChildView,  moved_child.id) => 1,
-                   ViewModel::Reference.new(ParentView, @parent1.id)    => 1 },
-                 count_all(deserialize_context.valid_edit_refs))
-
-    # child should be removed from old parent
-    @parent1.reload
-    assert_equal(retained_children,
-                 @parent1.children.order(:position))
-
-    # child should be added to new parent
-    new_children = new_parent.children.order(:position)
-    assert_equal(%w(p1c2 new), new_children.map(&:name))
-    assert_equal(moved_child, new_children.first)
-  end
-
-  def test_implicit_release_has_many
-    old_children = @parent1.children.order(:position)
-    view = {'_type'    => 'Parent',
-            'name'     => 'newp',
-            'children' => old_children.map { |x| update_hash_for(ChildView, x) }}
-
-    new_parent_model = ParentView.deserialize_from_view(view).model
-
-    @parent1.reload
-    new_parent_model.reload
-
-    assert_equal([], @parent1.children)
-    assert_equal(old_children,
-                 new_parent_model.children.order(:position))
-  end
-
-  def test_implicit_release_invalid_has_many
-    old_children = @parent1.children.order(:position)
-    old_children_refs = old_children.map { |x| update_hash_for(ChildView, x) }
-
-    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
-      ParentView.deserialize_from_view(
-        [{ '_type'    => 'Parent',
-           'name'     => 'newp',
-           'children' => old_children_refs },
-         update_hash_for(ParentView, @parent1) { |p1v| p1v['name'] = 'p1 new name' }])
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+      alter_by_view!(ParentView, @parent2) do |p2, _refs|
+        p2['children'] = old_children.map { |x| update_hash_for(ChildView, x) }
+      end
     end
+  end
 
-    assert_match(/Attempted to implicitly move a child/, ex.message)
+  def test_has_many_cannot_duplicate_unreleased_children
+    assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
+        p2['children'] = p1['children'].deep_dup
+      end
+    end
+  end
+
+  def test_has_many_cannot_duplicate_implicitly_unreleased_children
+    assert_raises(ViewModel::DeserializationError::ParentNotFound) do
+      alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), _refs|
+        p2['children'] = p1['children']
+        p1.delete('children')
+      end
+    end
   end
 
   def test_move_child_to_existing
