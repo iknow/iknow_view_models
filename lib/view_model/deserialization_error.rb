@@ -275,6 +275,19 @@ class ViewModel
       end
     end
 
+    class InvalidParentEdit < DeserializationError
+      def initialize(changes, node)
+        @changes = changes
+        super([node])
+      end
+
+      detail 'Illegal edit to parent during external association update'
+
+      def meta
+        super.merge(changes: @changes.to_h)
+      end
+    end
+
     # Optimistic lock failure updating nodes
     class LockFailure < DeserializationError
       status 400

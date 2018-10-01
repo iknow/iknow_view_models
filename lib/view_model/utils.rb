@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::Utils
   class << self
     def wrap_one_or_many(obj)

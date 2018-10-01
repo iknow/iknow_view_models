@@ -2,9 +2,12 @@
 
 require_relative "../../helpers/arvm_test_utilities.rb"
 require_relative "../../helpers/arvm_test_models.rb"
+require_relative '../../helpers/viewmodel_spec_helpers.rb'
 
 require "minitest/autorun"
 require 'minitest/unit'
+
+require 'rspec/expectations/minitest_integration'
 
 require "view_model/active_record"
 
@@ -437,116 +440,330 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     end
   end
 
-  # Test edit check integration: do the various access control methods get
-  # called as expected, with expected parameters?
-  class IntegrationTest < ActiveSupport::TestCase
+  # Integration-test access control, callbacks and viewmodel change tracking: do
+  # the edit checks get called as expected with the correct changes?
+  class ChangeTrackingTest < ActiveSupport::TestCase
     include ARVMTestUtilities
+    include ViewModelSpecHelpers::List
+    extend Minitest::Spec::DSL
 
-    def before_all
-      build_viewmodel(:List) do
-        define_schema do |t|
-          t.string  :car
-          t.integer :cdr_id
+    def assert_changes_match(changes, new, deleted, children, attributes, associations)
+      assert_equal(
+        changes,
+        ViewModel::Changes.new(
+          new: new,
+          deleted: deleted,
+          changed_children: children,
+          changed_attributes: attributes,
+          changed_associations: associations))
+    end
+
+    describe 'with parent and points-to child test models' do
+      include ViewModelSpecHelpers::ParentAndBelongsToChild
+
+      def new_model
+        model_class.new(name: 'a')
+      end
+
+      def new_model_with_child
+        model_class.new(name: 'a', child: child_model_class.new(name: 'b'))
+      end
+
+      it 'records a created model' do
+        view = {
+          '_type' => view_name,
+          'name'  => 'a',
+        }
+
+        ctx = viewmodel_class.new_deserialize_context
+        vm = viewmodel_class.deserialize_from_view(view, deserialize_context: ctx)
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, true, false, false, ['name'], [])
+      end
+
+      it 'records a destroyed model' do
+        vm = create_viewmodel!
+
+        ctx = viewmodel_class.new_deserialize_context
+        vm.destroy!(deserialize_context: ctx)
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, true, false, [], [])
+      end
+
+      it 'records a change to an attribute' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, _refs|
+          view['name'] = nil
         end
 
-        define_model do
-          belongs_to :cdr, class_name: :List, dependent: :destroy
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, ['name'], [])
+      end
+
+      it 'records a new child' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, _refs|
+          view['child'] = { '_type' => child_view_name, 'name' => 'b' }
         end
 
-        define_viewmodel do
-          attribute   :car
-          association :cdr
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, true, false, false, ['name'], [])
+      end
+
+      it 'records a replaced child' do
+        m = new_model_with_child.tap(&:save!)
+        old_child = m.child
+
+        vm, ctx = alter_by_view!(viewmodel_class, m) do |view, _refs|
+          view['child'] = { '_type' => child_view_name, 'name' => 'c' }
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, true, false, false, ['name'], [])
+
+        oc_changes = ctx.valid_edit_changes(
+          ViewModel::Reference.new(child_viewmodel_class, old_child.id))
+        assert_changes_match(oc_changes, false, true, false, [], [])
+      end
+
+      it 'records an edited child' do
+        m = new_model_with_child.tap(&:save!)
+
+        vm, ctx = alter_by_view!(viewmodel_class, m) do |view, _refs|
+          view['child']['name'] = 'c'
+        end
+
+        # The parent node itself wasn't changed, so must not have been
+        # valid_edit checked
+        refute(ctx.was_edited?(vm.to_reference))
+        assert_changes_match(vm.previous_changes, false, false, true, [], [])
+
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, false, false, false, ['name'], [])
+      end
+
+      it 'records a deleted child' do
+        m = new_model_with_child.tap(&:save!)
+        old_child = m.child
+
+        vm, ctx = alter_by_view!(viewmodel_class, m) do |view, _refs|
+          view['child'] = nil
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+
+        oc_changes = ctx.valid_edit_changes(
+          ViewModel::Reference.new(child_viewmodel_class, old_child.id))
+        assert_changes_match(oc_changes, false, true, false, [], [])
+      end
+    end
+
+    describe 'with parent and pointed-to child test models' do
+      include ViewModelSpecHelpers::ParentAndOrderedChildren
+
+      def new_model
+        model_class.new(
+          name: 'a',
+          children: [child_model_class.new(name: 'x', position: 1),
+                     child_model_class.new(name: 'y', position: 2)])
+      end
+
+      it 'records new children' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, _refs|
+          view['children'].concat(
+            [
+              { '_type' => child_view_name, 'name' => 'b' },
+              { '_type' => child_view_name, 'name' => 'c' },
+            ])
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, true, [], ['children'])
+
+        new_children, existing_children = vm.children.partition do |c|
+          c.name < 'm'
+        end
+
+        new_children.each do |c|
+          c_changes = ctx.valid_edit_changes(c.to_reference)
+          assert_changes_match(c_changes, true, false, false, ['name'], [])
+        end
+
+        existing_children.each do |c|
+          refute(ctx.was_edited?(c.to_reference))
+        end
+      end
+
+      it 'records replaced children' do
+        m = create_model!
+        replaced_child = m.children.last
+
+        vm, ctx = alter_by_view!(viewmodel_class, m) do |view, _refs|
+          view['children'].pop
+          view['children'] << { '_type' => child_view_name, 'name' => 'b' }
+        end
+
+        refute(vm.children.include?(replaced_child))
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, true, [], ['children'])
+
+        new_child = vm.children.detect { |c| c.name == 'b' }
+        c_changes = ctx.valid_edit_changes(new_child.to_reference)
+        assert_changes_match(c_changes, true, false, false, ['name'], [])
+
+        oc_changes = ctx.valid_edit_changes(
+          ViewModel::Reference.new(child_viewmodel_class, replaced_child.id))
+        assert_changes_match(oc_changes, false, true, false, [], [])
+      end
+
+      it 'records reordered children' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, _refs|
+          view['children'].reverse!
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+
+        vm.children.each do |c|
+          refute(ctx.was_edited?(c.to_reference))
         end
       end
     end
 
-    # Extract edit check changes for a given view as an array.
-    def edit_check(ctx, ref)
-      changes = ctx.valid_edit_changes(ref)
-      [changes.changed_attributes, changes.changed_associations, changes.deleted]
-    end
+    describe 'with parent and shared child test models' do
+      include ViewModelSpecHelpers::ParentAndSharedChild
 
-    def test_changes_types
-      l = List.create!
-      lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
-        view["car"] = "a"
-        view["cdr"] = { "_type" => "List", "car" => "b" }
+      def new_model
+        model_class.new(name: 'a', child: child_model_class.new(name: 'z'))
       end
 
-      lv_changes = ctx.valid_edit_changes(lv.to_reference)
+      it 'records an change to child without a tree change' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, refs|
+          view['child'] = { '_ref' => 'cref' }
+          refs.clear['cref'] = { '_type' => child_view_name, 'name' => 'b' }
+        end
 
-      assert_equal(["cdr_id", "car"], lv_changes.changed_attributes)
-      assert_equal(["cdr"], lv_changes.changed_associations)
-      assert_equal(false,   lv_changes.deleted)
-    end
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['child'])
 
-    def test_editable_change_attribute
-      l = List.create!(car: "a")
-
-      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
-        view["car"] = nil
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, true, false, false, ['name'], [])
       end
 
-      edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
-      assert_equal([["car"], [], false], edits)
-    end
+      it 'records an edited child without a tree change' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |_view, refs|
+          refs.values.first.merge!('name' => 'b')
+        end
 
-    def test_editable_add_association
-      l = List.create!(car: "a")
+        refute(ctx.was_edited?(vm.to_reference))
+        assert_changes_match(vm.previous_changes, false, false, false, [], [])
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
-        view["cdr"] = { "_type" => "List", "car" => "b" }
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, false, false, false, ['name'], [])
       end
 
-      l_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
-      assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+      it 'records a deleted child' do
+        vm = create_viewmodel!
+        old_child = vm.child
 
-      c_edits = edit_check(ctx, ViewModel::Reference.new(ListView, nil))
-      assert_equal([["car"], [], false], c_edits)
+        vm, ctx = alter_by_view!(viewmodel_class, vm.model) do |view, refs|
+          view['child'] = nil
+          refs.clear
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['child'])
+
+        refute(ctx.was_edited?(old_child.to_reference))
+      end
     end
 
-    def test_editable_change_association
-      l = List.create!(car: "a", cdr: List.new(car: "b"))
-      l2 = l.cdr
+    describe 'with has_many_through children test models' do
+      include ViewModelSpecHelpers::ParentAndHasManyThroughChildren
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
-        view["cdr"] = { "_type" => "List", "car" => "c" }
+      def new_model
+        model_class.new(
+          name: 'a',
+          model_children: [
+            join_model_class.new(position: 1, child: child_model_class.new(name: 'x')),
+            join_model_class.new(position: 2, child: child_model_class.new(name: 'y')),
+          ])
       end
 
-      l_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
-      assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+      it 'records new children' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, refs|
+          view['children'].concat([{ '_ref' => 'new1' }, { '_ref' => 'new2' }])
+          refs['new1'] = { '_type' => child_view_name, 'name' => 'b' }
+          refs['new2'] = { '_type' => child_view_name, 'name' => 'c' }
+        end
 
-      l2_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l2.id))
-      assert_equal([[], [], true], l2_edits)
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['children'])
 
-      c_edits = edit_check(ctx, ViewModel::Reference.new(ListView, nil))
-      assert_equal([["car"], [], false], c_edits)
-    end
+        new_children, existing_children = vm.children.partition do |c|
+          c.name < 'm'
+        end
 
-    def test_editable_delete_association
-      l = List.create!(car: "a", cdr: List.new(car: "b"))
-      l2 = l.cdr
+        new_children.each do |c|
+          c_changes = ctx.valid_edit_changes(c.to_reference)
+          assert_changes_match(c_changes, true, false, false, ['name'], [])
+        end
 
-      _lv, ctx = alter_by_view!(ListView, l) do |view, _refs|
-        view["cdr"] = nil
+        existing_children.each do |c|
+          refute(ctx.was_edited?(c.to_reference))
+        end
       end
 
-      l_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
-      assert_equal([["cdr_id"], ["cdr"], false], l_edits)
+      it 'records replaced children' do
+        vm = create_viewmodel!
+        old_child = vm.children.first
 
-      l2_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l2.id))
-      assert_equal([[], [], true], l2_edits)
-    end
+        vm, ctx = alter_by_view!(viewmodel_class, vm.model) do |view, refs|
+          refs.delete(view['children'].pop['_ref'])
 
-    def test_editable_destroy!
-      l = List.create!(car: "a")
-      lv = ListView.new(l)
+          view['children'] << { '_ref' => 'new1' }
+          refs['new1'] = { '_type' => child_view_name, 'name' => 'b' }
+        end
 
-      ctx = ListView.new_deserialize_context
-      lv.destroy!(deserialize_context: ctx)
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['children'])
 
-      l_edits = edit_check(ctx, ViewModel::Reference.new(ListView, l.id))
-      assert_equal([[], [], true], l_edits)
+        new_children, existing_children = vm.children.partition do |c|
+          c.name < 'm'
+        end
+
+        new_children.each do |c|
+          c_changes = ctx.valid_edit_changes(c.to_reference)
+          assert_changes_match(c_changes, true, false, false, ['name'], [])
+        end
+
+        existing_children.each do |c|
+          refute(ctx.was_edited?(c.to_reference))
+        end
+
+        refute(ctx.was_edited?(old_child.to_reference))
+      end
+
+      it 'records reordered children' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, _refs|
+          view['children'].reverse!
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+
+        vm.children.each do |c|
+          refute(ctx.was_edited?(c.to_reference))
+        end
+      end
     end
   end
 end

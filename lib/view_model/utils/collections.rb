@@ -1,21 +1,26 @@
+# frozen_string_literal: true
+
 class ViewModel::Utils
   module Collections
     def self.count_by(enumerable)
-      enumerable.each_with_object(Hash.new(0)) do |el, counts|
-        key         = yield(el)
-        counts[key] += 1 unless key.nil?
+      enumerable.each_with_object({}) do |el, counts|
+        key = yield(el)
+
+        unless key.nil?
+          counts[key] = (counts[key] || 0) + 1
+        end
       end
     end
 
     refine Array do
       def contains_exactly?(other)
-        vals = to_set
-        other.each { |o| return false unless vals.delete?(o) }
-        vals.blank?
+        mine   = count_by { |x| x }
+        theirs = other.count_by { |x| x }
+        mine == theirs
       end
 
       def count_by(&by)
-        Collections::count_by(self, &by)
+        Collections.count_by(self, &by)
       end
 
       def duplicates_by(&by)
@@ -29,7 +34,7 @@ class ViewModel::Utils
 
     refine Hash do
       def count_by(&by)
-        Collections::count_by(self, &by)
+        Collections.count_by(self, &by)
       end
 
       def duplicates_by(&by)

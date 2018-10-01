@@ -240,17 +240,16 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
   end
 
   def test_child_change_editchecks_parent
-    serialize_context = ParentView.new_serialize_context(include: :category)
-    d_context = ParentView.new_deserialize_context
+    s_context = ParentView.new_serialize_context(include: :category)
 
-    alter_by_view!(ParentView, @parent1, serialize_context: serialize_context, deserialize_context: d_context) do |view, refs|
+    nv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: s_context) do |view, refs|
       refs.delete(view['category']['_ref'])
       view['category']['_ref'] = 'new_cat'
-      refs['new_cat'] = { "_type" => "Category", "name" => "new category"}
+      refs['new_cat'] = { '_type' => 'Category', 'name' => 'new category' }
     end
 
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(CategoryView, nil)))
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+    assert(d_context.valid_edit_refs.include?(nv.to_reference))
+    assert(d_context.valid_edit_refs.include?(nv.category.to_reference))
   end
 
   def test_child_delete_editchecks_parent

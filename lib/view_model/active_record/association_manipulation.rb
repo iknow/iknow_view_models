@@ -99,6 +99,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
   # collection, the items are inserted either before `before`, after `after`, or
   # at the end.
   def append_associated(association_name, subtree_hash_or_hashes, references: {}, before: nil, after: nil, deserialize_context: self.class.new_deserialize_context)
+    if self.changes.changed?
+      raise ArgumentError.new('Invalid call to append_associated on viewmodel with pending changes')
+    end
+
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
     raise ArgumentError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
@@ -106,9 +110,8 @@ module ViewModel::ActiveRecord::AssociationManipulation
     ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
       model_class.transaction do
         ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
-          changes = ViewModel::Changes.new(changed_associations: [association_name])
-          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
-          hook_control.record_changes(changes)
+          association_changed!(association_name)
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, self)
 
           if association_data.through?
             raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -180,6 +183,18 @@ module ViewModel::ActiveRecord::AssociationManipulation
             end
           end
 
+          # Finalize the parent
+          final_changes = self.clear_changes!
+
+          # Could happen if hooks attempted to change the parent, which aren't
+          # valid since we're only editing children here.
+          unless final_changes.contained_to?(associations: [association_name.to_s])
+            raise ViewModel::DeserializationError::InvalidParentEdit.new(final_changes, blame_reference)
+          end
+
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: final_changes)
+          hook_control.record_changes(final_changes)
+
           updated_viewmodels
         end
       end
@@ -191,6 +206,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
   # garbage-collected if the assocation is specified with `dependent: :destroy`
   # or `:delete_all`
   def delete_associated(association_name, associated_id, type: nil, deserialize_context: self.class.new_deserialize_context)
+    if self.changes.changed?
+      raise ArgumentError.new('Invalid call to delete_associated on viewmodel with pending changes')
+    end
+
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
 
@@ -203,15 +222,15 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
     model_class.transaction do
       ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
-        changes = ViewModel::Changes.new(changed_associations: [association_name])
-        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
-        hook_control.record_changes(changes)
+        association_changed!(association_name)
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, self)
 
         association = self.model.association(direct_reflection.name)
         association_scope = association.association_scope
 
         if association_data.through?
-          raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
+          raise ArgumentError.new('Polymorphic through relationships not supported yet') if association_data.polymorphic?
+
           direct_viewmodel = association_data.direct_viewmodel
           association_scope = association_scope.where(association_data.indirect_reflection.foreign_key => associated_id)
         else
@@ -249,6 +268,16 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
           association.delete(child_vm.model)
         end
+
+        self.children_changed!
+        final_changes = self.clear_changes!
+
+        unless final_changes.contained_to?(associations: [association_name.to_s])
+          raise ViewModel::DeserializationError::InvalidParentEdit.new(final_changes, blame_reference)
+        end
+
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: final_changes)
+        hook_control.record_changes(final_changes)
 
         child_vm
       end

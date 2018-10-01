@@ -3,7 +3,11 @@
 class CallbackTracer
   include ViewModel::Callbacks
 
-  Visit = Struct.new(:hook, :view)
+  Visit = Struct.new(:hook, :view) do
+    def inspect
+      "#{hook.name}(#{view.to_reference})"
+    end
+  end
 
   attr_reader :hook_trace
 

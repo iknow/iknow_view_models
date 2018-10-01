@@ -130,12 +130,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::AccessControlError) do
       # append child
-      ParentView.new(@parent1).append_associated(:children, { "_type" => "Child", "text" => "hi" }, deserialize_context: no_edit_context)
+      ParentView.new(@parent1).append_associated(:children, { "_type" => "Child", "name" => "hi" }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::AccessControlError) do
       # destroy child
-      ParentView.new(@parent1).delete_associated(:children, ChildView.new(@parent1.children.first), deserialize_context: no_edit_context)
+      ParentView.new(@parent1).delete_associated(:children, @parent1.children.first.id, deserialize_context: no_edit_context)
     end
   end
 
@@ -151,14 +151,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
              'children' => [{ '_type' => 'Child', 'name' => 'c1' },
                             { '_type' => 'Child', 'name' => 'c2' }] }
 
-    context = ViewModelBase::new_deserialize_context
+    context = ParentView.new_deserialize_context
     pv = ParentView.deserialize_from_view(view, deserialize_context: context)
 
-    assert_equal({ ViewModel::Reference.new(ParentView, nil) => 1,
-                   ViewModel::Reference.new(ChildView,  nil) => 2 },
-                 count_all(context.valid_edit_refs))
+    assert_contains_exactly(
+      [pv.to_reference, pv.children[0].to_reference, pv.children[1].to_reference],
+      context.valid_edit_refs)
 
-    assert_equal(%w(c1 c2), pv.model.children.map(&:name))
+    assert_equal(%w[c1 c2], pv.model.children.map(&:name))
   end
 
   def test_nil_multiple_association
@@ -206,13 +206,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                                [{ '_type' => 'Child', 'name' => 'new_child' }],
                                deserialize_context: context)
 
+    expected_edit_checks = [pv.to_reference,
+                            *old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) },
+                            *nc.map(&:to_reference)]
 
-    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(ChildView,  nil)] +
-                           old_children.map { |x| ViewModel::Reference.new(ChildView, x.id) }
-
-    assert_equal(Set.new(expected_edit_checks),
-                 context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks,
+                            context.valid_edit_refs)
 
     assert_equal(1, nc.size)
     assert_equal('new_child', nc[0].name)
@@ -231,19 +230,19 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     update = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new_child' }])
       remove([{ '_type' => 'Child', 'id' => old_children.last.id }])
-      update([{ '_type' => 'Child', 'id' => old_children.first.id, 'name' => 'renamed p1c1'}])
+      update([{ '_type' => 'Child', 'id' => old_children.first.id, 'name' => 'renamed p1c1' }])
     end
 
     nc = pv.replace_associated(:children, update, deserialize_context: context)
+    new_child = nc.detect { |c| c.name == 'new_child' }
 
-
-    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(ChildView,  nil),
+    expected_edit_checks = [pv.to_reference,
+                            ViewModel::Reference.new(ChildView, new_child.id),
                             ViewModel::Reference.new(ChildView, old_children.first.id),
                             ViewModel::Reference.new(ChildView, old_children.last.id)]
 
-    assert_equal(Set.new(expected_edit_checks),
-                 context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks,
+                            context.valid_edit_refs)
 
     assert_equal(3, nc.size)
     assert_equal('renamed p1c1', nc[0].name)
@@ -252,7 +251,6 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal(['renamed p1c1', 'p1c2', 'new_child'], @parent1.children.order(:position).map(&:name))
     assert_equal([], Child.where(id: old_children.last.id))
   end
-
 
   def test_remove_has_many
     old_children = @parent1.children
@@ -292,16 +290,18 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_edit_has_many
     c1, c2, c3 = @parent1.children.order(:position).to_a
-    _, context = alter_by_view!(ParentView, @parent1) do |view, refs|
+
+    pv, context = alter_by_view!(ParentView, @parent1) do |view, _refs|
       view['children'].shift
       view['children'] << { '_type' => 'Child', 'name' => 'new_c' }
     end
+    nc = pv.children.detect { |c| c.name == 'new_c' }
 
-    assert_equal({ ViewModel::Reference.new(ParentView, @parent1.id) => 1,
-                   ViewModel::Reference.new(ChildView,  c1.id)       => 1, # deleted child
-                   ViewModel::Reference.new(ChildView,  nil)         => 1, # created child
-                 },
-                 count_all(context.valid_edit_refs))
+    assert_contains_exactly(
+      [ViewModel::Reference.new(ParentView, @parent1.id),
+       ViewModel::Reference.new(ChildView,  c1.id),  # deleted child
+       ViewModel::Reference.new(ChildView,  nc.id)], # created child
+      context.valid_edit_refs)
 
     assert_equal([c2, c3, Child.find_by_name('new_c')],
                  @parent1.children.order(:position))
@@ -312,17 +312,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     c1, c2, c3 = @parent1.children.order(:position).to_a
     pv = ParentView.new(@parent1)
 
-    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(ChildView, c3.id)].to_set
-
     # insert before
     pv.append_associated(:children,
                          { '_type' => 'Child', 'id' => c3.id },
                          before: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
-
+    expected_edit_checks = [pv.to_reference]
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c3, c1, c2],
                  @parent1.children.order(:position))
@@ -333,7 +330,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(ChildView, c1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, c3, c2],
                  @parent1.children.order(:position))
@@ -342,6 +339,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     pv.append_associated(:children,
                          { '_type' => 'Child', 'id' => c3.id },
                          deserialize_context: (context = ParentView.new_deserialize_context))
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, c2, c3],
                  @parent1.children.order(:position))
@@ -354,10 +353,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
     expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(ParentView, @parent2.id),
-                            ViewModel::Reference.new(ChildView, p2c1.id)].to_set
+                            ViewModel::Reference.new(ParentView, @parent2.id)]
 
-    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, c2, c3, p2c1],
                  @parent1.children.order(:position))
@@ -367,18 +365,18 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     c1, c2, c3 = @parent1.children.order(:position).to_a
     pv = ParentView.new(@parent1)
 
-    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(ChildView, nil)].to_set
-
     # insert before
     pv.append_associated(:children,
                          { '_type' => 'Child', 'name' => 'new1' },
                          before: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
+    n1 = Child.find_by_name('new1')
 
-    n1 = Child.find_by_name("new1")
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView, n1.id)]
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, n1, c2, c3],
                  @parent1.children.order(:position))
@@ -389,9 +387,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          after: ViewModel::Reference.new(ChildView, c2.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
+    n2 = Child.find_by_name('new2')
 
-    n2 = Child.find_by_name("new2")
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView, n2.id)]
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, n1, c2, n2, c3],
                  @parent1.children.order(:position))
@@ -401,7 +402,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          { '_type' => 'Child', 'name' => 'new3' },
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
-    n3 = Child.find_by_name("new3")
+    n3 = Child.find_by_name('new3')
+
+    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
+                            ViewModel::Reference.new(ChildView, n3.id)]
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, n1, c2, n2, c3, n3],
                  @parent1.children.order(:position))

@@ -34,17 +34,25 @@ module ViewModel::Callbacks
     # be making any changes.
     BeforeDeserialize(:deserialize_context)
 
-    # The on change hook is called if deserialization has visited the model and
-    # intends to make changes. Keyword argument `changes` is a
-    # ViewModel::Changes describing the intention. Callbacks on this hook may
-    # not themselves make any changes to the model. ViewModels backed by a
-    # transactional model such as AR may not have been saved, to allow the hook
-    # to inspect initial values.
+    # The BeforeValidate hook is called during deserialization immediately
+    # before validating the viewmodel. For AR viewmodels, this is after
+    # deserializing attributes and points-to associations, but before saving and
+    # deserializing points-from associations. Callbacks on this hook may make
+    # changes to the model, but must call the viewmodel's `*_changed!` methods
+    # for any changes to viewmodel attributes/associations.
+    BeforeValidate(:deserialize_context)
+
+    # The on change hook is called when deserialization has visited the model
+    # and made changes. Keyword argument `changes` is a ViewModel::Changes
+    # describing the effects. Callbacks on this hook may not themselves make any
+    # changes to the model. ViewModels backed by a transactional model such as
+    # AR will have been saved once, allowing the hook to inspect changed model
+    # values on `previous_changes`.
     OnChange(:deserialize_context, :changes)
 
     # The after-deserialize hook is called when leaving the viewmodel during
-    # deserialization. If any changes were made, the recorded ViewModel::Changes
-    # instance is passed to the hook.
+    # deserialization. The recorded ViewModel::Changes instance (which may have
+    # no changes) is passed to the hook.
     AfterDeserialize(:deserialize_context, :changes)
 
     attr_reader :context_name, :required_params, :env_class
@@ -191,9 +199,20 @@ module ViewModel::Callbacks
     hook_control = DeserializeHookControl.new
 
     wrap_serialize(viewmodel, context: deserialize_context) do
-      deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize, viewmodel)
+      deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeDeserialize,
+                                       viewmodel)
+
       val = yield(hook_control)
-      deserialize_context.run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, viewmodel, changes: hook_control.changes)
+
+      if hook_control.changes.nil?
+        raise ViewModel::DeserializationError::Internal.new(
+                'Internal error: changes not recorded for deserialization of viewmodel',
+                viewmodel.blame_reference)
+      end
+
+      deserialize_context.run_callback(ViewModel::Callbacks::Hook::AfterDeserialize,
+                                       viewmodel,
+                                       changes: hook_control.changes)
       val
     end
   end

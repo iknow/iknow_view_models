@@ -3,6 +3,7 @@
 module ViewModel::TestHelpers
   require 'view_model/test_helpers/arvm_builder'
   extend ActiveSupport::Concern
+  using ViewModel::Utils::Collections
 
   def serialize_with_references(serializable, serialize_context: ViewModel.new_serialize_context)
     data = ViewModel.serialize_to_hash(serializable, serialize_context: serialize_context)
@@ -92,7 +93,11 @@ module ViewModel::TestHelpers
       else
         assert_model_represents_database(association.target, been_there: been_there)
       end
-
     end
+  end
+
+  def assert_contains_exactly(expected, actual, msg = nil)
+    msg ||= diff(expected, actual)
+    assert(expected.contains_exactly?(actual), msg)
   end
 end
