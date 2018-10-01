@@ -8,3 +8,5 @@ require "view_model/active_record/collection_nested_controller"
 
 module IknowViewModels
 end
+
+require 'iknow_view_models/railtie' if defined?(Rails)
