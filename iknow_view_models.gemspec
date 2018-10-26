@@ -28,6 +28,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "iknow_cache"
   spec.add_dependency "iknow_params"
   spec.add_dependency "safe_values"
+  spec.add_dependency "keyword_builder"
 
   spec.add_dependency "concurrent-ruby"
   spec.add_dependency "jbuilder"

@@ -25,7 +25,7 @@ class ViewModel::ErrorView < ViewModel::Record
 
   # Ruby exceptions should never be serialized in production
   def serialize_exception(json, serialize_context:)
-    super unless Rails.env == 'production'
+    super if ViewModel::Config.show_cause_in_error_view
   end
 
   # Only serialize causes for aggregation errors.
