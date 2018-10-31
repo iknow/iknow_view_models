@@ -26,14 +26,16 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     hook_nesting = []
 
     trace.each_with_index do |t, i|
-      case t.hook.name
-      when /^On/
+      case t.hook
+      when ViewModel::Callbacks::Hook::OnChange,
+           ViewModel::Callbacks::Hook::BeforeValidate
         # ignore
-
-      when /^Before/
+      when ViewModel::Callbacks::Hook::BeforeVisit,
+           ViewModel::Callbacks::Hook::BeforeDeserialize
         hook_nesting.push([t, i])
 
-      when /^After/
+      when ViewModel::Callbacks::Hook::AfterVisit,
+           ViewModel::Callbacks::Hook::AfterDeserialize
         (nested_top, nested_index) = hook_nesting.pop
 
         unless nested_top.hook.name == t.hook.name.sub(/^After/, 'Before')

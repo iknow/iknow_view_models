@@ -5,6 +5,7 @@ require "minitest/unit"
 require "minitest/hooks"
 
 require_relative "../../../helpers/arvm_test_models.rb"
+require_relative "../../../helpers/arvm_test_utilities.rb"
 require_relative "../../../helpers/viewmodel_spec_helpers.rb"
 
 require "view_model"
@@ -24,6 +25,7 @@ class ViewModel::ActiveRecord
   class CacheTest < ActiveSupport::TestCase
     using ViewModel::Utils::Collections
     extend Minitest::Spec::DSL
+    include ARVMTestUtilities
 
     # Defines a cacheable parent Model with a owned Child and a cachable shared Shared.
     module CacheableParentAndChildren
@@ -175,9 +177,9 @@ class ViewModel::ActiveRecord
       include BehavesLikeACache
 
       describe 'with a record in the cache' do
-        # Ensure it's in the cache
+        # Fetch the root record to ensure it's in the cache
         before(:each) do
-          fetch_with_cache
+          viewmodel_class.viewmodel_cache.fetch([root.id])
         end
 
         def change_in_database
@@ -202,6 +204,54 @@ class ViewModel::ActiveRecord
           cache_data, cache_refs = serialize_with_cache
           value(cache_data[0]["name"]).must_equal("CHANGEDROOT") # Root view invalidated
           value(cache_refs).must_equal(before_refs) # Shared view not invalidated
+        end
+
+        describe 'when deserializing' do
+          it 'does not clear the cache on round-trip' do
+            alter_by_view!(viewmodel_class, root) {}
+
+            cached_root_value = read_cache(viewmodel_class, root.id)
+            value(cached_root_value).must_be(:present?)
+
+            cached_root_value = read_cache(shared_viewmodel_class, shared.id)
+            value(cached_root_value).must_be(:present?)
+          end
+
+          it 'clears only the root cache on edit to root' do
+            alter_by_view!(viewmodel_class, root) do |data, _refs|
+              data['name'] = 'new name'
+            end
+
+            cached_root_value = read_cache(viewmodel_class, root.id)
+            value(cached_root_value).wont_be(:present?)
+
+            cached_root_value = read_cache(shared_viewmodel_class, shared.id)
+            value(cached_root_value).must_be(:present?)
+          end
+
+          it 'clears only the root cache on edit to owned child' do
+            alter_by_view!(viewmodel_class, root) do |data, _refs|
+              data['child']['name'] = 'new child name'
+            end
+
+            cached_root_value = read_cache(viewmodel_class, root.id)
+            value(cached_root_value).wont_be(:present?)
+
+            cached_root_value = read_cache(shared_viewmodel_class, shared.id)
+            value(cached_root_value).must_be(:present?)
+          end
+
+          it 'clears only the shared child cache on edit to shared child' do
+            alter_by_view!(viewmodel_class, root) do |_data, refs|
+              refs.values.first['name'] = 'new shared name'
+            end
+
+            cached_root_value = read_cache(viewmodel_class, root.id)
+            value(cached_root_value).must_be(:present?)
+
+            cached_root_value = read_cache(shared_viewmodel_class, shared.id)
+            value(cached_root_value).wont_be(:present?)
+          end
         end
 
         it 'can delete an entity from a cache' do

@@ -198,51 +198,61 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_reordering
-    _pv, ctx = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    pv, ctx = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, _refs|
       view['tags'].reverse!
     end
+
     assert_equal([@tag2, @tag1],
                  @parent1.parents_tags.order(:position).map(&:tag))
 
-    expected_edit_checks = Set[ViewModel::Reference.new(ParentView, @parent1.id)]
-    assert_equal(expected_edit_checks, ctx.valid_edit_refs.to_set)
+    expected_edit_checks = [pv.to_reference]
+    assert_contains_exactly(expected_edit_checks, ctx.valid_edit_refs)
   end
 
   def test_child_edit_doesnt_editcheck_parent
     # editing child doesn't edit check parent
-    d_context = ParentView.new_deserialize_context
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       refs[view['tags'][0]["_ref"]]["name"] = "changed"
     end
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, @parent1.parents_tags.order(:position).first.tag_id)))
-    refute(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+
+    nc = pv.tags.detect { |t| t.name == 'changed' }
+
+    expected_edit_checks = [nc.to_reference]
+    assert_contains_exactly(expected_edit_checks,
+                            d_context.valid_edit_refs)
   end
 
   def test_child_reordering_editchecks_parent
-    d_context = ParentView.new_deserialize_context
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, _refs|
       view['tags'].reverse!
     end
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+
+    assert_contains_exactly([pv.to_reference],
+                            d_context.valid_edit_refs)
   end
 
   def test_child_deletion_editchecks_parent
-    d_context = ParentView.new_deserialize_context
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       removed = view['tags'].pop['_ref']
       refs.delete(removed)
     end
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
+
+    assert_contains_exactly([pv.to_reference],
+                            d_context.valid_edit_refs)
   end
 
   def test_child_addition_editchecks_parent
-    d_context = ParentView.new_deserialize_context
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags), deserialize_context: d_context) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
       view['tags'] << { '_ref' => 't_new' }
       refs['t_new'] = { '_type' => 'Tag', 'name' => 'newest tag' }
     end
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, nil)))
+
+    nc = pv.tags.detect { |t| t.name == 'newest tag' }
+
+    expected_edit_checks = [pv.to_reference, nc.to_reference]
+
+    assert_contains_exactly(expected_edit_checks,
+                            d_context.valid_edit_refs)
   end
 
   def tags(parent)
@@ -420,8 +430,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_functional_update_edit_checks
-    d_context = ParentView.new_deserialize_context
-
     fupdate = build_fupdate do
       append([{ '_ref' => 't_new' }])
     end
@@ -432,11 +440,12 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     refs = { 't_new' => { '_type' => 'Tag', 'name' => 'newest tag' } }
 
-    ParentView.deserialize_from_view(view, references: refs,
-                                     deserialize_context: d_context)
+    d_context = ParentView.new_deserialize_context
+    pv = ParentView.deserialize_from_view(view, references: refs, deserialize_context: d_context)
+    new_tag = pv.tags.detect { |t| t.name == 'newest tag' }
 
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(ParentView, @parent1.id)))
-    assert(d_context.valid_edit_refs.include?(ViewModel::Reference.new(TagView, nil)))
+    expected_edit_checks = [pv.to_reference, new_tag.to_reference]
+    assert_contains_exactly(expected_edit_checks, d_context.valid_edit_refs)
   end
 
   def test_replace_associated
@@ -447,12 +456,11 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                                [{ '_type' => 'Tag', 'name' => 'new_tag' }],
                                deserialize_context: context)
 
+    expected_edit_checks = [pv.to_reference,
+                            *nc.map(&:to_reference)]
 
-    expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
-                            ViewModel::Reference.new(TagView,  nil)]
-
-    assert_equal(Set.new(expected_edit_checks),
-                 context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks,
+                            context.valid_edit_refs)
 
     assert_equal(1, nc.size)
     assert(nc[0].is_a?(TagView))
@@ -479,13 +487,14 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     end
 
     nc = pv.replace_associated(:tags, update, deserialize_context: context)
+    new_tag = nc.detect { |t| t.name == 'new_tag' }
 
     expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
                             ViewModel::Reference.new(TagView, @tag1.id),
-                            ViewModel::Reference.new(TagView,  nil)]
+                            ViewModel::Reference.new(TagView, new_tag.id)]
 
-    assert_equal(Set.new(expected_edit_checks),
-                 context.valid_edit_refs.to_set)
+    assert_contains_exactly(expected_edit_checks,
+                            context.valid_edit_refs)
 
     assert_equal(2, nc.size)
 

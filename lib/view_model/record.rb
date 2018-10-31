@@ -90,8 +90,6 @@ class ViewModel::Record < ViewModel
 
         deserialize_members_from_view(viewmodel, view_hash, references: references, deserialize_context: deserialize_context)
 
-        viewmodel.validate!
-
         viewmodel
       end
     end
@@ -111,14 +109,16 @@ class ViewModel::Record < ViewModel
           end
         end
 
-        changes = viewmodel.changes
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
+        viewmodel.validate!
 
-        if changes.new? || changes.changed_attributes.present?
-          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: changes)
-          hook_control.record_changes(changes)
+        final_changes = viewmodel.clear_changes!
+
+        if final_changes.changed?
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: final_changes)
         end
 
-        viewmodel.clear_changes!
+        hook_control.record_changes(final_changes)
       end
     end
 
@@ -174,7 +174,7 @@ class ViewModel::Record < ViewModel
 
   delegate :model_class, to: 'self.class'
 
-  attr_reader :changed_attributes
+  attr_reader :changed_attributes, :previous_changes
 
   def initialize(model)
     unless model.is_a?(model_class)
@@ -185,6 +185,7 @@ class ViewModel::Record < ViewModel
 
     @new_model          = false
     @changed_attributes = []
+    @changed_children   = false
   end
 
   # VM::Record identity matches the identity of its model. If the model has a
@@ -205,6 +206,10 @@ class ViewModel::Record < ViewModel
     @new_model
   end
 
+  def changed_children?
+    @changed_children
+  end
+
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
     json.set!(ViewModel::ID_ATTRIBUTE, model.id) if model.respond_to?(:id)
     json.set!(ViewModel::TYPE_ATTRIBUTE, self.view_name)
@@ -216,6 +221,7 @@ class ViewModel::Record < ViewModel
   def serialize_members(json, serialize_context:)
     self.class._members.each do |member_name, member_data|
       next unless serialize_context.includes_member?(member_name, !member_data.optional?)
+
       self.public_send("serialize_#{member_name}", json, serialize_context: serialize_context)
     end
   end
@@ -238,19 +244,23 @@ class ViewModel::Record < ViewModel
     @changed_attributes << attr_name.to_s
   end
 
-  def clear_changed_attributes!
-    @changed_attributes = []
+  def children_changed!
+    @changed_children = true
   end
 
   def changes
     ViewModel::Changes.new(
       new:                new_model?,
-      changed_attributes: changed_attributes)
+      changed_attributes: changed_attributes,
+      changed_children:   changed_children?)
   end
 
   def clear_changes!
+    @previous_changes   = changes
     @new_model          = false
     @changed_attributes = []
+    @changed_children   = false
+    previous_changes
   end
 
   # Use ActiveRecord style identity for viewmodels. This allows serialization to
@@ -353,6 +363,11 @@ class ViewModel::Record < ViewModel
       end
 
       model.public_send("#{attr_data.model_attr_name}=", value)
+    end
+
+    if attr_data.using_viewmodel? &&
+       Array.wrap(value).any? { |v| v.respond_to?(:previous_changes) && v.previous_changes.changed_tree? }
+      self.children_changed!
     end
   end
 

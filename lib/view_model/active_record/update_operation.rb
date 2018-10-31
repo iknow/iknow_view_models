@@ -108,40 +108,22 @@ class ViewModel::ActiveRecord
             debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
             association = model.association(reflection.name)
-            child_model =
+            new_target =
               if child_operation
                 child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
-                child_operation.run!(deserialize_context: child_ctx).model
-              else
-                nil
+                child_viewmodel = child_operation.run!(deserialize_context: child_ctx)
+                if !association_data.shared? && child_viewmodel.previous_changes.changed_tree?
+                  viewmodel.children_changed!
+                end
+                child_viewmodel.model
               end
-            association.replace(child_model)
+            association.replace(new_target)
             debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
           end
 
-          # Placing the edit check here allows it to consider the previous and
-          # current state of the model before it is saved. For example, but
-          # comparing #foo, #foo_was, #new_record?. Note that edit checks for
-          # deletes are handled elsewhere.
-
-          changes = viewmodel.changes
-          if changes.new? || changes.changed_attributes.present? || changes.changed_associations.present?
-            debug "-> #{debug_name}: Validating changes"
-            # invoke pre-save hook
-            viewmodel.before_save(changes, deserialize_context: deserialize_context)
-
-            # Invoke any validation hooks before attempting to save.
-            viewmodel.validate!
-
-            # The hooks before this might have caused additional changes. All
-            # changes should be checked by the policy, so we have to recalculate
-            # the change set. Note that changes to associated children that point
-            # to this parent are recorded in `changes`, but their models have not
-            # yet been updated.
-            final_changes = viewmodel.changes
-            deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: final_changes)
-            hook_control.record_changes(final_changes)
-          end
+          # validate
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
+          viewmodel.validate!
 
           # Save if the model has been altered. Covers not only models with
           # view changes but also lock version assertions.
@@ -155,14 +137,7 @@ class ViewModel::ActiveRecord
               raise ViewModel::DeserializationError::LockFailure.new(blame_reference)
             end
             debug "<- #{debug_name}: Saved"
-          else
-            # Still run validations, even if the model hasn't changed.
-            unless model.valid?
-              raise ViewModel::DeserializationError::Validation.from_active_model(model.errors, blame_reference)
-            end
           end
-
-          viewmodel.clear_changes!
 
           # Update association cache of pointed-from associations after save: the
           # child update will have saved the pointer.
@@ -175,14 +150,14 @@ class ViewModel::ActiveRecord
             child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
 
             new_target =
-              case child_operation
-              when nil
-                nil
-              when ViewModel::ActiveRecord::UpdateOperation
-                child_operation.run!(deserialize_context: child_ctx).model
-              when Array
-                viewmodels = child_operation.map { |op| op.run!(deserialize_context: child_ctx) }
-                viewmodels.map(&:model)
+              if child_operation
+                ViewModel::Utils.map_one_or_many(child_operation) do |op|
+                  child_viewmodel = op.run!(deserialize_context: child_ctx)
+                  if !association_data.shared? && child_viewmodel.previous_changes.changed_tree?
+                    viewmodel.children_changed!
+                  end
+                  child_viewmodel.model
+                end
               end
 
             association.target = new_target
@@ -207,9 +182,21 @@ class ViewModel::ActiveRecord
                                        changes: changes)
                 child_hook_control.record_changes(changes)
               end
+
+              viewmodel.children_changed! unless child_association_data.shared?
             end
             debug "<- #{debug_name}: Finished checking released children permissions"
           end
+
+          final_changes = viewmodel.clear_changes!
+
+          if final_changes.changed?
+            # Now that the change has been fully attempted, call the OnChange
+            # hook if local changes were made
+            deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, viewmodel, changes: final_changes)
+          end
+
+          hook_control.record_changes(final_changes)
         end
       end
 
@@ -499,8 +486,8 @@ class ViewModel::ActiveRecord
 
       child_viewmodels = resolve_child_viewmodels(association_data, child_datas, previous_child_viewmodels, update_context)
 
-      # if the new children differ, mark that one of our associations has
-      # changed and release any no-longer-attached children
+      # if the new children differ, including in order, mark that one of our
+      # associations has changed and release any no-longer-attached children
       if child_viewmodels != previous_child_viewmodels
         viewmodel.association_changed!(association_data.association_name)
         released_child_viewmodels = previous_child_viewmodels - child_viewmodels
@@ -512,21 +499,23 @@ class ViewModel::ActiveRecord
       # Calculate new positions for children if in a list. Ignore previous
       # positions for unresolved references: they'll always need to be updated
       # anyway since their parent pointer will change.
-      positions = Array.new(child_viewmodels.length)
+      new_positions = Array.new(child_viewmodels.length)
+
       if association_data.viewmodel_class._list_member?
-        set_position = ->(index, pos){ positions[index] = pos }
+        set_position = ->(index, pos) { new_positions[index] = pos }
         get_previous_position = ->(index) do
           vm = child_viewmodels[index]
           vm._list_attribute unless vm.is_a?(ViewModel::Reference)
         end
 
-        ActsAsManualList.update_positions((0...child_viewmodels.size).to_a, # indexes
-                                          position_getter: get_previous_position,
-                                          position_setter: set_position)
+        ActsAsManualList.update_positions(
+          (0...child_viewmodels.size).to_a, # indexes
+          position_getter: get_previous_position,
+          position_setter: set_position)
       end
 
       # Recursively build update operations for children
-      child_updates = child_viewmodels.zip(child_datas, positions).map do |child_viewmodel, association_update_data, position|
+      child_updates = child_viewmodels.zip(child_datas, new_positions).map do |child_viewmodel, association_update_data, position|
         case child_viewmodel
         when ViewModel::Reference # deferred
           reference = child_viewmodel
@@ -756,10 +745,10 @@ class ViewModel::ActiveRecord
         raise ViewModel::DeserializationError::InvalidSyntax.new("Unknown association_update type '#{association_update.class.name}'", blame_reference)
       end
 
-      # We should now have an updated list of `target_collection_members`, each
-      # of which has a `direct_viewmodel` set, and additionally a `ref_string`
-      # set for those that participated in the update.
-
+      # We should now have an updated list `target_collection.members`,
+      # containing members for the desired new collection in the order that we
+      # want them, each of which has a `direct_viewmodel` set, and additionally
+      # a `ref_string` set for those that participated in the update.
       if target_collection.members != previous_members
         viewmodel.association_changed!(association_data.association_name)
       end

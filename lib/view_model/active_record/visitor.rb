@@ -45,7 +45,7 @@ class ViewModel::ActiveRecord::Visitor
 
     if for_edit
       view_changes = changes(view)
-      run_callback(ViewModel::Callbacks::Hook::OnChange, view, context: context, changes: view_changes) if view_changes
+      run_callback(ViewModel::Callbacks::Hook::OnChange, view, context: context, changes: view_changes) if view_changes.changed?
       run_callback(ViewModel::Callbacks::Hook::AfterDeserialize, view, context: context, changes: view_changes)
     end
 
@@ -69,8 +69,9 @@ class ViewModel::ActiveRecord::Visitor
   end
 
   # This method may be overridden by subclasses to specify the changes to be
-  # provided to callback hooks for each view. By default returns nil.
+  # provided to callback hooks for each view. By default returns an empty
+  # Changes.
   def changes(_view)
-    nil
+    ViewModel::Changes.new
   end
 end

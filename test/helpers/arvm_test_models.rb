@@ -37,7 +37,7 @@ class ViewModelBase < ViewModel::ActiveRecord
       super(**params)
     end
 
-    delegate :visible_checks, :editable_checks, :valid_edit_refs, :valid_edit_changes, :all_valid_edit_changes, to: :access_control
+    delegate :visible_checks, :editable_checks, :valid_edit_refs, :valid_edit_changes, :all_valid_edit_changes, :was_edited?, to: :access_control
   end
 
   def self.deserialize_context_class

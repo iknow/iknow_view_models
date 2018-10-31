@@ -49,11 +49,11 @@ class ViewModel::ActiveRecord < ViewModel::Record
       @_list_attribute_name = attr
 
       @generated_accessor_module.module_eval do
-        define_method("_list_attribute") do
+        define_method('_list_attribute') do
           model.public_send(attr)
         end
 
-        define_method("_list_attribute=") do |x|
+        define_method('_list_attribute=') do |x|
           model.public_send(:"#{attr}=", x)
         end
       end
@@ -276,17 +276,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def initialize(*)
     super
+    model_is_new! if model.new_record?
     @changed_associations = []
-  end
-
-  # Allows a viewmodel to set a hook before a record is saved when
-  # changes have been made during deserialization, for example for
-  # setting default values. Any changes introduced here are still
-  # subject to access control. Note that due to limitations on
-  # ActiveRecord, changes to associations here must be explicitly
-  # marked by calling `association_changed!`.
-  def before_save(changes, deserialize_context:)
-    # hook method; no default behaviour
   end
 
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
@@ -317,34 +308,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
   end
 
   def association_changed!(association_name)
-    @changed_associations << association_name.to_s
+    association_name = association_name.to_s
+    unless @changed_associations.include?(association_name)
+      @changed_associations << association_name
+    end
   end
 
   def associations_changed?
     @changed_associations.present?
-  end
-
-  def clear_changed_associations!
-    @changed_associations = []
-  end
-
-  # We use `model.new_record?` instead of inherited new_model tracking so that
-  # implementors of custom resolve steps aren't required to call `model_is_new!`
-  def new_model?
-    model.new_record?
-  end
-
-  # we use `model.changed_attributes` instead of inheriting for similar reasons,
-  # that implementors of custom `deserialize_#{foo}` methods aren't required to
-  # call `attribute_changed!`
-  def changed_attributes
-    changed_attributes = model.changed
-
-    if model.class.locking_enabled?
-      changed_attributes.delete(model.class.locking_column)
-    end
-
-    changed_attributes
   end
 
   # Additionally pass `changed_associations` while constructing changes.
@@ -352,12 +323,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
     ViewModel::Changes.new(
       new:                  new_model?,
       changed_attributes:   changed_attributes,
-      changed_associations: changed_associations)
+      changed_associations: changed_associations,
+      changed_children:     changed_children?)
   end
 
   def clear_changes!
-    super
-    @changed_associations = []
+    super.tap do
+      @changed_associations = []
+    end
   end
 
   def _read_association(association_name)

@@ -195,7 +195,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
   end
 
-
   def test_moved_child_is_not_delete_checked
     # move from p1 to p3
     d_context = ParentView.new_deserialize_context

@@ -39,16 +39,13 @@ module ViewModel::ActiveRecord::Cache::CacheableView
     end
   end
 
-  # Conservatively clear the cache whenever the view is considered for edit.
-  # This ensures that the cache is also cleared when owned children are
-  # edited but the root is untouched.
-  def before_deserialize(*)
+  # Clear the cache if the view or its owned children were changed during
+  # deserialization
+  def after_deserialize(deserialize_context:, changes:)
     super if defined?(super)
-    CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction unless new_model?
-  end
 
-  def destroy!(*)
-    super
-    CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction
+    if !changes.new? && changes.changed_tree?
+      CacheClearer.new(self.class.viewmodel_cache, id).add_to_transaction
+    end
   end
 end

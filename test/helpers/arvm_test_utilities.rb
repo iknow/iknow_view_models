@@ -11,6 +11,7 @@ ActiveSupport::TestCase.include(Minitest::Hooks)
 module ARVMTestUtilities
   extend ActiveSupport::Concern
   include ViewModel::TestHelpers
+  using ViewModel::Utils::Collections
 
   def self.included(klass)
     klass.include(QueryLogging)
@@ -79,14 +80,11 @@ module ARVMTestUtilities
   end
 
   def count_all(enum)
-    # equivalent to `group_by{|x|x}.map{|k,v| [k, v.length]}.to_h`
-    enum.each_with_object(Hash.new(0)) do |x, counts|
-      counts[x] += 1
-    end
+    enum.count_by { |x| x }
   end
 
   def enable_logging!
-    if ENV["DEBUG"]
+    if ENV['DEBUG']
       ActiveRecord::Base.logger = Logger.new(STDERR)
     end
   end

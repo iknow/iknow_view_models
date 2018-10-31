@@ -28,6 +28,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "iknow_cache"
   spec.add_dependency "iknow_params"
   spec.add_dependency "safe_values"
+  spec.add_dependency "keyword_builder"
 
   spec.add_dependency "concurrent-ruby"
   spec.add_dependency "jbuilder"
@@ -43,5 +44,6 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "pg", '~> 0.18' # As of 5.1.4, Rails runtime check excludes pg 1.x, see #31669
   spec.add_development_dependency "pry"
   spec.add_development_dependency "rake"
+  spec.add_development_dependency "rspec-expectations"
   spec.add_development_dependency "sqlite3"
 end

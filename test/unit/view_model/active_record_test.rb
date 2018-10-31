@@ -28,8 +28,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       end
 
       define_model do
-        validates :name, exclusion: {in: %w(invalid),
-                                     message: 'invalid due to matching test sentinel' }
+        validates :name, exclusion: {
+                    in: %w[invalid],
+                    message: 'invalid due to matching test sentinel',
+                  }
       end
 
       define_viewmodel do
@@ -149,15 +151,17 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_editability_checks_create
     context = ViewModelBase.new_deserialize_context
-    ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
-                                        deserialize_context: context)
-    assert_equal([ViewModel::Reference.new(ParentView, nil)], context.valid_edit_refs)
+    pv = ParentView.deserialize_from_view({ '_type' => 'Parent', 'name' => 'p' },
+                                          deserialize_context: context)
+
+    assert_equal([pv.to_reference],
+                 context.valid_edit_refs)
   end
 
   def test_editability_checks_create_on_empty_record
     context = ViewModelBase.new_deserialize_context
     TrivialView.deserialize_from_view({'_type' => 'Trivial' },
-                                     deserialize_context: context)
+                                      deserialize_context: context)
 
     ref = ViewModel::Reference.new(TrivialView, nil)
     assert_equal([ref], context.valid_edit_refs)
@@ -168,7 +172,6 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     assert_empty(changes.changed_associations)
     assert_equal(false, changes.deleted?)
   end
-
 
   def test_editability_raises
     no_edit_context = ViewModelBase.new_deserialize_context(can_edit: false)

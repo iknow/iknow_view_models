@@ -49,4 +49,8 @@ class TestAccessControl < ViewModel::AccessControl
       .select { | cref, _changes| cref == ref }
       .map    { |_cref,  changes| changes }
   end
+
+  def was_edited?(ref)
+    all_valid_edit_changes(ref).present?
+  end
 end

@@ -273,6 +273,7 @@ class ViewModel
   end
 end
 
+require 'view_model/config'
 require 'view_model/utils'
 require 'view_model/error'
 require 'view_model/callbacks'

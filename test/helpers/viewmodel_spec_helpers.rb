@@ -39,20 +39,30 @@ module ViewModelSpecHelpers
       child_viewmodel_class.model_class
     end
 
+    def view_name
+      viewmodel_class.view_name
+    end
+
+    def child_view_name
+      child_viewmodel_class.view_name
+    end
+
     def viewmodel_class
-      @viewmodel_class ||= define_viewmodel_class(:Model,
-                                                  spec:           model_attributes,
-                                                  namespace:      namespace,
-                                                  viewmodel_base: viewmodel_base,
-                                                  model_base:     model_base)
+      @viewmodel_class ||= define_viewmodel_class(
+        :Model,
+        spec:           model_attributes,
+        namespace:      namespace,
+        viewmodel_base: viewmodel_base,
+        model_base:     model_base).tap { |klass| yield(klass) if block_given? }
     end
 
     def child_viewmodel_class
-      @child_viewmodel_class ||= define_viewmodel_class(:Child,
-                                                        spec:           child_attributes,
-                                                        namespace:      namespace,
-                                                        viewmodel_base: viewmodel_base,
-                                                        model_base:     model_base)
+      @child_viewmodel_class ||= define_viewmodel_class(
+        :Child,
+        spec:           child_attributes,
+        namespace:      namespace,
+        viewmodel_base: viewmodel_base,
+        model_base:     model_base).tap { |klass| yield(klass) if block_given? }
     end
 
     def create_viewmodel!
@@ -193,6 +203,44 @@ module ViewModelSpecHelpers
     def child_viewmodel_class
       viewmodel_class
       super
+    end
+
+    def subject_association
+      viewmodel_class._association_data('children')
+    end
+  end
+
+  module ParentAndOrderedChildren
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::Base
+
+    def model_attributes
+      super.merge(
+        model:     ->(m) { has_many :children, inverse_of: :model, dependent: :destroy },
+        viewmodel: ->(v) { association :children },
+      )
+    end
+
+    def child_attributes
+      super.merge(
+        schema:    ->(t) { t.references :model, foreign_key: true; t.float :position, null: false },
+        model:     ->(m) { belongs_to :model, inverse_of: :children },
+        viewmodel: ->(v) { acts_as_list :position },
+      )
+    end
+
+    def child_viewmodel_class
+      # child depends on parent, ensure it's touched first
+      viewmodel_class
+
+      # Add a deferrable unique position constraiont
+      super do |klass|
+        model = klass.model_class
+        table = model.table_name
+        model.connection.execute <<-SQL
+            ALTER TABLE #{table} ADD CONSTRAINT #{table}_unique_on_model_and_position UNIQUE(model_id, position) DEFERRABLE INITIALLY DEFERRED
+          SQL
+      end
     end
 
     def subject_association
