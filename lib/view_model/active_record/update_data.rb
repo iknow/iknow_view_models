@@ -526,7 +526,7 @@ class ViewModel::ActiveRecord
       end
 
       # Ensure that no root is referred to more than once
-      check_duplicates(root_updates, type: "root") { |upd| [upd.viewmodel_class, upd.id] if upd.id }
+      check_duplicate_updates(root_updates, type: "root")
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
@@ -537,14 +537,14 @@ class ViewModel::ActiveRecord
         UpdateData.new(viewmodel_class, metadata, subtree_hash, valid_reference_keys)
       end
 
-      check_duplicates(referenced_updates, type: "reference") { |ref, upd| [upd.viewmodel_class, upd.id] if upd.id }
+      check_duplicate_updates(referenced_updates.values, type: "reference")
 
       return root_updates, referenced_updates
     end
 
-    def self.check_duplicates(arr, type:, &by)
+    def self.check_duplicate_updates(updates, type:)
       # Ensure that no root is referred to more than once
-      duplicates = arr.duplicates_by(&by)
+      duplicates = updates.duplicates_by { |upd| upd.viewmodel_reference if upd.id }
       if duplicates.present?
         raise ViewModel::DeserializationError::DuplicateNodes.new(type, duplicates.keys)
       end

@@ -164,7 +164,7 @@ class ViewModel
 
       def initialize(expected_type, node)
         @expected_type = expected_type
-        super([node])
+        super(node)
       end
 
       def detail
