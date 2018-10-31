@@ -97,6 +97,9 @@ class ViewModel::AbstractErrorWithBlame < ViewModel::AbstractError
 
   def initialize(blame_nodes)
     @nodes = Array.wrap(blame_nodes)
+    unless @nodes.all? { |n| n.is_a?(ViewModel::Reference) }
+      raise ArgumentError.new("#{self.class.name}: 'blame_nodes' must all be of type ViewModel::Reference")
+    end
     super()
   end
 
