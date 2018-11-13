@@ -520,14 +520,23 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       l1 = List.create!(child: List.new)
       l2 = List.create!
 
-      ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
+      ex = assert_raises(ViewModel::DeserializationError::UniqueViolation) do
         alter_by_view!(ListView, l2) do |view, refs|
           view['child'] = { "_ref" => "r1" }
           refs["r1"] = { "_type" => "List", "id" => l1.child.id }
         end
       end
 
-      assert_match(/unique_child/, ex.message)
+      constraint = 'unique_child'
+      columns    = ['child_id']
+      values     = l1.child.id.to_s
+
+      assert_match(/#{constraint}/, ex.message)
+      assert_equal(constraint, ex.constraint)
+      assert_equal(columns, ex.columns)
+      assert_equal(values, ex.values)
+
+      assert_equal({ constraint: constraint, columns: columns, values: values, nodes: [] }, ex.meta)
     end
   end
 end
