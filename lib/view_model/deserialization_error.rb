@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel
   class DeserializationError < ViewModel::AbstractErrorWithBlame
     status 500
@@ -305,6 +307,99 @@ class ViewModel
       def initialize(detail, nodes = [])
         @detail = detail
         super(nodes)
+      end
+
+      # Database constraint errors are pretty opaque and stringly typed. We can
+      # do our best to parse out what metadata we can from the error, and fall
+      # back when we can't.
+      def self.from_exception(exception, nodes = [])
+        case exception.cause
+        when PG::UniqueViolation
+          UniqueViolation.from_postgres_error(exception.cause, nodes)
+        else
+          self.new(exception.message, nodes)
+        end
+      end
+    end
+
+    class UniqueViolation < DeserializationError
+      status 400
+      attr_reader :detail, :constraint, :columns, :values
+
+      PG_ERROR_FIELD_CONSTRAINT_NAME = 'n'.ord # Not exposed in pg gem
+      def self.from_postgres_error(err, nodes)
+        result         = err.result
+        constraint     = result.error_field(PG_ERROR_FIELD_CONSTRAINT_NAME)
+        message_detail = result.error_field(PG::Result::PG_DIAG_MESSAGE_DETAIL)
+
+        columns, values = parse_message_detail(message_detail)
+
+        unless columns
+          # Couldn't parse the detail message, fall back on an unparsed error
+          return DatabaseConstraint.new(err.message, nodes)
+        end
+
+        self.new(err.message, constraint, columns, values, nodes)
+      end
+
+      class << self
+        DETAIL_PREFIX = 'Key ('
+        DETAIL_SUFFIX = ') already exists.'
+        DETAIL_INFIX  = ')=('
+        def parse_message_detail(detail)
+          stream = detail.dup
+
+          return nil unless stream.delete_prefix!(DETAIL_PREFIX)
+          return nil unless stream.delete_suffix!(DETAIL_SUFFIX)
+
+          # The message should start with an identifier list: pop off identifier
+          # tokens while we can.
+          identifiers = []
+
+          identifier = parse_identifier(stream)
+          return nil unless identifier
+
+          identifiers << identifier
+
+          while stream.delete_prefix!(', ')
+            identifier = parse_identifier(stream)
+            return nil unless identifier
+
+            identifiers << identifier
+          end
+
+          # The message should now contain ")=(" followed by the (unparseable)
+          # value list.
+          return nil unless stream.delete_prefix!(DETAIL_INFIX)
+
+          [identifiers, stream]
+        end
+
+        private
+
+        QUOTED_IDENTIFIER   = /\A"(?:[^"]|"")+"/
+        UNQUOTED_IDENTIFIER = /\A(?:\p{Alpha}|_)(?:\p{Alnum}|_)*/
+        def parse_identifier(stream)
+          if (identifier = stream.slice!(UNQUOTED_IDENTIFIER))
+            identifier
+          elsif (quoted_identifier = stream.slice!(QUOTED_IDENTIFIER))
+            quoted_identifier[1..-2].gsub('""', '"')
+          else
+            nil
+          end
+        end
+      end
+
+      def initialize(detail, constraint, columns, values, nodes = [])
+        @detail     = detail
+        @constraint = constraint
+        @columns    = columns
+        @values     = values
+        super(nodes)
+      end
+
+      def meta
+        super.merge(constraint: @constraint, columns: @columns, values: @values)
       end
     end
 

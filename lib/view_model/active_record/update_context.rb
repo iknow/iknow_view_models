@@ -246,7 +246,7 @@ class ViewModel::ActiveRecord
         model_class.connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
       end
     rescue ::ActiveRecord::StatementInvalid => ex
-      raise ViewModel::DeserializationError::DatabaseConstraint.new(ex.message)
+      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex)
     end
   end
 end

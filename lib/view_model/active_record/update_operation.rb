@@ -205,7 +205,7 @@ class ViewModel::ActiveRecord
       @run_state = RunState::Run
       viewmodel
     rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => ex
-      raise ViewModel::DeserializationError::DatabaseConstraint.new(ex.message, blame_reference)
+      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex, blame_reference)
     end
 
     # Recursively builds UpdateOperations for the associations in our UpdateData
