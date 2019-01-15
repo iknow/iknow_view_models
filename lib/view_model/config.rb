@@ -5,6 +5,7 @@ require 'keyword_builder'
 
 ViewModel::Config = Value.new(
   show_cause_in_error_view: false,
+  debug_deserialization: false,
 )
 
 class ViewModel::Config

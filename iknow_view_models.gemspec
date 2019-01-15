@@ -37,7 +37,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "renum"
 
   spec.add_development_dependency "appraisal"
-  spec.add_development_dependency "bundler", "~> 1.6"
+  spec.add_development_dependency "bundler"
   spec.add_development_dependency "byebug"
   spec.add_development_dependency "method_source"
   spec.add_development_dependency "minitest-hooks"

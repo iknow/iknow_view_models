@@ -800,6 +800,8 @@ class ViewModel::ActiveRecord
     end
 
     def debug(msg)
+      return unless ViewModel::Config.debug_deserialization
+
       ::ActiveRecord::Base.logger.try do |logger|
         logger.debug(msg)
       end
