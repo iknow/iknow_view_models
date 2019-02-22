@@ -57,12 +57,15 @@ class ViewModel
       attrs.each { |attr| attribute(attr, **args) }
     end
 
-    def attribute(attr, **args)
+    def attribute(attr, **_args)
       unless attr.is_a?(Symbol)
         raise ArgumentError.new("ViewModel attributes must be symbols")
       end
 
       attr_accessor attr
+      define_method("deserialize_#{attr}") do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
+        self.public_send("#{attr}=", value)
+      end
       _attributes << attr
     end
 
@@ -74,6 +77,10 @@ class ViewModel
         define_singleton_method(:_attributes) { attrs }
         attrs.freeze
       end
+    end
+
+    def member_names
+      _attributes
     end
 
     # In deserialization, verify and extract metadata from a provided hash.
@@ -148,9 +155,43 @@ class ViewModel
       Jbuilder.new { |json| serialize(viewmodel, json, serialize_context: serialize_context) }.attributes!
     end
 
-    # Rebuild this viewmodel from a serialized hash. Must be defined in subclasses.
+    # Rebuild this viewmodel from a serialized hash.
     def deserialize_from_view(hash_data, references: {}, deserialize_context: new_deserialize_context)
-      raise DeserializationError::ReadOnlyType.new(blame_reference)
+      viewmodel = self.new
+      deserialize_members_from_view(viewmodel, hash_data, references: references, deserialize_context: deserialize_context)
+      viewmodel
+    end
+
+    def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
+      ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do |hook_control|
+        if (bad_attrs = view_hash.keys - member_names).present?
+          causes = bad_attrs.map do |bad_attr|
+            ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
+          end
+          raise ViewModel::DeserializationError::Collection.for_errors(causes)
+        end
+
+        member_names.each do |attr|
+          if view_hash.has_key?(attr)
+            viewmodel.public_send("deserialize_#{attr}",
+                                  view_hash[attr],
+                                  references: references,
+                                  deserialize_context: deserialize_context)
+          end
+        end
+
+        deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
+        viewmodel.validate!
+
+        # More complex viewmodels can use this hook to track changes to
+        # persistent backing models, and record the results. Primitive
+        # viewmodels record no changes.
+        if block_given?
+          yield(hook_control)
+        else
+          hook_control.record_changes(Changes.new)
+        end
+      end
     end
 
     def serialize_context_class
@@ -232,6 +273,8 @@ class ViewModel
   def stable_id?
     false
   end
+
+  def validate!; end
 
   def to_reference
     ViewModel::Reference.new(self.class, (id if stable_id?))
