@@ -48,6 +48,8 @@ module ViewModel::ActiveRecord::Controller
 
       serialize_context.add_includes(deserialize_context.updated_associations)
 
+      view = yield(view) if block_given?
+
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
