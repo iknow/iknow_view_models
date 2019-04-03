@@ -7,8 +7,7 @@ class ViewModel::Record < ViewModel
   # All ViewModel::Records have the same underlying ViewModel attribute: the
   # record model they back on to. We want this to be inherited by subclasses, so
   # we override ViewModel's :_attributes to close over it.
-  attribute :model
-  self.lock_attribute_inheritance
+  attr_accessor :model
 
   require 'view_model/record/attribute_data'
 
@@ -95,23 +94,7 @@ class ViewModel::Record < ViewModel
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
-      ViewModel::Callbacks.wrap_deserialize(viewmodel, deserialize_context: deserialize_context) do |hook_control|
-        if (bad_attrs = view_hash.keys - self.member_names).present?
-          causes = bad_attrs.map do |bad_attr|
-            ViewModel::DeserializationError::UnknownAttribute.new(bad_attr, viewmodel.blame_reference)
-          end
-          raise ViewModel::DeserializationError::Collection.for_errors(causes)
-        end
-
-        _members.each_key do |attr|
-          if view_hash.has_key?(attr)
-            viewmodel.public_send("deserialize_#{attr}", view_hash[attr], references: references, deserialize_context: deserialize_context)
-          end
-        end
-
-        deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
-        viewmodel.validate!
-
+      super do |hook_control|
         final_changes = viewmodel.clear_changes!
 
         if final_changes.changed?
@@ -181,7 +164,7 @@ class ViewModel::Record < ViewModel
       raise ArgumentError.new("'#{model.inspect}' is not an instance of #{model_class.name}")
     end
 
-    super(model)
+    self.model = model
 
     @new_model          = false
     @changed_attributes = []
