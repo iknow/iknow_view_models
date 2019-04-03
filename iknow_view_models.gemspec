@@ -20,8 +20,8 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activerecord", "~> 5.0"
-  spec.add_dependency "activesupport", "~> 5.0"
+  spec.add_dependency "activerecord", ">= 5.0"
+  spec.add_dependency "activesupport", ">= 5.0"
 
   spec.add_dependency "acts_as_manual_list"
   spec.add_dependency "deep_preloader"

@@ -8,8 +8,8 @@ rvm:
   - 2.6
 
 gemfile:
-  - gemfiles/rails_5_1.gemfile
   - gemfiles/rails_5_2.gemfile
+  - gemfiles/rails_6_0_beta.gemfile
 
 addons:
   postgresql: "10"
