@@ -70,7 +70,7 @@ class ViewModel::ActiveRecord::Cloner
       end
 
       new_association = new_model.association(reflection.name)
-      new_association.replace(new_associated)
+      new_association.writer(new_associated)
     end
 
     if end_visit && respond_to?(end_visit, true)

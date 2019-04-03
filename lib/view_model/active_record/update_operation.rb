@@ -73,7 +73,7 @@ class ViewModel::ActiveRecord
           if reparent_to.present?
             debug "-> #{debug_name}: Updating parent pointer to '#{reparent_to.viewmodel.class.view_name}:#{reparent_to.viewmodel.id}'"
             association = model.association(reparent_to.association_reflection.name)
-            association.replace(reparent_to.viewmodel.model)
+            association.writer(reparent_to.viewmodel.model)
             debug "<- #{debug_name}: Updated parent pointer"
           end
 
@@ -117,7 +117,7 @@ class ViewModel::ActiveRecord
                 end
                 child_viewmodel.model
               end
-            association.replace(new_target)
+            association.writer(new_target)
             debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
           end
 
@@ -332,7 +332,7 @@ class ViewModel::ActiveRecord
       if previous_child_viewmodel.present?
         # Clear the cached association so that AR's save behaviour doesn't
         # conflict with our explicit parent updates.  If we still have a child
-        # after the update, we'll either call `Association#replace` or manually
+        # after the update, we'll either call `Association#writer` or manually
         # fix the target cache after recursing in run!(). If we don't, we promise
         # that the child will no longer be attached in the database, so the new
         # cached data of nil will be correct.
