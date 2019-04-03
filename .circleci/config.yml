@@ -24,19 +24,27 @@ jobs:
           name: Which bundler?
           command: bundle -v
 
+      - run:
+          name: Create gem cache key
+          command: cat Gemfile ./gemfiles/*.gemfile > /tmp/gemfiles
+
       # Restore bundle cache
       - restore_cache:
           keys:
-            - iknow_viewmodels-{{ checksum "Gemfile" }}
+            - iknow_viewmodels-{{ checksum "/tmp/gemfiles" }}
             - iknow_viewmodels-
 
       - run:
           name: Bundle Install
           command: bundle check || bundle install
 
+      - run:
+          name: Appraisal Install
+          command: bundle exec appraisal install
+
       # Store bundle cache
       - save_cache:
-          key: iknow_viewmodels-{{ checksum "Gemfile" }}
+          key: iknow_viewmodels-{{ checksum "/tmp/gemfiles" }}
           paths:
             - vendor/bundle
 
@@ -45,8 +53,8 @@ jobs:
           command: dockerize -wait tcp://localhost:5432 -timeout 1m
 
       - run:
-          name: Run minitest
-          command: bundle exec rake test
+          name: Run minitest for each appraisal
+          command: bundle exec appraisal rake test
 
       - store_test_results:
           path: test/reports
