@@ -1,0 +1,52 @@
+version: 2
+jobs:
+  build:
+    parallelism: 1
+    docker:
+      - image: circleci/ruby:2.5.5
+        environment:
+          BUNDLE_JOBS: 3
+          BUNDLE_RETRY: 3
+          BUNDLE_PATH: vendor/bundle
+          PGHOST: 127.0.0.1
+          PGUSER: eikaiwa
+          RAILS_ENV: test
+      - image: circleci/postgres:11-alpine
+        environment:
+          POSTGRES_USER: eikaiwa
+          POSTGRES_DB: iknow_view_models
+          POSTGRES_PASSWORD: ""
+    steps:
+      - checkout
+
+      # Which version of bundler?
+      - run:
+          name: Which bundler?
+          command: bundle -v
+
+      # Restore bundle cache
+      - restore_cache:
+          keys:
+            - iknow_viewmodels-{{ checksum "Gemfile" }}
+            - iknow_viewmodels-
+
+      - run:
+          name: Bundle Install
+          command: bundle check || bundle install
+
+      # Store bundle cache
+      - save_cache:
+          key: iknow_viewmodels-{{ checksum "Gemfile" }}
+          paths:
+            - vendor/bundle
+
+      - run:
+          name: Wait for DB
+          command: dockerize -wait tcp://localhost:5432 -timeout 1m
+
+      - run:
+          name: Run minitest
+          command: bundle exec rake test
+
+      - store_test_results:
+          path: test/reports
