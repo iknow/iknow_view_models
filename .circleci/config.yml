@@ -1,17 +1,21 @@
 version: 2
+
 jobs:
-  build:
+  "rails-5-2": &job
     parallelism: 1
-    docker:
-      - image: circleci/ruby:2.5.5
-        environment:
+    docker: &job_docker
+      - &job_docker_ruby
+        image: circleci/ruby:2.5.5
+        environment: &job_docker_ruby_env
           BUNDLE_JOBS: 3
           BUNDLE_RETRY: 3
           BUNDLE_PATH: vendor/bundle
           PGHOST: 127.0.0.1
           PGUSER: eikaiwa
           RAILS_ENV: test
-      - image: circleci/postgres:11-alpine
+          BUNDLE_GEMFILE: gemfiles/rails_5_2.gemfile
+      - &job_docker_postgres
+        image: circleci/postgres:11-alpine
         environment:
           POSTGRES_USER: eikaiwa
           POSTGRES_DB: iknow_view_models
@@ -19,32 +23,26 @@ jobs:
     steps:
       - checkout
 
-      # Which version of bundler?
       - run:
-          name: Which bundler?
-          command: bundle -v
+          # Remove the non-appraisal gemfile for safety: we never want to use it.
+          name: Prepare bundler
+          command: bundle -v && rm Gemfile
 
       - run:
           name: Compute a gemfile lock
-          command: bundle lock
+          command: bundle lock && cp "${BUNDLE_GEMFILE}.lock" /tmp/gem-lock
 
-      # Restore bundle cache
       - restore_cache:
           keys:
-            - iknow_viewmodels-{{ checksum "Gemfile.lock" }}
+            - iknow_viewmodels-{{ checksum "/tmp/gem-lock" }}
             - iknow_viewmodels-
 
       - run:
           name: Bundle Install
           command: bundle check || bundle install
 
-      - run:
-          name: Appraisal Install
-          command: bundle exec appraisal install
-
-      # Store bundle cache
       - save_cache:
-          key: iknow_viewmodels-{{ checksum "Gemfile.lock" }}
+          key: iknow_viewmodels-{{ checksum "/tmp/gem-lock" }}
           paths:
             - vendor/bundle
 
@@ -53,8 +51,24 @@ jobs:
           command: dockerize -wait tcp://localhost:5432 -timeout 1m
 
       - run:
-          name: Run minitest for each appraisal
-          command: bundle exec appraisal rake test
+          name: Run minitest
+          command: bundle exec rake test
 
       - store_test_results:
           path: test/reports
+
+  "rails-6-0-beta":
+    <<: *job
+    docker:
+      - <<: *job_docker_ruby
+        environment:
+          <<: *job_docker_ruby_env
+          BUNDLE_GEMFILE: gemfiles/rails_6_0_beta.gemfile
+      - *job_docker_postgres
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - "rails-5-2"
+      - "rails-6-0-beta"
