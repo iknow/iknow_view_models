@@ -5,7 +5,7 @@ jobs:
     parallelism: 1
     docker: &job_docker
       - &job_docker_ruby
-        image: circleci/ruby:2.5.5
+        image: circleci/ruby:2.6
         environment: &job_docker_ruby_env
           BUNDLE_JOBS: 3
           BUNDLE_RETRY: 3
