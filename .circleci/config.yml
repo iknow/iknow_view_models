@@ -25,13 +25,13 @@ jobs:
           command: bundle -v
 
       - run:
-          name: Create gem cache key
-          command: cat Gemfile ./gemfiles/*.gemfile > /tmp/gemfiles
+          name: Compute a gemfile lock
+          command: bundle lock
 
       # Restore bundle cache
       - restore_cache:
           keys:
-            - iknow_viewmodels-{{ checksum "/tmp/gemfiles" }}
+            - iknow_viewmodels-{{ checksum "Gemfile.lock" }}
             - iknow_viewmodels-
 
       - run:
@@ -44,7 +44,7 @@ jobs:
 
       # Store bundle cache
       - save_cache:
-          key: iknow_viewmodels-{{ checksum "/tmp/gemfiles" }}
+          key: iknow_viewmodels-{{ checksum "Gemfile.lock" }}
           paths:
             - vendor/bundle
 
