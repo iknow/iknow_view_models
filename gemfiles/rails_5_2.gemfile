@@ -2,6 +2,7 @@
 
 source "https://rubygems.org"
 
+gem "minitest-ci"
 gem "activerecord", "~> 5.2.0"
 gem "activesupport", "~> 5.2.0"
 gem "acts_as_manual_list", git: "https://github.com/iknow/acts_as_manual_list", branch: "master"

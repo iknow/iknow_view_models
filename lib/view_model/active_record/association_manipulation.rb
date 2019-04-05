@@ -8,7 +8,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     direct_reflection = association_data.direct_reflection
 
     association = self.model.association(direct_reflection.name)
-    association_scope = association.association_scope
+    association_scope = association.scope
 
     if association_data.through?
       raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
@@ -226,7 +226,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
         deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, self)
 
         association = self.model.association(direct_reflection.name)
-        association_scope = association.association_scope
+        association_scope = association.scope
 
         if association_data.through?
           raise ArgumentError.new('Polymorphic through relationships not supported yet') if association_data.polymorphic?
@@ -312,7 +312,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
     existing_indirect_associates = indirect_update_data.map { |upd| upd.id unless upd.new? }.compact
 
-    direct_association_scope = model.association(association_data.direct_reflection.name).association_scope
+    direct_association_scope = model.association(association_data.direct_reflection.name).scope
 
     existing_direct_ids = direct_association_scope
                             .where(indirect_reflection.foreign_key => existing_indirect_associates)
@@ -346,7 +346,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   # TODO: this functionality could reasonably be extracted into `acts_as_manual_list`.
   def select_append_positions(association_data, position_attr, append_count, before:, after:)
     direct_reflection = association_data.direct_reflection
-    association_scope = model.association(direct_reflection.name).association_scope
+    association_scope = model.association(direct_reflection.name).scope
 
     search_key =
       if association_data.through?
