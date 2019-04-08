@@ -87,7 +87,7 @@ jobs:
            name: Publish to Rubygems
            command: |
              gem build iknow_view_models.gemspec
-             gem push "iknow_view_models-*.gem"
+             gem push iknow_view_models-*.gem
 
 workflows:
   version: 2.1
