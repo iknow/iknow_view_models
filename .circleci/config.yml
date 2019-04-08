@@ -1,25 +1,41 @@
-version: 2
+version: 2.1
 
-jobs:
-  "rails-5-2": &job
-    parallelism: 1
-    docker: &job_docker
-      - &job_docker_ruby
-        image: circleci/ruby:2.6
-        environment: &job_docker_ruby_env
+executors:
+  ruby-pg:
+    parameters:
+      ruby-version:
+        type: string
+        default: "2.6"
+      pg-version:
+        type: string
+        default: "11"
+      gemfile:
+        type: string
+        default: "Gemfile"
+    environment:
+      PGHOST: 127.0.0.1
+      PGUSER: eikaiwa
+    docker:
+      - image: circleci/ruby:<< parameters.ruby-version >>
+        environment:
           BUNDLE_JOBS: 3
           BUNDLE_RETRY: 3
           BUNDLE_PATH: vendor/bundle
-          PGHOST: 127.0.0.1
-          PGUSER: eikaiwa
           RAILS_ENV: test
-          BUNDLE_GEMFILE: gemfiles/rails_5_2.gemfile
-      - &job_docker_postgres
-        image: circleci/postgres:11-alpine
+          BUNDLE_GEMFILE: << parameters.gemfile >>
+      - image: circleci/postgres:<< parameters.pg-version >>-alpine
         environment:
           POSTGRES_USER: eikaiwa
           POSTGRES_DB: iknow_view_models
           POSTGRES_PASSWORD: ""
+
+jobs:
+  test:
+    parameters:
+      ex:
+        type: executor
+    executor: << parameters.ex >>
+    parallelism: 1
     steps:
       - checkout
 
@@ -57,18 +73,43 @@ jobs:
       - store_test_results:
           path: test/reports
 
-  "rails-6-0-beta":
-    <<: *job
-    docker:
-      - <<: *job_docker_ruby
-        environment:
-          <<: *job_docker_ruby_env
-          BUNDLE_GEMFILE: gemfiles/rails_6_0_beta.gemfile
-      - *job_docker_postgres
+  publish:
+    executor: ruby-pg
+    steps:
+       - checkout
+       - run:
+           name: Setup Rubygems
+           command: |
+             mkdir ~/.gem &&
+             echo -e "---\r\n:rubygems_api_key: $RUBYGEMS_API_KEY" > ~/.gem/credentials &&
+             chmod 0600 ~/.gem/credentials
+       - run:
+           name: Publish to Rubygems
+           command: |
+             gem build iknow_view_models.gemspec
+             gem push "iknow_view_models-*.gem"
 
 workflows:
-  version: 2
+  version: 2.1
   build:
     jobs:
-      - "rails-5-2"
-      - "rails-6-0-beta"
+      - test:
+          name: 'ruby 2.6 rails 5.2 pg 11'
+          ex:
+            name: ruby-pg
+            ruby-version: "2.6"
+            pg-version: "11"
+            gemfile: gemfiles/rails_5_2.gemfile
+      - test:
+          name: 'ruby 2.6 rails 6.0 pg 11'
+          ex:
+            name: ruby-pg
+            ruby-version: "2.6"
+            pg-version: "11"
+            gemfile: gemfiles/rails_6_0_beta.gemfile
+      - publish:
+          filters:
+            branches:
+              only: master
+            tags:
+              ignore: /.*/
