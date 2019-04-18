@@ -26,7 +26,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "acts_as_manual_list"
   spec.add_dependency "deep_preloader"
   spec.add_dependency "iknow_cache"
-  spec.add_dependency "iknow_params"
+  spec.add_dependency "iknow_params", "~> 2.2.0"
   spec.add_dependency "safe_values"
   spec.add_dependency "keyword_builder"
 
