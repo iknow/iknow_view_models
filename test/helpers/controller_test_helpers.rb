@@ -198,11 +198,14 @@ class DummyController
 end
 
 # Provide dummy Rails env
-module Rails
-  def self.env
+module RailsDummyEnv
+  def env
     'production'
   end
 end
+
+module Rails; end
+Rails.singleton_class.prepend(RailsDummyEnv)
 
 module ActionController
   class Parameters
