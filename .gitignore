@@ -5,6 +5,8 @@
 .yardoc
 .byebug_history
 Gemfile.lock
+nix/gem/Gemfile
+nix/gem/gemset.nix
 InstalledFiles
 _yardoc
 coverage
