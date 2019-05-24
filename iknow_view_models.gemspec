@@ -35,6 +35,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "json_schema"
   spec.add_dependency "lazily"
   spec.add_dependency "renum"
+  spec.add_dependency "oj"
 
   spec.add_development_dependency "appraisal"
   spec.add_development_dependency "bundler"

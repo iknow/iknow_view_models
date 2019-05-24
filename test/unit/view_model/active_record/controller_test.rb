@@ -557,5 +557,4 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
   end
-
 end
