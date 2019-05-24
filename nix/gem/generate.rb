@@ -24,6 +24,10 @@ sources = [URI('https://rubygems.org/')] | gems.map(&:source).flat_map(&:remotes
 
 FileUtils.mkdir_p 'nix/gem'
 Dir.chdir 'nix/gem' do
+  ['Gemfile', 'Gemfile.lock', 'gemset.nix'].each do |f|
+    File.delete(f) if File.exist?(f)
+  end
+
   File.open('Gemfile', 'w') do |gemfile|
     sources.each { |source| gemfile.puts "source #{source.to_s.inspect}" }
     gemfile.puts
