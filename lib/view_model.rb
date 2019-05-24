@@ -155,6 +155,17 @@ class ViewModel
       Jbuilder.new { |json| serialize(viewmodel, json, serialize_context: serialize_context) }.attributes!
     end
 
+    def encode_json(value)
+      # Jbuilder#encode no longer uses MultiJson, but instead calls `.to_json`. In
+      # the context of ActiveSupport, we don't want this, because AS replaces the
+      # .to_json interface with its own .as_json, which demands that everything is
+      # reduced to a Hash before it can be JSON encoded. Using this is not only
+      # slightly more expensive in terms of allocations, but also defeats the
+      # purpose of our precompiled `CompiledJson` terminals. Instead serialize
+      # using OJ with options equivalent to those used by MultiJson.
+      Oj.dump(value, mode: :compat, time_format: :ruby, use_to_json: true)
+    end
+
     # Rebuild this viewmodel from a serialized hash.
     def deserialize_from_view(hash_data, references: {}, deserialize_context: new_deserialize_context)
       viewmodel = self.new
@@ -239,6 +250,10 @@ class ViewModel
 
   def to_hash(serialize_context: self.class.new_serialize_context)
     Jbuilder.new { |json| serialize(json, serialize_context: serialize_context) }.attributes!
+  end
+
+  def to_json(serialize_context: self.class.new_serialize_context)
+    ViewModel.encode_json(self.to_hash(serialize_context: serialize_context))
   end
 
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.

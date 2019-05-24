@@ -110,14 +110,7 @@ module ViewModel::Controller
       yield json
     end
 
-    # Jbuilder#encode no longer uses MultiJson, but instead calls `.to_json`. In
-    # the context of ActiveSupport, we don't want this, because AS replaces the
-    # .to_json interface with its own .as_json, which demands that everything is
-    # reduced to a Hash before it can be JSON encoded. Using this is not only
-    # slightly more expensive in terms of allocations, but also defeats the
-    # purpose of our precompiled `CompiledJson` terminals. Instead serialize
-    # using OJ with options equivalent to those used by MultiJson.
-    Oj.dump(builder.attributes!, mode: :compat, time_format: :ruby, use_to_json: true)
+    ViewModel.encode_json(builder.attributes!)
   end
 
   def render_jbuilder(status:)
