@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-require "view_model"
+require 'view_model'
+require 'oj'
 
 module ViewModel::Controller
   extend ActiveSupport::Concern
@@ -18,7 +19,7 @@ module ViewModel::Controller
 
   # Render viewmodel(s) to a JSON API response as a String
   def prerender_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
-    Jbuilder.encode do |json|
+    encode_jbuilder do |json|
       json.data do
         ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
       end
@@ -45,7 +46,7 @@ module ViewModel::Controller
     json_view = wrap_json_view(json_view)
     json_references = wrap_json_view(json_references)
 
-    Jbuilder.encode do |json|
+    encode_jbuilder do |json|
       json.data json_view
       if json_references.present?
         json.references do
@@ -104,8 +105,23 @@ module ViewModel::Controller
     end
   end
 
+  def encode_jbuilder
+    builder = Jbuilder.new do |json|
+      yield json
+    end
+
+    # Jbuilder#encode no longer uses MultiJson, but instead calls `.to_json`. In
+    # the context of ActiveSupport, we don't want this, because AS replaces the
+    # .to_json interface with its own .as_json, which demands that everything is
+    # reduced to a Hash before it can be JSON encoded. Using this is not only
+    # slightly more expensive in terms of allocations, but also defeats the
+    # purpose of our precompiled `CompiledJson` terminals. Instead serialize
+    # using OJ with options equivalent to those used by MultiJson.
+    Oj.dump(builder.attributes!, mode: :compat, time_format: :ruby, use_to_json: true)
+  end
+
   def render_jbuilder(status:)
-    response = Jbuilder.encode do |json|
+    response = encode_jbuilder do |json|
       yield json
     end
 
