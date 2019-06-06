@@ -68,7 +68,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
   end
 
   def owner_viewmodel_id(required: true)
-    id_param_name = owner_viewmodel.view_name.downcase + '_id'
+    id_param_name = owner_viewmodel.view_name.underscore + '_id'
     default = required ? {} : { default: nil }
     parse_param(id_param_name, **default)
   end
