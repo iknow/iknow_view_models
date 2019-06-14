@@ -127,7 +127,7 @@ class ViewModel::ActiveRecord
 
           # Save if the model has been altered. Covers not only models with
           # view changes but also lock version assertions.
-          if viewmodel.model.changed?
+          if viewmodel.model.changed? || viewmodel.model.new_record?
             debug "-> #{debug_name}: Saving"
             begin
               model.save!

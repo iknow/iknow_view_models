@@ -92,6 +92,12 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     assert_equal("p", p.name)
   end
 
+  def test_create_from_empty_view
+    view = TrivialView.deserialize_from_view({ '_type' => 'Trivial' })
+    model = view.model
+    assert(!model.new_record?)
+  end
+
   def test_create_from_view_with_explicit_id
     view = {
       "_type" => "Parent",
@@ -160,10 +166,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_editability_checks_create_on_empty_record
     context = ViewModelBase.new_deserialize_context
-    TrivialView.deserialize_from_view({'_type' => 'Trivial' },
-                                      deserialize_context: context)
+    view = TrivialView.deserialize_from_view({'_type' => 'Trivial' },
+                                             deserialize_context: context)
 
-    ref = ViewModel::Reference.new(TrivialView, nil)
+    ref = view.to_reference
     assert_equal([ref], context.valid_edit_refs)
 
     changes = context.valid_edit_changes(ref)
