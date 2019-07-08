@@ -1,5 +1,6 @@
 require_relative "../../../helpers/arvm_test_utilities.rb"
 require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/viewmodel_spec_helpers.rb'
 
 require "minitest/autorun"
 
@@ -7,122 +8,57 @@ require "view_model/active_record"
 
 class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   include ARVMTestUtilities
-
-  module WithLabel
-    def before_all
-      super
-
-      build_viewmodel(:Label) do
-        define_schema do |t|
-          t.string :text
-        end
-
-        define_model do
-          has_one :parent, inverse_of: :label
-        end
-
-        define_viewmodel do
-          attributes :text
-        end
-      end
-    end
-  end
-
-  module WithParent
-    def before_all
-      super
-
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-          t.references :label, foreign_key: true
-        end
-
-        define_model do
-          belongs_to :label, inverse_of: :parent, dependent: :destroy
-        end
-
-        define_viewmodel do
-          attributes   :name
-          associations :label
-        end
-      end
-    end
-  end
-
-  module WithOwner
-    def before_all
-      super
-
-      build_viewmodel(:Owner) do
-        define_schema do |t|
-          t.integer :deleted_id
-          t.integer :ignored_id
-        end
-
-        define_model do
-          belongs_to :deleted, class_name: Label.name, dependent: :delete
-          belongs_to :ignored, class_name: Label.name
-        end
-
-        define_viewmodel do
-          associations :deleted, :ignored
-        end
-      end
-    end
-  end
-
-  include WithLabel
-  include WithParent
+  extend Minitest::Spec::DSL
+  include ViewModelSpecHelpers::ParentAndBelongsToChild
 
   def setup
     super
 
     # TODO make a `has_list?` that allows a parent to set all children as an array
-    @parent1 = Parent.new(name: "p1",
-                          label: Label.new(text: "p1l"))
-    @parent1.save!
+    @model1 = model_class.new(name: "p1",
+                              child: child_model_class.new(name: "p1l"))
+    @model1.save!
 
-    @parent2 = Parent.new(name: "p2",
-                          label: Label.new(text: "p2l"))
+    @model2 = model_class.new(name: "p2",
+                              child: child_model_class.new(name: "p2l"))
 
-    @parent2.save!
+    @model2.save!
 
     enable_logging!
   end
 
   def test_serialize_view
-    view, _refs = serialize_with_references(ParentView.new(@parent1))
+    view, _refs = serialize_with_references(ModelView.new(@model1))
 
-    assert_equal({ "_type"    => "Parent",
+    assert_equal({ "_type"    => "Model",
                    "_version" => 1,
-                   "id"       => @parent1.id,
-                   "name"     => @parent1.name,
-                   "label"    => { "_type"    => "Label",
+                   "id"       => @model1.id,
+                   "name"     => @model1.name,
+                   "child"    => { "_type"    => "Child",
                                    "_version" => 1,
-                                   "id"       => @parent1.label.id,
-                                   "text"     => @parent1.label.text },
+                                   "id"       => @model1.child.id,
+                                   "name"     => @model1.child.name },
                  },
                  view)
   end
 
   def test_loading_batching
     log_queries do
-      serialize(ParentView.load)
+      serialize(ModelView.load)
     end
 
-    assert_equal(['Parent Load', 'Label Load'],
+    assert_equal(['Model Load', 'Child Load'],
                  logged_load_queries)
   end
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
+      "_type"    => "Model",
       "name"     => "p",
-      "label"    => { "_type" => "Label", "text" => "l" },
+      "child"    => { "_type" => "Child", "name" => "l" },
     }
 
-    pv = ParentView.deserialize_from_view(view)
+    pv = ModelView.deserialize_from_view(view)
     p = pv.model
 
     assert(!p.changed?)
@@ -130,185 +66,181 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
     assert_equal("p", p.name)
 
-    assert(p.label.present?)
-    assert_equal("l", p.label.text)
+    assert(p.child.present?)
+    assert_equal("l", p.child.name)
   end
 
   def test_create_belongs_to_nil
-    view = { '_type' => 'Parent', 'name' => 'p', 'label' => nil }
-    pv = ParentView.deserialize_from_view(view)
-    assert_nil(pv.model.label)
+    view = { '_type' => 'Model', 'name' => 'p', 'child' => nil }
+    pv = ModelView.deserialize_from_view(view)
+    assert_nil(pv.model.child)
   end
 
   def test_create_invalid_child_type
-    view = { '_type' => 'Parent', 'name' => 'p', 'label' => { '_type' => 'Parent', 'name' => 'q' } }
+    view = { '_type' => 'Model', 'name' => 'p', 'child' => { '_type' => 'Model', 'name' => 'q' } }
     assert_raises(ViewModel::DeserializationError::InvalidAssociationType) do
-      ParentView.deserialize_from_view(view)
+      ModelView.deserialize_from_view(view)
     end
   end
 
   def test_belongs_to_create
-    @parent1.update(label: nil)
+    @model1.update(child: nil)
 
-    alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+    alter_by_view!(ModelView, @model1) do |view, refs|
+      view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
-    assert_equal('cheese', @parent1.label.text)
+    assert_equal('cheese', @model1.child.name)
   end
 
   def test_belongs_to_replace
-    old_label = @parent1.label
+    old_child = @model1.child
 
-    alter_by_view!(ParentView, @parent1) do |view, refs|
-      view['label'] = { '_type' => 'Label', 'text' => 'cheese' }
+    alter_by_view!(ModelView, @model1) do |view, refs|
+      view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
-    assert_equal('cheese', @parent1.label.text)
-    assert(Label.where(id: old_label).blank?)
+    assert_equal('cheese', @model1.child.name)
+    assert(Child.where(id: old_child).blank?)
   end
 
   def test_belongs_to_move_and_replace
-    old_p1_label = @parent1.label
-    old_p2_label = @parent2.label
+    old_p1_child = @model1.child
+    old_p2_child = @model2.child
 
-    set_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
-      p1['label'] = nil
-      p2['label'] = update_hash_for(LabelView, old_p1_label)
+    set_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+      p1['child'] = nil
+      p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
 
-    assert(@parent1.label.blank?, 'l1 label reference removed')
-    assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
-    assert(Label.where(id: old_p2_label).blank?, 'p2 old label deleted')
+    assert(@model1.child.blank?, 'l1 child reference removed')
+    assert_equal(old_p1_child, @model2.child, 'p2 has child from p1')
+    assert(Child.where(id: old_p2_child).blank?, 'p2 old child deleted')
   end
 
   def test_belongs_to_swap
-    old_p1_label = @parent1.label
-    old_p2_label = @parent2.label
+    old_p1_child = @model1.child
+    old_p2_child = @model2.child
 
-    alter_by_view!(ParentView, [@parent1, @parent2]) do |(p1, p2), refs|
-      p1['label'] = update_hash_for(LabelView, old_p2_label)
-      p2['label'] = update_hash_for(LabelView, old_p1_label)
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+      p1['child'] = update_hash_for(ChildView, old_p2_child)
+      p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
 
-    assert_equal(old_p2_label, @parent1.label, 'p1 has label from p2')
-    assert_equal(old_p1_label, @parent2.label, 'p2 has label from p1')
+    assert_equal(old_p2_child, @model1.child, 'p1 has child from p2')
+    assert_equal(old_p1_child, @model2.child, 'p2 has child from p1')
   end
 
   def test_moved_child_is_not_delete_checked
     # move from p1 to p3
-    d_context = ParentView.new_deserialize_context
+    d_context = ModelView.new_deserialize_context
 
-    target_label = Label.create
-    from_parent  = Parent.create(name: 'from', label: target_label)
-    to_parent    = Parent.create(name: 'p3')
+    target_child = Child.create
+    from_model  = Model.create(name: 'from', child: target_child)
+    to_model    = Model.create(name: 'p3')
 
     alter_by_view!(
-      ParentView, [from_parent, to_parent],
+      ModelView, [from_model, to_model],
       deserialize_context: d_context
     ) do |(from, to), refs|
-      from['label'] = nil
-      to['label']   = update_hash_for(LabelView, target_label)
+      from['child'] = nil
+      to['child']   = update_hash_for(ChildView, target_child)
     end
 
-    assert_equal(target_label, to_parent.label, 'target label moved')
-    assert_equal([ViewModel::Reference.new(ParentView, from_parent.id),
-                  ViewModel::Reference.new(ParentView, to_parent.id)],
+    assert_equal(target_child, to_model.child, 'target child moved')
+    assert_equal([ViewModel::Reference.new(ModelView, from_model.id),
+                  ViewModel::Reference.new(ModelView, to_model.id)],
                  d_context.valid_edit_refs,
-                 "only parents are checked for change; child was not")
+                 "only models are checked for change; child was not")
   end
 
   def test_implicit_release_invalid_belongs_to
-    taken_label_ref = update_hash_for(LabelView, @parent1.label)
+    taken_child_ref = update_hash_for(ChildView, @model1.child)
     assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-      ParentView.deserialize_from_view(
-        [{ '_type' => 'Parent',
+      ModelView.deserialize_from_view(
+        [{ '_type' => 'Model',
            'name'  => 'newp',
-           'label' => taken_label_ref }])
+           'child' => taken_child_ref }])
     end
   end
 
   class GCTests < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include WithLabel
-    include WithOwner
-    include WithParent
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+
+    def model_attributes
+      super.merge(
+        schema: ->(t) do
+          t.integer :deleted_child_id
+          t.integer :ignored_child_id
+        end,
+        model: ->(m) do
+          belongs_to :deleted_child, class_name: Child.name, dependent: :delete
+          belongs_to :ignored_child, class_name: Child.name
+        end,
+        viewmodel: ->(v) do
+          associations :deleted_child, :ignored_child
+        end)
+    end
 
     # test belongs_to garbage collection - dependent: delete_all
     def test_gc_dependent_delete_all
-      owner = Owner.create(deleted: Label.new(text: 'one'))
-      old_label = owner.deleted
+      model = model_class.create(deleted_child: Child.new(name: 'one'))
+      old_child = model.deleted_child
 
-      alter_by_view!(OwnerView, owner) do |ov, refs|
-        ov['deleted'] = { '_type' => 'Label', 'text' => 'two' }
+      alter_by_view!(ModelView, model) do |ov, _refs|
+        ov['deleted_child'] = { '_type' => 'Child', 'name' => 'two' }
       end
 
-      assert_equal('two', owner.deleted.text)
-      refute_equal(old_label, owner.deleted)
-      assert(Label.where(id: old_label.id).blank?)
+      assert_equal('two', model.deleted_child.name)
+      refute_equal(old_child, model.deleted_child)
+      assert(Child.where(id: old_child.id).blank?)
     end
 
     def test_no_gc_dependent_ignore
-      owner = Owner.create(ignored: Label.new(text: "one"))
-      old_label = owner.ignored
+      model = model_class.create(ignored_child: Child.new(name: "one"))
+      old_child = model.ignored_child
 
-      alter_by_view!(OwnerView, owner) do |ov, refs|
-        ov['ignored'] = { '_type' => 'Label', 'text' => 'two' }
+      alter_by_view!(ModelView, model) do |ov, _refs|
+        ov['ignored_child'] = { '_type' => 'Child', 'name' => 'two' }
       end
-      assert_equal('two', owner.ignored.text)
-      refute_equal(old_label, owner.ignored)
-      assert_equal(1, Label.where(id: old_label.id).count)
+      assert_equal('two', model.ignored_child.name)
+      refute_equal(old_child, model.ignored_child)
+      assert_equal(1, Child.where(id: old_child.id).count)
     end
   end
 
   class RenamedTest < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include WithLabel
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
 
-    def before_all
-      super
-
-      build_viewmodel(:Parent) do
-        define_schema do |t|
-          t.string :name
-          t.references :label, foreign_key: true
-        end
-
-        define_model do
-          belongs_to :label, inverse_of: :parent, dependent: :destroy
-        end
-
-        define_viewmodel do
-          attributes :name
-          association :label, as: :something_else
-        end
-      end
+    def subject_association_features
+      { as: :something_else }
     end
 
     def setup
       super
 
-      @parent = Parent.create(name: 'p1', label: Label.new(text: 'l1'))
+      @model = model_class.create(name: 'p1', child: child_model_class.new(name: 'l1'))
 
       enable_logging!
     end
 
     def test_dependencies
-      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => nil }])
-      assert_equal(DeepPreloader::Spec.new('label' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies)
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Model', 'something_else' => nil }])
+      assert_equal(DeepPreloader::Spec.new('child' => DeepPreloader::Spec.new), root_updates.first.preload_dependencies)
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ParentView, @parent) do |view, refs|
-        assert_equal({ 'id'       => @parent.label.id,
-                       '_type'    => 'Label',
+      alter_by_view!(ModelView, @model) do |view, refs|
+        assert_equal({ 'id'       => @model.child.id,
+                       '_type'    => 'Child',
                        '_version' => 1,
-                       'text'     => 'l1' },
+                       'name'     => 'l1' },
                      view['something_else'])
-        view['something_else']['text'] = 'new l1 text'
+        view['something_else']['name'] = 'new l1 name'
       end
-      assert_equal('new l1 text', @parent.label.text)
+      assert_equal('new l1 name', @model.child.name)
     end
   end
 
@@ -353,7 +285,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
 
-    # Do we support replacing a node in the tree and reparenting its children
+    # Do we support replacing a node in the tree and remodeling its children
     # back to it? In theory we want to, but currently we don't: the child node
     # is unresolvable.
 

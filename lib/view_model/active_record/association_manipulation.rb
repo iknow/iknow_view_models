@@ -52,9 +52,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   def replace_associated(association_name, update_hash, references: {}, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
 
-    # TODO: structure checking
-
-    if association_data.through? || association_data.shared?
+    if association_data.referenced?
       is_fupdate =
         association_data.collection? &&
         update_hash.is_a?(Hash) &&
@@ -125,10 +123,6 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
           update_context = ViewModel::ActiveRecord::UpdateContext.build!(root_update_data, referenced_update_data, root_type: direct_viewmodel_class)
 
-          # Provide information about what was updated
-          deserialize_context.updated_associations = root_update_data.map(&:updated_associations)
-                                                       .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
-
           # Set new parent
           new_parent = ViewModel::ActiveRecord::UpdateOperation::ParentData.new(direct_reflection.inverse_of, self)
           update_context.root_updates.each { |update| update.reparent_to = new_parent }
@@ -177,14 +171,25 @@ module ViewModel::ActiveRecord::AssociationManipulation
           child_context = self.context_for_child(association_name, context: deserialize_context)
           updated_viewmodels = update_context.run!(deserialize_context: child_context)
 
+          # Propagate changes and finalize the parent
+          updated_viewmodels.each do |child|
+            child_changes = child.previous_changes
+
+            if association_data.nested?
+              nested_children_changed!     if child_changes.changed_nested_tree?
+              referenced_children_changed! if child_changes.changed_referenced_children?
+            elsif association_data.owned?
+              referenced_children_changed! if child_changes.changed_owned_tree?
+            end
+          end
+
+          final_changes = self.clear_changes!
+
           if association_data.through?
             updated_viewmodels.map! do |direct_vm|
               direct_vm._read_association(association_data.indirect_reflection.name)
             end
           end
-
-          # Finalize the parent
-          final_changes = self.clear_changes!
 
           # Could happen if hooks attempted to change the parent, which aren't
           # valid since we're only editing children here.
@@ -269,7 +274,12 @@ module ViewModel::ActiveRecord::AssociationManipulation
           association.delete(child_vm.model)
         end
 
-        self.children_changed!
+        if association_data.nested?
+          nested_children_changed!
+        elsif association_data.owned?
+          referenced_children_changed!
+        end
+
         final_changes = self.clear_changes!
 
         unless final_changes.contained_to?(associations: [association_name.to_s])
@@ -286,7 +296,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
   private
 
-  def construct_direct_append_updates(association_data, subtree_hashes, references)
+  def construct_direct_append_updates(_association_data, subtree_hashes, references)
     ViewModel::ActiveRecord::UpdateData.parse_hashes(subtree_hashes, references)
   end
 

@@ -198,7 +198,7 @@ class ViewModel::ActiveRecord::Cache
       end
 
       ViewModel.preload_for_serialization(viewmodels,
-                                          include_shared: false,
+                                          include_referenced: false,
                                           lock: "FOR SHARE",
                                           serialize_context: serialize_context)
 
@@ -259,7 +259,7 @@ class ViewModel::ActiveRecord::Cache
   end
 
   def cache_version
-    version_string = @viewmodel_class.deep_schema_version(include_shared: false).to_a.sort.join(',')
+    version_string = @viewmodel_class.deep_schema_version(include_referenced: false).to_a.sort.join(',')
     Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
   end
 end

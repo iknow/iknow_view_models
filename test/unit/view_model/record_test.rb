@@ -204,12 +204,6 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         assert_equal("unknown", ex.attribute)
       end
 
-      it "can prune an attribute" do
-        h = viewmodel_class.new(default_model).to_hash(serialize_context: TestSerializeContext.new(prune: [:simple]))
-        pruned_view = default_view.tap { |v| v.delete("simple") }
-        assert_equal(pruned_view, h)
-      end
-
       it "edit checks when creating empty" do
         vm = viewmodel_class.deserialize_from_view(view_base, deserialize_context: create_context)
         refute(default_model.equal?(vm.model), "returned model was the same")
@@ -377,24 +371,6 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
     end
 
-    describe "with optional attributes" do
-      let(:attributes) { { optional: { optional: true } } }
-
-      include CanDeserializeToNew
-      include CanDeserializeToExisting
-
-      it "can serialize with the optional attribute" do
-        h = viewmodel_class.new(default_model).to_hash(serialize_context: TestSerializeContext.new(include: [:optional]))
-        assert_equal(default_view, h)
-      end
-
-      it "can serialize without the optional attribute" do
-        h = viewmodel_class.new(default_model).to_hash
-        pruned_view = default_view.tap { |v| v.delete("optional") }
-        assert_equal(pruned_view, h)
-      end
-    end
-
     Nested = Struct.new(:member)
 
     class NestedView < TestViewModel
@@ -447,14 +423,6 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
         assert_edited(vm, new: false, changed_attributes: [:nested])
         assert_edited(vm.nested, new: true, changed_attributes: [:member])
-      end
-
-      it "can prune attributes in the nested value" do
-        h = viewmodel_class.new(default_model).to_hash(
-          serialize_context: TestSerializeContext.new(prune: { nested: [:member] }))
-
-        pruned_view = default_view.tap { |v| v["nested"].delete("member") }
-        assert_equal(pruned_view, h)
       end
     end
 

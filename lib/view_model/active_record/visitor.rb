@@ -1,11 +1,12 @@
 # frozen_string_literal: true
 
 class ViewModel::ActiveRecord::Visitor
-  attr_reader :visit_shared, :for_edit
+  attr_reader :visit_referenced, :visit_shared, :for_edit
 
-  def initialize(visit_shared: true, for_edit: false)
-    @visit_shared = visit_shared
-    @for_edit     = for_edit
+  def initialize(visit_referenced: true, visit_shared: true, for_edit: false)
+    @visit_referenced = visit_referenced
+    @visit_shared     = visit_shared
+    @for_edit         = for_edit
   end
 
   def visit(view, context: nil)
@@ -29,8 +30,10 @@ class ViewModel::ActiveRecord::Visitor
       # visit the underlying viewmodel for each association, ignoring any
       # customization
       view.class._members.each do |name, member_data|
-        next unless member_data.is_a?(ViewModel::ActiveRecord::AssociationData)
-        next if member_data.shared? && !visit_shared
+        next unless member_data.association?
+        next if member_data.referenced? && !visit_referenced
+        next if !member_data.owned? && !visit_shared
+
         children = Array.wrap(view._read_association(name))
         children.each do |child|
           if context

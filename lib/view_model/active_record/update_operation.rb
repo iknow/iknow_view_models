@@ -40,10 +40,6 @@ class ViewModel::ActiveRecord
       end
     end
 
-    def deferred?
-      viewmodel.nil?
-    end
-
     def built?
       @built
     end
@@ -112,9 +108,8 @@ class ViewModel::ActiveRecord
               if child_operation
                 child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
                 child_viewmodel = child_operation.run!(deserialize_context: child_ctx)
-                if !association_data.shared? && child_viewmodel.previous_changes.changed_tree?
-                  viewmodel.children_changed!
-                end
+                propagate_tree_changes(association_data, child_viewmodel.previous_changes)
+
                 child_viewmodel.model
               end
             association.writer(new_target)
@@ -153,9 +148,8 @@ class ViewModel::ActiveRecord
               if child_operation
                 ViewModel::Utils.map_one_or_many(child_operation) do |op|
                   child_viewmodel = op.run!(deserialize_context: child_ctx)
-                  if !association_data.shared? && child_viewmodel.previous_changes.changed_tree?
-                    viewmodel.children_changed!
-                  end
+                  propagate_tree_changes(association_data, child_viewmodel.previous_changes)
+
                   child_viewmodel.model
                 end
               end
@@ -183,7 +177,11 @@ class ViewModel::ActiveRecord
                 child_hook_control.record_changes(changes)
               end
 
-              viewmodel.children_changed! unless child_association_data.shared?
+              if child_association_data.nested?
+                viewmodel.nested_children_changed!
+              elsif child_association_data.owned?
+                viewmodel.referenced_children_changed!
+              end
             end
             debug "<- #{debug_name}: Finished checking released children permissions"
           end
@@ -208,9 +206,18 @@ class ViewModel::ActiveRecord
       raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex, blame_reference)
     end
 
+    def propagate_tree_changes(association_data, child_changes)
+      if association_data.nested?
+        viewmodel.nested_children_changed!     if child_changes.changed_nested_tree?
+        viewmodel.referenced_children_changed! if child_changes.changed_referenced_children?
+      elsif association_data.owned?
+        viewmodel.referenced_children_changed! if child_changes.changed_owned_tree?
+      end
+    end
+
     # Recursively builds UpdateOperations for the associations in our UpdateData
     def build!(update_context)
-      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation cannot build a deferred update") if deferred?
+      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation cannot build a deferred update") if viewmodel.nil?
       return self if built?
 
       update_data.associations.each do |association_name, association_update_data|
@@ -231,8 +238,10 @@ class ViewModel::ActiveRecord
         update =
           if association_data.through?
             build_updates_for_collection_referenced_association(association_data, reference_string, update_context)
+          elsif association_data.collection?
+            build_updates_for_collection_association(association_data, reference_string, update_context)
           else
-            build_update_for_single_referenced_association(association_data, reference_string, update_context)
+            build_update_for_single_association(association_data, reference_string, update_context)
           end
 
         add_update(association_data, update)
@@ -253,38 +262,6 @@ class ViewModel::ActiveRecord
     end
 
     private
-
-    def build_update_for_single_referenced_association(association_data, reference_string, update_context)
-      # TODO intern loads for shared items so we only load them once
-      model = self.viewmodel.model
-      previous_child_viewmodel = model.public_send(association_data.direct_reflection.name).try do |previous_child_model|
-        vm_class = association_data.viewmodel_class_for_model!(previous_child_model.class)
-        vm_class.new(previous_child_model)
-      end
-
-      if reference_string.nil?
-        referred_update    = nil
-        referred_viewmodel = nil
-      else
-        referred_update    = update_context.resolve_reference(reference_string, blame_reference)
-        referred_viewmodel = referred_update.viewmodel
-
-        unless association_data.accepts?(referred_viewmodel.class)
-          raise ViewModel::DeserializationError::InvalidAssociationType.new(
-            association_data.association_name.to_s,
-            referred_viewmodel.class.view_name,
-            blame_reference)
-        end
-
-        referred_update.build!(update_context)
-      end
-
-      if previous_child_viewmodel != referred_viewmodel
-        viewmodel.association_changed!(association_data.association_name)
-      end
-
-      referred_update
-    end
 
     # Resolve or construct viewmodels for incoming update data. Where a child
     # hash references an existing model not currently attached to this parent,
@@ -321,6 +298,60 @@ class ViewModel::ActiveRecord
       end
     end
 
+    def resolve_referenced_viewmodels(association_data, update_datas, previous_child_viewmodels, update_context)
+      previous_child_viewmodels = Array.wrap(previous_child_viewmodels).index_by(&:to_reference)
+
+      ViewModel::Utils.map_one_or_many(update_datas) do |update_data|
+        if update_data.is_a?(UpdateData)
+          # Dummy child update data for an unmodified previous child of a
+          # functional update; create it an empty update operation.
+          viewmodel = previous_child_viewmodels.fetch(update_data.viewmodel_reference)
+          update    = update_context.new_update(viewmodel, update_data)
+          next [update, viewmodel]
+        end
+
+        reference_string = update_data
+        child_update     = update_context.resolve_reference(reference_string, blame_reference)
+        child_viewmodel  = child_update.viewmodel
+
+        unless association_data.accepts?(child_viewmodel.class)
+          raise ViewModel::DeserializationError::InvalidAssociationType.new(
+                  association_data.association_name.to_s,
+                  child_viewmodel.class.view_name,
+                  blame_reference)
+        end
+
+        child_ref = child_viewmodel.to_reference
+
+        # The case of two potential owners trying to claim a new referenced
+        # child is covered by set_reference_update_parent.
+        claimed = !association_data.owned? ||
+                  child_update.update_data.new? ||
+                  previous_child_viewmodels.has_key?(child_ref) ||
+                  update_context.try_take_released_viewmodel(child_ref).present?
+
+        if claimed
+          [child_update, child_viewmodel]
+        else
+          # Return the reference to indicate a deferred update
+          [child_update, child_ref]
+        end
+      end
+    end
+
+    def set_reference_update_parent(association_data, update, parent_data)
+      if update.reparent_to
+        # Another parent has already tried to take this (probably new)
+        # owned referenced view. It can only be claimed by one of them.
+        other_parent = update.reparent_to.viewmodel.to_reference
+        raise ViewModel::DeserializationError::DuplicateOwner.new(
+                association_data.association_name,
+                [blame_reference, other_parent])
+      end
+
+      update.reparent_to = parent_data
+    end
+
     def build_update_for_single_association(association_data, association_update_data, update_context)
       model = self.viewmodel.model
 
@@ -329,25 +360,63 @@ class ViewModel::ActiveRecord
         vm_class.new(previous_child_model)
       end
 
-      if previous_child_viewmodel.present?
-        # Clear the cached association so that AR's save behaviour doesn't
-        # conflict with our explicit parent updates.  If we still have a child
-        # after the update, we'll either call `Association#writer` or manually
-        # fix the target cache after recursing in run!(). If we don't, we promise
-        # that the child will no longer be attached in the database, so the new
-        # cached data of nil will be correct.
-        clear_association_cache(model, association_data.direct_reflection)
-      end
-
-      child_viewmodel =
-        if association_update_data.present?
-          resolve_child_viewmodels(association_data, association_update_data, previous_child_viewmodel, update_context)
+      if association_data.pointer_location == :remote
+        if previous_child_viewmodel.present?
+          # Clear the cached association so that AR's save behaviour doesn't
+          # conflict with our explicit parent updates.  If we still have a child
+          # after the update, we'll either call `Association#writer` or manually
+          # fix the target cache after recursing in run!(). If we don't, we promise
+          # that the child will no longer be attached in the database, so the new
+          # cached data of nil will be correct.
+          clear_association_cache(model, association_data.direct_reflection)
         end
 
+        reparent_data =
+          ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
+      end
+
+      if association_update_data.present?
+        if association_data.referenced?
+          # resolve reference string
+          reference_string = association_update_data
+          child_update, child_viewmodel = resolve_referenced_viewmodels(association_data, reference_string,
+                                                                        previous_child_viewmodel, update_context)
+
+          if reparent_data
+            set_reference_update_parent(association_data, child_update, reparent_data)
+          end
+
+          if child_viewmodel.is_a?(ViewModel::Reference)
+            update_context.defer_update(child_viewmodel, child_update)
+          end
+        else
+          # Resolve direct children
+          child_viewmodel =
+            resolve_child_viewmodels(association_data, association_update_data, previous_child_viewmodel, update_context)
+
+          child_update =
+            if child_viewmodel.is_a?(ViewModel::Reference)
+              update_context.new_deferred_update(child_viewmodel, association_update_data, reparent_to: reparent_data)
+            else
+              update_context.new_update(child_viewmodel, association_update_data, reparent_to: reparent_data)
+            end
+        end
+
+        # Build the update if we've claimed it
+        unless child_viewmodel.is_a?(ViewModel::Reference)
+          child_update.build!(update_context)
+        end
+      else
+        child_update = nil
+        child_viewmodel = nil
+      end
+
+      # Handle changes
       if previous_child_viewmodel != child_viewmodel
         viewmodel.association_changed!(association_data.association_name)
-        # free previous child if present
-        if previous_child_viewmodel.present?
+
+        # free previous child if present and owned
+        if previous_child_viewmodel.present? && association_data.owned?
           if association_data.pointer_location == :local
             # When we free a child that's pointed to from its old parent, we need to
             # clear the cached association to that old parent. If we don't do this,
@@ -358,12 +427,7 @@ class ViewModel::ActiveRecord
             # model.association(...).inverse_reflection_for(previous_child_model), but
             # that's private.
 
-            inverse_reflection =
-              if association_data.direct_reflection.polymorphic?
-                association_data.direct_reflection.polymorphic_inverse_of(previous_child_viewmodel.model.class)
-              else
-                association_data.direct_reflection.inverse_of
-              end
+            inverse_reflection = association_data.direct_reflection_inverse(previous_child_viewmodel.model.class)
 
             if inverse_reflection.present?
               clear_association_cache(previous_child_viewmodel.model, inverse_reflection)
@@ -374,25 +438,7 @@ class ViewModel::ActiveRecord
         end
       end
 
-      # Construct and return update for new child viewmodel
-      if child_viewmodel.present?
-        # If the association's pointer is in the child, need to provide it with a
-        # ParentData to update
-        parent_data =
-          if association_data.pointer_location == :remote
-            ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
-          else
-            nil
-          end
-
-        case child_viewmodel
-        when ViewModel::Reference # deferred
-          vm_ref = child_viewmodel
-          update_context.new_deferred_update(vm_ref, association_update_data, reparent_to: parent_data)
-        else
-          update_context.new_update(child_viewmodel, association_update_data, reparent_to: parent_data).build!(update_context)
-        end
-      end
+      child_update
     end
 
     def build_updates_for_collection_association(association_data, association_update, update_context)
@@ -402,11 +448,13 @@ class ViewModel::ActiveRecord
       parent_data = ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
 
       # load children already attached to this model
-      child_viewmodel_class     = association_data.viewmodel_class
+      child_viewmodel_class = association_data.viewmodel_class
+
       previous_child_viewmodels =
         model.public_send(association_data.direct_reflection.name).map do |child_model|
           child_viewmodel_class.new(child_model)
         end
+
       if child_viewmodel_class._list_member?
         previous_child_viewmodels.sort_by!(&:_list_attribute)
       end
@@ -421,113 +469,177 @@ class ViewModel::ActiveRecord
         clear_association_cache(model, association_data.direct_reflection)
       end
 
-      child_datas =
-        case association_update
-        when OwnedCollectionUpdate::Replace
-          association_update.update_datas
+      # Update contents are either UpdateData in the case of a nested
+      # association, or reference strings in the case of a reference association.
+      # The former are resolved with resolve_child_viewmodels, the latter with
+      # resolve_referenced_viewmodels.
+      resolve_child_data_reference = ->(child_data) do
+        case child_data
+        when UpdateData
+          child_data.viewmodel_reference if child_data.id
+        when String
+          update_context.resolve_reference(child_data, nil).viewmodel_reference
+        else
+          raise ViewModel::DeserializationError::Internal.new(
+                  "Unexpected child data type in collection update: #{child_data.class.name}")
+        end
+      end
 
-        when OwnedCollectionUpdate::Functional
-          child_datas =
-            previous_child_viewmodels.map do |previous_child_viewmodel|
-              UpdateData.empty_update_for(previous_child_viewmodel)
-            end
+      case association_update
+      when AbstractCollectionUpdate::Replace
+        child_datas = association_update.contents
 
-          association_update.check_for_duplicates!(update_context, self.viewmodel.blame_reference)
+      when AbstractCollectionUpdate::Functional
+        # A fupdate isn't permitted to edit the same model twice.
+        association_update.check_for_duplicates!(update_context, blame_reference)
 
-          association_update.actions.each do |fupdate|
-            case fupdate
-            when FunctionalUpdate::Append
-              if fupdate.before || fupdate.after
-                moved_refs  = fupdate.contents.map(&:viewmodel_reference).to_set
-                child_datas = child_datas.reject { |child| moved_refs.include?(child.viewmodel_reference) }
-
-                ref         = fupdate.before || fupdate.after
-                index       = child_datas.find_index { |cd| cd.viewmodel_reference == ref }
-                unless index
-                  raise ViewModel::DeserializationError::AssociatedNotFound.new(
-                    association_data.association_name.to_s, ref, blame_reference)
-                end
-
-                index += 1 if fupdate.after
-                child_datas.insert(index, *fupdate.contents)
-
-              else
-                child_datas.concat(fupdate.contents)
-
-              end
-
-            when FunctionalUpdate::Remove
-              removed_refs = fupdate.removed_vm_refs.to_set
-              child_datas.reject! { |child_data| removed_refs.include?(child_data.viewmodel_reference) }
-
-            when FunctionalUpdate::Update
-              # Already guaranteed that each ref has a single data attached
-              new_datas = fupdate.contents.index_by(&:viewmodel_reference)
-
-              child_datas = child_datas.map do |child_data|
-                ref = child_data.viewmodel_reference
-                new_datas.delete(ref) { child_data }
-              end
-
-              # Assertion that all values in update_op.values are present in the collection
-              unless new_datas.empty?
-                raise ViewModel::DeserializationError::AssociatedNotFound.new(
-                  association_data.association_name.to_s, new_datas.keys, blame_reference)
-              end
-            else
-              raise ViewModel::DeserializationError::InvalidSyntax.new(
-                "Unknown functional update type: '#{fupdate.type}'",
-                blame_reference)
-            end
+        # Construct empty updates for previous children
+        child_datas =
+          previous_child_viewmodels.map do |previous_child_viewmodel|
+            UpdateData.empty_update_for(previous_child_viewmodel)
           end
 
-          child_datas
+        # Insert or replace with either real UpdateData or reference strings
+        association_update.actions.each do |fupdate|
+          case fupdate
+          when FunctionalUpdate::Append
+            # If we're referring to existing members, ensure that they're removed before we append/insert
+            existing_refs = fupdate.contents
+                              .map(&resolve_child_data_reference)
+                              .to_set
+
+            child_datas.reject! do |child_data|
+              child_ref = resolve_child_data_reference.(child_data)
+              child_ref && existing_refs.include?(child_ref)
+            end
+
+            if fupdate.before || fupdate.after
+              rel_ref = fupdate.before || fupdate.after
+
+              # Find the relative insert location. This might be an empty
+              # UpdateData from a previous child or an already-fupdated
+              # reference string.
+              index = child_datas.find_index do |child_data|
+                rel_ref == resolve_child_data_reference.(child_data)
+              end
+
+              unless index
+                raise ViewModel::DeserializationError::AssociatedNotFound.new(
+                        association_data.association_name.to_s, rel_ref, blame_reference)
+              end
+
+              index += 1 if fupdate.after
+              child_datas.insert(index, *fupdate.contents)
+
+            else
+              child_datas.concat(fupdate.contents)
+            end
+
+          when FunctionalUpdate::Remove
+            removed_refs = fupdate.removed_vm_refs.to_set
+            child_datas.reject! do |child_data|
+              child_ref = resolve_child_data_reference.(child_data)
+              removed_refs.include?(child_ref)
+            end
+
+          when FunctionalUpdate::Update
+            # Already guaranteed that each ref has a single existing child attached
+            new_child_datas = fupdate.contents.index_by(&resolve_child_data_reference)
+
+            # Replace matched child_datas with the update contents.
+            child_datas.map! do |child_data|
+              child_ref = resolve_child_data_reference.(child_data)
+              new_child_datas.delete(child_ref) { child_data }
+            end
+
+            # Assertion that all values in the update were found in child_datas
+            unless new_child_datas.empty?
+              raise ViewModel::DeserializationError::AssociatedNotFound.new(
+                      association_data.association_name.to_s, new_child_datas.keys, blame_reference)
+            end
+          else
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+                    "Unknown functional update type: '#{fupdate.type}'",
+                    blame_reference)
+          end
+        end
+      end
+
+      if association_data.referenced?
+        # child_datas are either pre-resolved UpdateData (for non-fupdated
+        # existing members) or reference strings. Resolve into pairs of
+        # [UpdateOperation, ViewModel] if we can create or claim the
+        # UpdateOperation or [UpdateOperation, ViewModelReference] otherwise.
+        resolved_children =
+          resolve_referenced_viewmodels(association_data, child_datas, previous_child_viewmodels, update_context)
+
+        resolved_children.each do |child_update, child_viewmodel|
+          set_reference_update_parent(association_data, child_update, parent_data)
+
+          if child_viewmodel.is_a?(ViewModel::Reference)
+            update_context.defer_update(child_viewmodel, child_update)
+          end
         end
 
-      child_viewmodels = resolve_child_viewmodels(association_data, child_datas, previous_child_viewmodels, update_context)
+      else
+        # child datas are all UpdateData
+        child_viewmodels = resolve_child_viewmodels(association_data, child_datas, previous_child_viewmodels, update_context)
 
-      # if the new children differ, including in order, mark that one of our
-      # associations has changed and release any no-longer-attached children
+        resolved_children = child_datas.zip(child_viewmodels).map do |child_data, child_viewmodel|
+          child_update =
+            if child_viewmodel.is_a?(ViewModel::Reference)
+              update_context.new_deferred_update(child_viewmodel, child_data, reparent_to: parent_data)
+            else
+              update_context.new_update(child_viewmodel, child_data, reparent_to: parent_data)
+            end
+
+          [child_update, child_viewmodel]
+        end
+      end
+
+      # Calculate new positions for children if in a list. Ignore previous
+      # positions (i.e. return nil) for unresolved references: they'll always
+      # need to be updated anyway since their parent pointer will change.
+      new_positions = Array.new(resolved_children.length)
+
+      if association_data.viewmodel_class._list_member?
+        set_position = ->(index, pos) { new_positions[index] = pos }
+
+        get_previous_position = ->(index) do
+          vm = resolved_children[index][1]
+          vm._list_attribute unless vm.is_a?(ViewModel::Reference)
+        end
+
+        ActsAsManualList.update_positions(
+          (0...resolved_children.size).to_a, # indexes
+          position_getter: get_previous_position,
+          position_setter: set_position)
+      end
+
+      resolved_children.zip(new_positions).each do |(child_update, child_viewmodel), new_position|
+        child_update.reposition_to = new_position
+
+        # Recurse into building child updates that we've claimed
+        unless child_viewmodel.is_a?(ViewModel::Reference)
+          child_update.build!(update_context)
+        end
+      end
+
+      child_updates, child_viewmodels = resolved_children.transpose.presence || [[], []]
+
+      # if the new children differ, including in order, mark that this
+      # association has changed and release any no-longer-attached children
       if child_viewmodels != previous_child_viewmodels
         viewmodel.association_changed!(association_data.association_name)
+
         released_child_viewmodels = previous_child_viewmodels - child_viewmodels
         released_child_viewmodels.each do |vm|
           release_viewmodel(vm, association_data, update_context)
         end
       end
 
-      # Calculate new positions for children if in a list. Ignore previous
-      # positions for unresolved references: they'll always need to be updated
-      # anyway since their parent pointer will change.
-      new_positions = Array.new(child_viewmodels.length)
-
-      if association_data.viewmodel_class._list_member?
-        set_position = ->(index, pos) { new_positions[index] = pos }
-        get_previous_position = ->(index) do
-          vm = child_viewmodels[index]
-          vm._list_attribute unless vm.is_a?(ViewModel::Reference)
-        end
-
-        ActsAsManualList.update_positions(
-          (0...child_viewmodels.size).to_a, # indexes
-          position_getter: get_previous_position,
-          position_setter: set_position)
-      end
-
-      # Recursively build update operations for children
-      child_updates = child_viewmodels.zip(child_datas, new_positions).map do |child_viewmodel, association_update_data, position|
-        case child_viewmodel
-        when ViewModel::Reference # deferred
-          reference = child_viewmodel
-          update_context.new_deferred_update(reference, association_update_data, reparent_to: parent_data, reposition_to: position)
-        else
-          update_context.new_update(child_viewmodel, association_update_data, reparent_to: parent_data, reposition_to: position).build!(update_context)
-        end
-      end
-
       child_updates
     end
-
 
     class ReferencedCollectionMember
       attr_reader   :indirect_viewmodel_reference, :direct_viewmodel
@@ -694,7 +806,7 @@ class ViewModel::ActiveRecord
       target_collection = MutableReferencedCollection.new(
         association_data, update_context, previous_members, blame_reference)
 
-      # All updates to shared collections produce a complete target list of
+      # All updates to referenced collections produce a complete target list of
       # ReferencedCollectionMembers including a ViewModel::Reference to the
       # indirect child, and an existing (from previous) or new ViewModel for the
       # direct child.

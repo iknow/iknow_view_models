@@ -190,6 +190,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
+          root!
           attribute   :val
           association :tree2
 
@@ -215,7 +216,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         define_viewmodel do
           attribute   :val
-          association :tree1, shared: true, optional: false
+          association :tree1
         end
       end
     end
@@ -447,15 +448,16 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     include ViewModelSpecHelpers::List
     extend Minitest::Spec::DSL
 
-    def assert_changes_match(changes, new, deleted, children, attributes, associations)
+    def assert_changes_match(changes, n: false, d: false, nstc: false, refc: false, att: [], ass: [])
       assert_equal(
         changes,
         ViewModel::Changes.new(
-          new: new,
-          deleted: deleted,
-          changed_children: children,
-          changed_attributes: attributes,
-          changed_associations: associations))
+          new: n,
+          deleted: d,
+          changed_nested_children: nstc,
+          changed_referenced_children: refc,
+          changed_attributes: att,
+          changed_associations: ass))
     end
 
     describe 'with parent and points-to child test models' do
@@ -479,7 +481,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         vm = viewmodel_class.deserialize_from_view(view, deserialize_context: ctx)
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, true, false, false, ['name'], [])
+        assert_changes_match(vm_changes, n: true, att: ['name'])
       end
 
       it 'records a destroyed model' do
@@ -489,7 +491,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         vm.destroy!(deserialize_context: ctx)
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, true, false, [], [])
+        assert_changes_match(vm_changes, d: true)
       end
 
       it 'records a change to an attribute' do
@@ -498,7 +500,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, ['name'], [])
+        assert_changes_match(vm_changes, att: ['name'])
       end
 
       it 'records a new child' do
@@ -507,10 +509,10 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+        assert_changes_match(vm_changes, nstc: true, ass: ['child'])
 
         c_changes = ctx.valid_edit_changes(vm.child.to_reference)
-        assert_changes_match(c_changes, true, false, false, ['name'], [])
+        assert_changes_match(c_changes, n: true, att: ['name'])
       end
 
       it 'records a replaced child' do
@@ -522,14 +524,14 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+        assert_changes_match(vm_changes, nstc: true, ass: ['child'])
 
         c_changes = ctx.valid_edit_changes(vm.child.to_reference)
-        assert_changes_match(c_changes, true, false, false, ['name'], [])
+        assert_changes_match(c_changes, n: true, att: ['name'])
 
         oc_changes = ctx.valid_edit_changes(
           ViewModel::Reference.new(child_viewmodel_class, old_child.id))
-        assert_changes_match(oc_changes, false, true, false, [], [])
+        assert_changes_match(oc_changes, d: true)
       end
 
       it 'records an edited child' do
@@ -542,10 +544,10 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         # The parent node itself wasn't changed, so must not have been
         # valid_edit checked
         refute(ctx.was_edited?(vm.to_reference))
-        assert_changes_match(vm.previous_changes, false, false, true, [], [])
+        assert_changes_match(vm.previous_changes, nstc: true)
 
         c_changes = ctx.valid_edit_changes(vm.child.to_reference)
-        assert_changes_match(c_changes, false, false, false, ['name'], [])
+        assert_changes_match(c_changes, att: ['name'])
       end
 
       it 'records a deleted child' do
@@ -557,11 +559,11 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, true, [], ['child'])
+        assert_changes_match(vm_changes, nstc: true, ass: ['child'])
 
         oc_changes = ctx.valid_edit_changes(
           ViewModel::Reference.new(child_viewmodel_class, old_child.id))
-        assert_changes_match(oc_changes, false, true, false, [], [])
+        assert_changes_match(oc_changes, d: true)
       end
     end
 
@@ -585,7 +587,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, true, [], ['children'])
+        assert_changes_match(vm_changes, nstc: true, ass: ['children'])
 
         new_children, existing_children = vm.children.partition do |c|
           c.name < 'm'
@@ -593,7 +595,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         new_children.each do |c|
           c_changes = ctx.valid_edit_changes(c.to_reference)
-          assert_changes_match(c_changes, true, false, false, ['name'], [])
+          assert_changes_match(c_changes, n: true, att: ['name'])
         end
 
         existing_children.each do |c|
@@ -613,15 +615,15 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         refute(vm.children.include?(replaced_child))
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, true, [], ['children'])
+        assert_changes_match(vm_changes, nstc: true, ass: ['children'])
 
         new_child = vm.children.detect { |c| c.name == 'b' }
         c_changes = ctx.valid_edit_changes(new_child.to_reference)
-        assert_changes_match(c_changes, true, false, false, ['name'], [])
+        assert_changes_match(c_changes, n:true, att: ['name'])
 
         oc_changes = ctx.valid_edit_changes(
           ViewModel::Reference.new(child_viewmodel_class, replaced_child.id))
-        assert_changes_match(oc_changes, false, true, false, [], [])
+        assert_changes_match(oc_changes, d: true)
       end
 
       it 'records reordered children' do
@@ -630,7 +632,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+        assert_changes_match(vm_changes, ass: ['children'])
 
         vm.children.each do |c|
           refute(ctx.was_edited?(c.to_reference))
@@ -639,23 +641,23 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     end
 
     describe 'with parent and shared child test models' do
-      include ViewModelSpecHelpers::ParentAndSharedChild
+      include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 
       def new_model
         model_class.new(name: 'a', child: child_model_class.new(name: 'z'))
       end
 
-      it 'records an change to child without a tree change' do
+      it 'records a change to child without a tree change' do
         vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, refs|
           view['child'] = { '_ref' => 'cref' }
           refs.clear['cref'] = { '_type' => child_view_name, 'name' => 'b' }
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['child'])
+        assert_changes_match(vm_changes, ass: ['child'])
 
         c_changes = ctx.valid_edit_changes(vm.child.to_reference)
-        assert_changes_match(c_changes, true, false, false, ['name'], [])
+        assert_changes_match(c_changes, n: true, att: ['name'])
       end
 
       it 'records an edited child without a tree change' do
@@ -664,10 +666,10 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         refute(ctx.was_edited?(vm.to_reference))
-        assert_changes_match(vm.previous_changes, false, false, false, [], [])
+        assert_changes_match(vm.previous_changes)
 
         c_changes = ctx.valid_edit_changes(vm.child.to_reference)
-        assert_changes_match(c_changes, false, false, false, ['name'], [])
+        assert_changes_match(c_changes, att: ['name'])
       end
 
       it 'records a deleted child' do
@@ -680,9 +682,58 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['child'])
+        assert_changes_match(vm_changes, ass: ['child'])
 
         refute(ctx.was_edited?(old_child.to_reference))
+      end
+    end
+
+    describe 'with parent and owned referenced child test models' do
+      include ViewModelSpecHelpers::ParentAndReferencedHasOneChild
+
+      def new_model
+        model_class.new(name: 'a', child: child_model_class.new(name: 'z'))
+      end
+
+      it 'records a change to child with referenced tree change' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |view, refs|
+          view['child'] = { '_ref' => 'cref' }
+          refs.clear['cref'] = { '_type' => child_view_name, 'name' => 'b' }
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, refc: true, ass: ['child'])
+
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, n: true, att: ['name'])
+      end
+
+      it 'records an edited child with referenced tree change' do
+        vm, ctx = alter_by_view!(viewmodel_class, create_model!) do |_view, refs|
+          refs.values.first.merge!('name' => 'b')
+        end
+
+        refute(ctx.was_edited?(vm.to_reference))
+        assert_changes_match(vm.previous_changes, refc: true)
+
+        c_changes = ctx.valid_edit_changes(vm.child.to_reference)
+        assert_changes_match(c_changes, att: ['name'])
+      end
+
+      it 'records a deleted child' do
+        vm = create_viewmodel!
+        old_child = vm.child
+
+        vm, ctx = alter_by_view!(viewmodel_class, vm.model) do |view, refs|
+          view['child'] = nil
+          refs.clear
+        end
+
+        vm_changes = ctx.valid_edit_changes(vm.to_reference)
+        assert_changes_match(vm_changes, refc: true, ass: ['child'])
+
+        c_changes = ctx.valid_edit_changes(old_child.to_reference)
+        assert_changes_match(c_changes, d: true)
       end
     end
 
@@ -706,7 +757,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+        assert_changes_match(vm_changes, ass: ['children'])
 
         new_children, existing_children = vm.children.partition do |c|
           c.name < 'm'
@@ -714,7 +765,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         new_children.each do |c|
           c_changes = ctx.valid_edit_changes(c.to_reference)
-          assert_changes_match(c_changes, true, false, false, ['name'], [])
+          assert_changes_match(c_changes, n: true, att: ['name'])
         end
 
         existing_children.each do |c|
@@ -734,7 +785,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+        assert_changes_match(vm_changes, ass: ['children'])
 
         new_children, existing_children = vm.children.partition do |c|
           c.name < 'm'
@@ -742,7 +793,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         new_children.each do |c|
           c_changes = ctx.valid_edit_changes(c.to_reference)
-          assert_changes_match(c_changes, true, false, false, ['name'], [])
+          assert_changes_match(c_changes, n: true, att: ['name'])
         end
 
         existing_children.each do |c|
@@ -758,7 +809,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         end
 
         vm_changes = ctx.valid_edit_changes(vm.to_reference)
-        assert_changes_match(vm_changes, false, false, false, [], ['children'])
+        assert_changes_match(vm_changes, ass: ['children'])
 
         vm.children.each do |c|
           refute(ctx.was_edited?(c.to_reference))

@@ -41,7 +41,7 @@ class ViewModel::ActiveRecord
           schema:    ->(t) { t.references :shared, foreign_key: true },
           model:     ->(_) { belongs_to :shared, inverse_of: :models },
           viewmodel: ->(_) {
-            association :shared, shared: true, optional: false
+            association :shared
             cacheable!
           }
         )
@@ -63,6 +63,7 @@ class ViewModel::ActiveRecord
           end
 
           define_viewmodel do
+            root!
             attributes :name
             cacheable!(cache_group: shared_cache_group)
           end
@@ -326,7 +327,7 @@ class ViewModel::ActiveRecord
     end
 
     describe "with a non-cacheable shared child" do
-      include ViewModelSpecHelpers::ParentAndSharedChild
+      include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
       def model_attributes
         super.merge(viewmodel: ->(_) { cacheable! })
       end

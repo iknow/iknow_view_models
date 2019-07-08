@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'renum'
 require 'view_model/schemas'
 
@@ -45,14 +47,13 @@ class ViewModel::ActiveRecord
     end
   end
 
-  # Parser for collection updates. Collection updates have a regular
-  # structure, but vary based on the contents. Parsing a {direct,
-  # owned} collection recurses deeply and creates a tree of
-  # UpdateDatas, while parsing a {through, shared} collection collects
-  # reference strings.
+  # Parser for collection updates. Collection updates have a regular structure,
+  # but vary based on the contents. Parsing a nested collection recurses deeply
+  # and creates a tree of UpdateDatas, while parsing a referenced collection
+  # collects reference strings.
   class AbstractCollectionUpdate
-    # Wraps a complete collection of new data: either UpdateDatas for owned
-    # collections or reference strings for shared.
+    # Wraps a complete collection of new data: either UpdateDatas for non-root
+    # associations or reference strings for root.
     class Replace
       attr_reader :contents
       def initialize(contents)
@@ -61,7 +62,8 @@ class ViewModel::ActiveRecord
     end
 
     # Wraps an ordered list of FunctionalUpdates, each of whose `contents` are
-    # either UpdateData for owned collections or references for shared.
+    # either UpdateData for nested associations or references for referenced
+    # associations.
     class Functional
       attr_reader :actions
       def initialize(actions)
@@ -81,8 +83,8 @@ class ViewModel::ActiveRecord
 
       # Resolve ViewModel::References used in the update's contents, whether by
       # reference or value.
-      def used_vm_refs(update_context)
-        raise "abstract"
+      def used_vm_refs(_update_context)
+        raise RuntimeError.new('abstract method')
       end
 
       def removed_vm_refs
@@ -153,7 +155,8 @@ class ViewModel::ActiveRecord
       # The shape of the actions are always the same
 
       # Parse an anchor for a functional_update, before/after
-      # May only contain type and id fields, is never a reference even for shared collections.
+      # May only contain type and id fields, is never a reference even for
+      # referenced associations.
       def parse_anchor(child_hash) # final
         child_metadata = ViewModel.extract_reference_only_metadata(child_hash)
 
@@ -271,8 +274,12 @@ class ViewModel::ActiveRecord
 
       def used_vm_refs(update_context)
         update_datas
-          .map { |upd| upd.viewmodel_reference if upd.id }
+          .map { |upd| resolve_vm_reference(upd, update_context) }
           .compact
+      end
+
+      def resolve_vm_reference(update_data, _update_context)
+        update_data.viewmodel_reference if update_data.id
       end
     end
 
@@ -319,8 +326,12 @@ class ViewModel::ActiveRecord
 
       def used_vm_refs(update_context)
         references.map do |ref|
-          update_context.resolve_reference(ref, nil).viewmodel_reference
+          resolve_vm_reference(ref, update_context)
         end
+      end
+
+      def resolve_vm_reference(ref, update_context)
+        update_context.resolve_reference(ref, nil).viewmodel_reference
       end
     end
 
@@ -356,6 +367,7 @@ class ViewModel::ActiveRecord
           unless valid_reference_keys.include?(ref)
             raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
           end
+
           ref
         end
       end
@@ -421,7 +433,7 @@ class ViewModel::ActiveRecord
       fupdate_owned =
         fupdate_base.(ViewModel::Schemas::VIEWMODEL_UPDATE_SCHEMA)
 
-      fupdate_shared           =
+      fupdate_shared =
         fupdate_base.({ 'oneOf' => [ViewModel::Schemas::VIEWMODEL_REFERENCE_SCHEMA,
                                     viewmodel_reference_only] })
 
@@ -571,28 +583,13 @@ class ViewModel::ActiveRecord
       case
       when value.nil?
         []
-      when association_data.shared?
+      when association_data.referenced?
         []
-      when association_data.collection? # not shared, because of shared? check above
+      when association_data.collection? # nested, because of referenced? check above
         value.update_datas
       else
         [value]
       end
-    end
-
-    # Updates in terms of viewmodel associations
-    def updated_associations
-      deps = {}
-
-      (associations.merge(referenced_associations)).each do |assoc_name, assoc_update|
-        deps[assoc_name] =
-          to_sequence(assoc_name, assoc_update)
-            .each_with_object({}) do |update_data, updated_associations|
-              updated_associations.deep_merge!(update_data.updated_associations)
-            end
-      end
-
-      deps
     end
 
     def build_preload_specs(association_data, updates)
@@ -682,6 +679,7 @@ class ViewModel::ActiveRecord
 
         when AssociationData
           association_data = member_data
+
           case
           when value.nil?
             if association_data.collection?
@@ -689,28 +687,28 @@ class ViewModel::ActiveRecord
                       "Invalid collection update value 'nil' for association '#{name}'",
                       blame_reference)
             end
-            if association_data.shared?
+            if association_data.referenced?
               referenced_associations[name] = nil
             else
               associations[name] = nil
             end
 
-          when association_data.through?
-            referenced_associations[name] =
-              ReferencedCollectionUpdate::Parser
-                .new(association_data, blame_reference, valid_reference_keys)
-                .parse(value)
+          when association_data.referenced?
+            if association_data.collection?
+              referenced_associations[name] =
+                ReferencedCollectionUpdate::Parser
+                  .new(association_data, blame_reference, valid_reference_keys)
+                  .parse(value)
+            else
+              # Extract and check reference
+              ref = ViewModel.extract_reference_metadata(value)
 
-          when association_data.shared?
-            # Extract and check reference
-            ref = ViewModel.extract_reference_metadata(value)
+              unless valid_reference_keys.include?(ref)
+                raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
+              end
 
-            unless valid_reference_keys.include?(ref)
-              raise ViewModel::DeserializationError::InvalidSharedReference.new(ref, blame_reference)
+              referenced_associations[name] = ref
             end
-
-            referenced_associations[name] = ref
-
           else
             if association_data.collection?
               associations[name] =

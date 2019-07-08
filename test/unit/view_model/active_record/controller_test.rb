@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 
-require "bundler/setup"
-Bundler.require
-
-require_relative "../../../helpers/callback_tracer.rb"
-require_relative "../../../helpers/controller_test_helpers.rb"
-
-require 'byebug'
-
 require "minitest/autorun"
 require 'minitest/unit'
+require 'minitest/hooks'
+
+require "view_model"
+require "view_model/active_record"
+
+require_relative "../../../helpers/controller_test_helpers.rb"
+require_relative "../../../helpers/callback_tracer.rb"
 
 class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -144,9 +143,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     p2_view = ParentView.new(p2)
     assert(p2.present?, 'p2 created')
 
-    context = ParentView.new_serialize_context(include: 'children')
-    assert_equal({ 'data' => p2_view.to_hash(serialize_context: context) },
-                 parentcontroller.hash_response)
+    assert_equal({ 'data' => p2_view.to_hash }, parentcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
@@ -331,6 +328,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
+  # FIXME: nested controllers really need to be to other roots; children aren't roots.
   def test_nested_collection_replace
     # Parent.children
     old_children = @parent.children

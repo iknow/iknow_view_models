@@ -77,7 +77,7 @@ module ViewModelSpecHelpers
       ViewModel::TestHelpers::ARVMBuilder::Spec.new(
         schema:    ->(t) { t.string :name },
         model:     ->(m) {},
-        viewmodel: ->(v) { attribute :name }
+        viewmodel: ->(v) { root!; attribute :name }
       )
     end
 
@@ -99,6 +99,10 @@ module ViewModelSpecHelpers
       raise RuntimeError.new('Test model does not have a child association')
     end
 
+    def subject_association_features
+      {}
+    end
+
     def subject_association_name
       subject_association.association_name
     end
@@ -114,9 +118,10 @@ module ViewModelSpecHelpers
     include ViewModelSpecHelpers::Base
 
     def model_attributes
+      f = subject_association_features
       super.merge(schema:    ->(t) { t.references :child, foreign_key: true },
                   model:     ->(m) { belongs_to :child, inverse_of: :model, dependent: :destroy },
-                  viewmodel: ->(v) { association :child })
+                  viewmodel: ->(v) { association :child, **f })
     end
 
     def child_attributes
@@ -134,17 +139,33 @@ module ViewModelSpecHelpers
     end
   end
 
+  module ParentAndSharedBelongsToChild
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    def child_attributes
+      super.merge(viewmodel: ->(v) { root! })
+    end
+  end
+
   module List
     extend ActiveSupport::Concern
     include ViewModelSpecHelpers::Base
 
     def model_attributes
-      super.merge(schema:    ->(t) { t.integer :next_id },
-                  model:     ->(m) {
-                    belongs_to :next, class_name: self.name, inverse_of: :previous, dependent: :destroy
-                    has_one :previous, class_name: self.name, foreign_key: :next_id, inverse_of: :next
-                  },
-                  viewmodel: ->(v) { association :next })
+      ViewModel::TestHelpers::ARVMBuilder::Spec.new(
+        schema:    ->(t) {
+          t.string :name
+          t.integer :next_id
+        },
+        model:     ->(m) {
+          belongs_to :next, class_name: self.name, inverse_of: :previous, dependent: :destroy
+          has_one :previous, class_name: self.name, foreign_key: :next_id, inverse_of: :next
+        },
+        viewmodel: ->(v) {
+          # Not a root
+          association :next
+          attribute :name
+        })
     end
 
     def subject_association
@@ -157,9 +178,10 @@ module ViewModelSpecHelpers
     include ViewModelSpecHelpers::Base
 
     def model_attributes
+      f = subject_association_features
       super.merge(
         model:     ->(m) { has_one :child, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :child }
+        viewmodel: ->(v) { association :child, **f }
       )
     end
 
@@ -181,14 +203,23 @@ module ViewModelSpecHelpers
     end
   end
 
+  module ParentAndReferencedHasOneChild
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::ParentAndHasOneChild
+    def child_attributes
+      super.merge(viewmodel: ->(v) { root! })
+    end
+  end
+
   module ParentAndHasManyChildren
     extend ActiveSupport::Concern
     include ViewModelSpecHelpers::Base
 
     def model_attributes
+      f = subject_association_features
       super.merge(
         model:     ->(m) { has_many :children, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :children }
+        viewmodel: ->(v) { association :children, **f }
       )
     end
 
@@ -210,22 +241,23 @@ module ViewModelSpecHelpers
     end
   end
 
+  module ParentAndSharedHasManyChildren
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::ParentAndHasManyChildren
+    def child_attributes
+      super.merge(viewmodel: ->(v) { root! })
+    end
+  end
+
   module ParentAndOrderedChildren
     extend ActiveSupport::Concern
-    include ViewModelSpecHelpers::Base
-
-    def model_attributes
-      super.merge(
-        model:     ->(m) { has_many :children, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :children },
-      )
-    end
+    include ViewModelSpecHelpers::ParentAndHasManyChildren
 
     def child_attributes
       super.merge(
-        schema:    ->(t) { t.references :model, foreign_key: true; t.float :position, null: false },
-        model:     ->(m) { belongs_to :model, inverse_of: :children },
-        viewmodel: ->(v) { acts_as_list :position },
+        schema:    ->(t) { t.float :position, null: false },
+        model:     ->(_m) { acts_as_manual_list scope: :model },
+        viewmodel: ->(_v) { acts_as_list :position },
       )
     end
 
@@ -233,7 +265,7 @@ module ViewModelSpecHelpers
       # child depends on parent, ensure it's touched first
       viewmodel_class
 
-      # Add a deferrable unique position constraiont
+      # Add a deferrable unique position constraint
       super do |klass|
         model = klass.model_class
         table = model.table_name
@@ -242,38 +274,15 @@ module ViewModelSpecHelpers
           SQL
       end
     end
-
-    def subject_association
-      viewmodel_class._association_data('children')
-    end
   end
 
-  module ParentAndSharedChild
+
+  module ParentAndExternalSharedChild
     extend ActiveSupport::Concern
-    include ViewModelSpecHelpers::Base
+    include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 
-    def model_attributes
-      super.merge(
-        schema:    ->(t) { t.references :child, foreign_key: true },
-        model:     ->(m) { belongs_to :child, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :child, shared: true }
-      )
-    end
-
-    def child_attributes
-      super.merge(
-        model: ->(m) { has_one :model, inverse_of: :child }
-      )
-    end
-
-    # parent depends on child, ensure it's touched first
-    def viewmodel_class
-      child_viewmodel_class
-      super
-    end
-
-    def subject_association
-      viewmodel_class._association_data('child')
+    def subject_association_features
+      { external: true }
     end
   end
 
@@ -282,15 +291,17 @@ module ViewModelSpecHelpers
     include ViewModelSpecHelpers::Base
 
     def model_attributes
+      f = subject_association_features
       super.merge(
         model:     ->(m) { has_many :model_children, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :children, shared: true, through: :model_children, through_order_attr: :position }
+        viewmodel: ->(v) { association :children, through: :model_children, through_order_attr: :position, **f }
       )
     end
 
     def child_attributes
       super.merge(
-        model: ->(m) { has_many :model_children, inverse_of: :child, dependent: :destroy }
+        model: ->(m) { has_many :model_children, inverse_of: :child, dependent: :destroy },
+        viewmodel: ->(v) { root! }
       )
     end
 

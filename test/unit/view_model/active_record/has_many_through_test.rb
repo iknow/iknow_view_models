@@ -19,8 +19,9 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name
-        association :tags, shared: true, through: :parents_tags, through_order_attr: :position
+        association :tags, through: :parents_tags, through_order_attr: :position
       end
     end
   end
@@ -40,6 +41,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       end
 
       define_viewmodel do
+        root!
         attributes :name
         if use_childtag
           associations :child_tags
@@ -91,10 +93,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     self.class.build_join_table_model(self)
   end
 
-  private def context_with(*args)
-    ParentView.new_serialize_context(include: args)
-  end
-
   def setup
     super
 
@@ -108,7 +106,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_loading_batching
-    context = context_with(:tags)
+    context = ParentView.new_serialize_context
     log_queries do
       parent_views = ParentView.load(serialize_context: context)
       serialize(parent_views, serialize_context: context)
@@ -121,13 +119,13 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   def test_roundtrip
     # Objects are serialized to a view and deserialized, and should not be different when complete.
 
-    alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) {}
+    alter_by_view!(ParentView, @parent1) {}
     assert_equal('p1', @parent1.name)
     assert_equal([@tag1, @tag2], @parent1.parents_tags.order(:position).map(&:tag))
   end
 
   def test_eager_includes
-    includes = ParentView.eager_includes(serialize_context: context_with(:tags))
+    includes = ParentView.eager_includes
     assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)), includes)
   end
 
@@ -150,21 +148,8 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                  'mentioning tags and child_tags causes through association loading')
   end
 
-  def test_updated_associations
-    root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
-      [{ '_type' => 'Parent',
-         'tags' => [{ '_ref' => 'r1' }] }],
-      { 'r1' => { '_type' => 'Tag', } })
-
-    assert_equal({ 'tags' => {} },
-                 root_updates.first.updated_associations,
-                 'mentioning tags causes through association loading')
-
-  end
-
   def test_serialize
-    view, refs = serialize_with_references(ParentView.new(@parent1),
-                                           serialize_context: context_with(:tags))
+    view, refs = serialize_with_references(ParentView.new(@parent1))
 
     tag_data = view['tags'].map { |hash| refs[hash['_ref']] }
     assert_equal([{ 'id' => @tag1.id, '_type' => 'Tag', '_version' => 1, 'name' => 'tag1' },
@@ -198,7 +183,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_reordering
-    pv, ctx = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, _refs|
+    pv, ctx = alter_by_view!(ParentView, @parent1) do |view, _refs|
       view['tags'].reverse!
     end
 
@@ -211,7 +196,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
   def test_child_edit_doesnt_editcheck_parent
     # editing child doesn't edit check parent
-    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1) do |view, refs|
       refs[view['tags'][0]["_ref"]]["name"] = "changed"
     end
 
@@ -223,7 +208,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_child_reordering_editchecks_parent
-    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, _refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1) do |view, _refs|
       view['tags'].reverse!
     end
 
@@ -232,7 +217,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_child_deletion_editchecks_parent
-    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1) do |view, refs|
       removed = view['tags'].pop['_ref']
       refs.delete(removed)
     end
@@ -242,7 +227,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_child_addition_editchecks_parent
-    pv, d_context = alter_by_view!(ParentView, @parent1, serialize_context: context_with(:tags)) do |view, refs|
+    pv, d_context = alter_by_view!(ParentView, @parent1) do |view, refs|
       view['tags'] << { '_ref' => 't_new' }
       refs['t_new'] = { '_type' => 'Tag', 'name' => 'newest tag' }
     end
@@ -617,8 +602,9 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         end
 
         define_viewmodel do
+          root!
           attributes :name
-          association :tags, shared: true, through: :parents_tags, through_order_attr: :position, as: :something_else
+          association :tags, through: :parents_tags, through_order_attr: :position, as: :something_else
         end
       end
 
@@ -638,11 +624,10 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent', 'something_else' => [] }])
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
                    root_updates.first.preload_dependencies)
-      assert_equal({ 'something_else' => {} }, root_updates.first.updated_associations)
     end
 
     def test_renamed_roundtrip
-      context = ParentView.new_serialize_context(include: :something_else)
+      context = ParentView.new_serialize_context
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
         assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
                                            '_type'    => 'Tag',
@@ -702,34 +687,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       assert_equal(DeepPreloader::Spec.new('parents_tags' => DeepPreloader::Spec.new('tag' => DeepPreloader::Spec.new)),
                    root_updates.first.preload_dependencies,
                    'mentioning tags and child_tags in functional update value causes through association loading, ' \
-                   'excluding shared')
-
-    end
-
-    def test_updated_associations
-      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
-        [{ '_type' => 'Parent',
-           'tags' => [{ '_ref' => 'r1' }] }],
-        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
-
-      assert_equal({ 'tags' => { } },
-                   root_updates.first.updated_associations,
-                   'mentioning tags and child_tags causes through association loading, excluding shared')
-    end
-
-    def test_updated_associations_functional
-      fupdate = build_fupdate do
-        append([{ '_ref' => 'r1' }])
-      end
-
-      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes(
-        [{ '_type' => 'Parent',
-           'tags'  => fupdate }],
-        { 'r1' => { '_type' => 'Tag', 'child_tags' => [] } })
-
-      assert_equal({ 'tags' => { } },
-                   root_updates.first.updated_associations,
-                   'mentioning tags and child_tags in functional_update causes through association loading, ' \
                    'excluding shared')
     end
   end

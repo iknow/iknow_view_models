@@ -35,6 +35,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
     after_visit do
       ref = view.to_reference
       raise RuntimeError.new('Visited twice') if details.has_key?(ref)
+
       details[ref] = ContextDetail.new(
         context.parent_viewmodel&.to_reference,
         context.parent_association,
@@ -87,12 +88,12 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
     # models have no more than one shared association, and if present it is the
     # one under test.
     def clear_subject_association(view, refs)
-      refs.clear if subject_association.shared?
+      refs.clear if subject_association.referenced?
       view[subject_association_name] = subject_association.collection? ? [] : nil
     end
 
     def set_subject_association(view, refs, value)
-      if subject_association.shared?
+      if subject_association.referenced?
         refs.clear
         value = convert_to_refs(refs, value)
       end
@@ -100,7 +101,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
     end
 
     def add_to_subject_association(view, refs, value)
-      if subject_association.shared?
+      if subject_association.referenced?
         value = convert_to_refs(refs, value)
       end
       view[subject_association_name] << value
@@ -108,12 +109,12 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
 
     def remove_from_subject_association(view, refs)
       view[subject_association_name].reject! do |child|
-        if subject_association.shared?
+        if subject_association.referenced?
           ref = child[ViewModel::REFERENCE_ATTRIBUTE]
           child = refs[ref]
         end
         match = yield(child)
-        if match && subject_association.shared?
+        if match && subject_association.referenced?
           refs.delete(ref)
         end
         match
@@ -167,7 +168,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           end
 
           expected = expected_parent_details
-          expected = expected.merge(expected_children_details) unless subject_association.shared?
+          expected = expected.merge(expected_children_details) unless subject_association.referenced?
           assert_traversal_matches(expected, context_recorder.details)
         end
 
@@ -179,7 +180,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           end
 
           expected = expected_parent_details
-          expected = expected.merge(expected_children_details) unless subject_association.shared?
+          expected = expected.merge(expected_children_details) unless subject_association.referenced?
           expected = expected.merge(new_child_expected_details)
           assert_traversal_matches(expected, context_recorder.details)
         end
@@ -190,7 +191,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           vm.replace_associated(subject_association_name, replacement, deserialize_context: ctx)
 
           expected = expected_parent_details
-          expected = expected.merge(expected_children_details) unless subject_association.shared?
+          expected = expected.merge(expected_children_details) unless subject_association.referenced?
           expected = expected.merge(new_child_expected_details)
           assert_traversal_matches(expected, context_recorder.details)
         end
@@ -224,7 +225,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           end
 
           expected = expected_parent_details.merge(expected_children_details)
-          expected = expected.except(removed_child.to_reference) if subject_association.shared?
+          expected = expected.except(removed_child.to_reference) if subject_association.referenced?
           assert_traversal_matches(expected, context_recorder.details)
         end
 
@@ -241,7 +242,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           vm.delete_associated(subject_association_name, removed_child.id, deserialize_context: ctx)
 
           expected = expected_parent_details
-          expected = expected.merge(removed_child_expected_details) unless subject_association.shared?
+          expected = expected.merge(removed_child_expected_details) unless subject_association.referenced?
           assert_traversal_matches(expected, context_recorder.details)
         end
       end
@@ -265,7 +266,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
 
   let(:root_detail) { ContextDetail.new(nil, nil, true) }
   let(:child_detail) do
-    if subject_association.shared?
+    if subject_association.referenced?
       root_detail
     else
       ContextDetail.new(vm.to_reference, subject_association_name, false)
@@ -346,7 +347,7 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
   end
 
   describe 'with parent and shared child' do
-    include ViewModelSpecHelpers::ParentAndSharedChild
+    include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 
     include BehavesLikeSerialization
     include BehavesLikeDeserialization

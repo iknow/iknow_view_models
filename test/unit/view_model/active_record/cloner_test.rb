@@ -173,7 +173,7 @@ class ViewModel::ActiveRecord
       end
 
       describe "as belongs_to shared child" do
-        include ViewModelSpecHelpers::ParentAndSharedChild
+        include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
         include BehavesLikeConstructingAChild
         it "can clone the model but not the child" do
             clone_model = Cloner.new.clone(viewmodel)

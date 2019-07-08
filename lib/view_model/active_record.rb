@@ -63,42 +63,58 @@ class ViewModel::ActiveRecord < ViewModel::Record
       _list_attribute_name.present?
     end
 
-    # Specifies an association from the model to be recursively serialized using
-    # another viewmodel. If the target viewmodel is not specified, attempt to
-    # locate a default viewmodel based on the name of the associated model.
-    # TODO document harder
+    # Adds an association from the model to this viewmodel. The associated model
+    # will be recursively (de)serialized by its own viewmodel type, which will
+    # be inferred from the model name, or may be explicitly specified.
+    #
+    # An association to a root viewmodel type will be serialized with an
+    # indirect reference, while a child viewmodel type will be directly nested.
+    #
+    # - +as+ sets the name of the association in the viewmodel
+    #
+    # - +viewmodel+, +viewmodels+ specifies the viewmodel(s) to use for the
+    #   association
+    #
+    # - +external+ indicates an association external to the view. Externalized
+    #   associations are not included in (de)serializations of the parent, and
+    #   must be independently manipulated using `AssociationManipulation`.
+    #   External associations may only be made to root viewmodels.
+    #
     # - +through+ names an ActiveRecord association that will be used like an
     #   ActiveRecord +has_many:through:+.
+    #
     # - +through_order_attr+ the through model is ordered by the given attribute
     #   (only applies to when +through+ is set).
     def association(association_name,
+                    as: nil,
                     viewmodel: nil,
                     viewmodels: nil,
-                    shared: false,
-                    optional: false,
+                    external: false,
+                    read_only: false,
                     through: nil,
-                    through_order_attr: nil,
-                    as: nil)
-
-      if through
-        model_association_name = through
-        through_to             = association_name
-      else
-        model_association_name = association_name
-        through_to             = nil
-      end
+                    through_order_attr: nil)
 
       vm_association_name = (as || association_name).to_s
 
-      reflection = model_class.reflect_on_association(model_association_name)
-
-      if reflection.nil?
-        raise ArgumentError.new("Association #{model_association_name} not found in #{model_class.name} model")
+      if through
+        direct_association_name   = through
+        indirect_association_name = association_name
+      else
+        direct_association_name   = association_name
+        indirect_association_name = nil
       end
 
-      viewmodel_spec = viewmodel || viewmodels
+      target_viewmodels = Array.wrap(viewmodel || viewmodels)
 
-      association_data = AssociationData.new(vm_association_name, reflection, viewmodel_spec, shared, optional, through_to, through_order_attr)
+      association_data = AssociationData.new(
+        owner:                     self,
+        association_name:          vm_association_name,
+        direct_association_name:   direct_association_name,
+        indirect_association_name: indirect_association_name,
+        target_viewmodels:         target_viewmodels,
+        external:                  external,
+        read_only:                 read_only,
+        through_order_attr:        through_order_attr)
 
       _members[vm_association_name] = association_data
 
@@ -108,21 +124,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         end
 
         define_method :"serialize_#{vm_association_name}" do |json, serialize_context: self.class.new_serialize_context|
-          associated = self.public_send(vm_association_name)
-          json.set! vm_association_name do
-            case
-            when associated.nil?
-              json.null!
-            when association_data.through?
-              json.array!(associated) do |through_target|
-                self.class.serialize_as_reference(through_target, json, serialize_context: serialize_context)
-              end
-            when shared
-              self.class.serialize_as_reference(associated, json, serialize_context: serialize_context)
-            else
-              self.class.serialize(associated, json, serialize_context: serialize_context)
-            end
-          end
+          _serialize_association(vm_association_name, json, serialize_context: serialize_context)
         end
       end
     end
@@ -171,11 +173,6 @@ class ViewModel::ActiveRecord < ViewModel::Record
         ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
           root_update_data, referenced_update_data = UpdateData.parse_hashes(subtree_hashes, references)
 
-          # Provide information about what was updated
-          deserialize_context.updated_associations = root_update_data
-                                                       .map { |upd| upd.updated_associations }
-                                                       .inject({}) { |acc, assocs| acc.deep_merge(assocs) }
-
           _updated_viewmodels =
             UpdateContext
               .build!(root_update_data, referenced_update_data, root_type: self)
@@ -184,27 +181,18 @@ class ViewModel::ActiveRecord < ViewModel::Record
       end
     end
 
-    def eager_includes(serialize_context: new_serialize_context, include_shared: true)
-      # When serializing, we need to (recursively) include all intrinsic
-      # associations and also those optional (incl. shared) associations
-      # specified in the serialize_context.
-
-      # when deserializing, we start with intrinsic non-shared associations. We
-      # then traverse the structure of the tree to deserialize to map out which
-      # optional or shared associations are used from each type. We then explore
-      # from the root type to build an preload specification that will include
-      # them all. (We can subsequently use this same structure to build a
-      # serialization context featuring the same associations.)
-
+    # Constructs a preload specification of the required models for
+    # serializing/deserializing this view.
+    def eager_includes(serialize_context: new_serialize_context, include_referenced: true)
       association_specs = {}
       _members.each do |assoc_name, association_data|
         next unless association_data.is_a?(AssociationData)
-        next unless serialize_context.includes_member?(assoc_name, !association_data.optional?)
+        next if association_data.external?
 
         child_context =
           if self.synthetic
             serialize_context
-          elsif association_data.shared?
+          elsif association_data.referenced?
             serialize_context.for_references
           else
             serialize_context.for_child(nil, association_name: assoc_name)
@@ -213,22 +201,22 @@ class ViewModel::ActiveRecord < ViewModel::Record
         case
         when association_data.through?
           viewmodel = association_data.direct_viewmodel
-          children = viewmodel.eager_includes(serialize_context: child_context, include_shared: include_shared)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
 
-        when !include_shared && association_data.shared?
-          children = nil # Load up to the shared model, but no further
+        when !include_referenced && association_data.referenced?
+          children = nil # Load up to the root viewmodel, but no further
 
         when association_data.polymorphic?
           children_by_klass = {}
           association_data.viewmodel_classes.each do |vm_class|
             klass = vm_class.model_class.name
-            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_shared: include_shared)
+            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
           end
           children = DeepPreloader::PolymorphicSpec.new(children_by_klass)
 
         else
           viewmodel = association_data.viewmodel_class
-          children = viewmodel.eager_includes(serialize_context: child_context, include_shared: include_shared)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
         end
 
         association_specs[association_data.direct_reflection.name.to_s] = children
@@ -236,26 +224,26 @@ class ViewModel::ActiveRecord < ViewModel::Record
       DeepPreloader::Spec.new(association_specs)
     end
 
-    def dependent_viewmodels(seen = Set.new, include_shared: true)
+    def dependent_viewmodels(seen = Set.new, include_referenced: true)
       return if seen.include?(self)
 
       seen << self
 
       _members.each_value do |data|
         next unless data.is_a?(AssociationData)
-        next unless include_shared || !data.shared?
+        next unless include_referenced || !data.referenced?
         data.viewmodel_classes.each do |vm|
-          vm.dependent_viewmodels(seen, include_shared: include_shared)
+          vm.dependent_viewmodels(seen, include_referenced: include_referenced)
         end
       end
 
       seen
     end
 
-    def deep_schema_version(include_shared: true)
-      (@deep_schema_version ||= {})[include_shared] ||=
+    def deep_schema_version(include_referenced: true)
+      (@deep_schema_version ||= {})[include_referenced] ||=
         begin
-          dependent_viewmodels(include_shared: include_shared).each_with_object({}) do |view, h|
+          dependent_viewmodels(include_referenced: include_referenced).each_with_object({}) do |view, h|
             h[view.view_name] = view.schema_version
           end
         end
@@ -270,6 +258,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
     def _association_data(association_name)
       association_data = self._members[association_name.to_s]
       raise ArgumentError.new("Invalid association '#{association_name}'") unless association_data.is_a?(AssociationData)
+
       association_data
     end
   end
@@ -282,7 +271,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def serialize_members(json, serialize_context: self.class.new_serialize_context)
     self.class._members.each do |member_name, member_data|
-      next unless serialize_context.includes_member?(member_name, !member_data.optional?)
+      next if member_data.association? && member_data.external?
 
       member_context =
         case member_data
@@ -309,6 +298,13 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def association_changed!(association_name)
     association_name = association_name.to_s
+
+    association_data = self.class._association_data(association_name)
+
+    if association_data.read_only?
+      raise ViewModel::DeserializationError::ReadOnlyAssociation.new(association_name, blame_reference)
+    end
+
     unless @changed_associations.include?(association_name)
       @changed_associations << association_name
     end
@@ -321,10 +317,12 @@ class ViewModel::ActiveRecord < ViewModel::Record
   # Additionally pass `changed_associations` while constructing changes.
   def changes
     ViewModel::Changes.new(
-      new:                  new_model?,
-      changed_attributes:   changed_attributes,
-      changed_associations: changed_associations,
-      changed_children:     changed_children?)
+      new:                         new_model?,
+      changed_attributes:          changed_attributes,
+      changed_associations:        changed_associations,
+      changed_nested_children:     changed_nested_children?,
+      changed_referenced_children: changed_referenced_children?,
+    )
   end
 
   def clear_changes!
@@ -365,14 +363,36 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
   end
 
+  def _serialize_association(association_name, json, serialize_context:)
+    associated = self.public_send(association_name)
+    association_data = self.class._association_data(association_name)
+
+    json.set! association_name do
+      case
+      when associated.nil?
+        json.null!
+      when association_data.referenced?
+        if association_data.collection?
+          json.array!(associated) do |target|
+            self.class.serialize_as_reference(target, json, serialize_context: serialize_context)
+          end
+        else
+          self.class.serialize_as_reference(associated, json, serialize_context: serialize_context)
+        end
+      else
+        self.class.serialize(associated, json, serialize_context: serialize_context)
+      end
+    end
+  end
+
   def context_for_child(member_name, context:)
     # Synthetic viewmodels don't exist as far as the traversal context is
     # concerned: pass through the child context received from the parent
     return context if self.class.synthetic
 
-    # Shared associations start a new tree
+    # associations to roots start a new tree
     member_data = self.class._members[member_name.to_s]
-    if member_data.is_a?(AssociationData) && member_data.shared?
+    if member_data.association? && member_data.referenced?
       return context.for_references
     end
 

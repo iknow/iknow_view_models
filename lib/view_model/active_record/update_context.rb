@@ -74,7 +74,7 @@ class ViewModel::ActiveRecord
 
     def initialize
       @root_update_operations       = [] # The subject(s) of this update
-      @referenced_update_operations = {} # Shared data updates, referred to by a ref hash
+      @referenced_update_operations = {} # data updates to other root models, referred to by a ref hash
 
       # Set of ViewModel::Reference used to assert only a single update is
       # present for each viewmodel
@@ -178,8 +178,20 @@ class ViewModel::ActiveRecord
           raise ViewModel::DeserializationError::ParentNotFound.new(@worklist.keys)
         end
 
-        deferred_update = @worklist.delete(key)
-        deferred_update.viewmodel = @release_pool.claim_from_pool(key)
+        deferred_update    = @worklist.delete(key)
+        released_viewmodel = @release_pool.claim_from_pool(key)
+
+        if deferred_update.viewmodel
+          # Deferred reference updates already have a viewmodel: ensure it
+          # matches the tree
+          unless deferred_update.viewmodel == released_viewmodel
+            raise ViewModel::DeserializationError::Internal.new(
+                    "Released viewmodel doesn't match reference update", blame_reference)
+          end
+        else
+          deferred_update.viewmodel = released_viewmodel
+        end
+
         deferred_update.build!(self)
       end
 
@@ -201,6 +213,12 @@ class ViewModel::ActiveRecord
       update_operation = ViewModel::ActiveRecord::UpdateOperation.new(
         nil, update_data, reparent_to: reparent_to, reposition_to: reposition_to)
       check_unique_update!(viewmodel_reference)
+      defer_update(viewmodel_reference, update_operation)
+    end
+
+    # Defer an existing update: used if we need to ensure that an owned
+    # reference has been freed before we use it.
+    def defer_update(viewmodel_reference, update_operation)
       @worklist[viewmodel_reference] = update_operation
     end
 

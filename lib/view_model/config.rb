@@ -10,7 +10,7 @@ ViewModel::Config = Value.new(
 
 class ViewModel::Config
   def self.configure!(&block)
-    if instance_variable_defined?(:@instance)
+    if configured?
       raise ArgumentError.new('ViewModel library already configured')
     end
 
@@ -18,8 +18,12 @@ class ViewModel::Config
     @instance = builder.build!(&block)
   end
 
+  def self.configured?
+    instance_variable_defined?(:@instance)
+  end
+
   def self._option(opt)
-    configure! unless instance_variable_defined?(:@instance)
+    configure! unless configured?
     @instance[opt]
   end
 

@@ -226,6 +226,19 @@ class ViewModel
       end
     end
 
+    class DuplicateOwner < InvalidRequest
+      attr_reader :association_name
+
+      def initialize(association_name, parents)
+        @association_name = association_name
+        super(parents)
+      end
+
+      def detail
+        "Multiple parents attempted to claim the same owned '#{association_name}' reference: " + nodes.map(&:to_s).join(", ")
+      end
+    end
+
     class ParentNotFound < NotFound
       def detail
         "Could not resolve release from previous parent for the following owned viewmodel(s): " +
@@ -248,6 +261,24 @@ class ViewModel
 
       def meta
         super.merge(attribute: attribute)
+      end
+    end
+
+    class ReadOnlyAssociation < DeserializationError
+      status 400
+      attr_reader :association
+
+      def initialize(association, node)
+        @association = association
+        super([node])
+      end
+
+      def detail
+        "Cannot edit read only association '#{association}'"
+      end
+
+      def meta
+        super.merge(association: association)
       end
     end
 

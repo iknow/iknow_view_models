@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 # Simple visitor for cloning models through the tree structure defined by
 # ViewModel::ActiveRecord. Owned associations will be followed and cloned, while
-# shared associations will be copied directly. Attributes (including association
-# foreign keys not covered by ViewModel `association`s) will be copied from the
-# original.
+# non-owned referenced associations will be copied directly as references.
+# Attributes (including association foreign keys not covered by ViewModel
+# `association`s) will be copied from the original.
 #
 # To customize, subclasses may define methods `visit_x_view(node, new_model)`
 # for each type they wish to affect. These callbacks may update attributes of
@@ -19,9 +21,9 @@ class ViewModel::ActiveRecord::Cloner
     return nil if ignored?
 
     if node.class.name
-      class_name      = node.class.name.underscore.gsub('/', '__')
-      visit     = :"visit_#{class_name}"
-      end_visit = :"end_visit_#{class_name}"
+      class_name = node.class.name.underscore.gsub('/', '__')
+      visit      = :"visit_#{class_name}"
+      end_visit  = :"end_visit_#{class_name}"
     end
 
     if visit && respond_to?(visit, true)
@@ -44,7 +46,7 @@ class ViewModel::ActiveRecord::Cloner
 
         if associated.nil?
           new_associated = nil
-        elsif association_data.shared? && !association_data.through?
+        elsif !association_data.owned? && !association_data.through?
           # simply attach the associated target to the new model
           new_associated = associated
         else
@@ -82,11 +84,9 @@ class ViewModel::ActiveRecord::Cloner
     new_model
   end
 
-  def pre_visit(node, new_model)
-  end
+  def pre_visit(node, new_model); end
 
-  def post_visit(node, new_model)
-  end
+  def post_visit(node, new_model); end
 
   private
 
