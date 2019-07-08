@@ -52,6 +52,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
   def replace_associated(association_name, update_hash, references: {}, deserialize_context: self.class.new_deserialize_context)
     association_data = self.class._association_data(association_name)
 
+    unless association_data.external?
+      raise ViewModel::DeserializationError::InternalAssociationWrite.new(association_name, self.to_reference)
+    end
+
     if association_data.referenced?
       is_fupdate =
         association_data.collection? &&
@@ -104,6 +108,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
     raise ArgumentError.new("Cannot append to single association '#{association_name}'") unless association_data.collection?
+
+    unless association_data.external?
+      raise ViewModel::DeserializationError::InternalAssociationWrite.new(association_name, self.to_reference)
+    end
 
     ViewModel::Utils.wrap_one_or_many(subtree_hash_or_hashes) do |subtree_hashes|
       model_class.transaction do
@@ -217,6 +225,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
+
+    unless association_data.external?
+      raise ViewModel::DeserializationError::InternalAssociationWrite.new(association_name, self.to_reference)
+    end
 
     unless association_data.collection?
       raise ArgumentError.new("Cannot remove element from single association '#{association_name}'")
