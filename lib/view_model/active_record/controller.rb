@@ -45,10 +45,8 @@ module ViewModel::ActiveRecord::Controller
     view = nil
     pre_rendered = viewmodel_class.transaction do
       view = viewmodel_class.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
-
-      view = yield(view) if block_given?
-
       ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
+      view = yield(view) if block_given?
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
     render_json_string(pre_rendered)
