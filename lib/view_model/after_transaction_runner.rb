@@ -4,7 +4,7 @@
 # `add_to_transaction`, the abstract method `after_transaction` will be invoked
 # by AR's callbacks.
 module ViewModel::AfterTransactionRunner
-  def committed!; end
+  def committed!(*); end
 
   def before_committed!
     after_transaction
@@ -20,6 +20,10 @@ module ViewModel::AfterTransactionRunner
     else
       after_transaction
     end
+  end
+
+  def trigger_transactional_callbacks?
+    true
   end
 
   # Override to tie to a specific connection.
