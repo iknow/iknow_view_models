@@ -41,6 +41,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         child_context = owner_view.context_for_child(association_name, context: serialize_context)
         ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
+        association_view = yield(association_view) if block_given?
         prerender_viewmodel(association_view, serialize_context: child_context)
       end
     end

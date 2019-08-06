@@ -20,12 +20,12 @@ module ViewModel::ActiveRecord::SingularNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def show_associated(scope: nil, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    show_association(scope: scope, serialize_context: serialize_context)
+  def show_associated(scope: nil, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    show_association(scope: scope, serialize_context: serialize_context, &block)
   end
 
-  def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
+  def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
   end
 
   def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)

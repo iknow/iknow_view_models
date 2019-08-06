@@ -22,14 +22,14 @@ module ViewModel::ActiveRecord::CollectionNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def index_associated(scope: nil, serialize_context: new_serialize_context)
-    show_association(scope: scope, serialize_context: serialize_context)
+  def index_associated(scope: nil, serialize_context: new_serialize_context, &block)
+    show_association(scope: scope, serialize_context: serialize_context, &block)
   end
 
   # Deserialize items of the associated type and associate them with the owner,
   # replacing previously associated items.
-  def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context)
+  def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
   end
 
   def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
@@ -61,6 +61,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         child_context = owner_view.context_for_child(association_name, context: serialize_context)
         ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
+        assoc_view = yield(assoc_view) if block_given?
         prerender_viewmodel(assoc_view, serialize_context: child_context)
       end
     end
