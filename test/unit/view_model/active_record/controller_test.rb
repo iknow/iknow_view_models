@@ -210,7 +210,9 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
                      'code'   => "DeserializationError.NotFound",
-                     'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]}}},
+                     'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]},
+                     'exception' => nil,
+                     'causes' => nil }},
                  parentcontroller.hash_response)
   end
 
@@ -232,7 +234,9 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'meta' => { 'nodes' => [{ '_type' => "Child", 'id' => nil }],
                                  'attribute' => 'age',
                                  'message' => 'must be less than 42',
-                                 'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 }}}},
+                                 'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 }},
+                     'exception' => nil,
+                     'causes' => nil }},
                  parentcontroller.hash_response)
   end
 
@@ -260,7 +264,9 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
                      'code'   => "DeserializationError.NotFound",
-                     'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999}]}} },
+                     'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999 }] },
+                     'exception' => nil,
+                     'causes' => nil } },
                  parentcontroller.hash_response)
     assert_equal(404, parentcontroller.status)
   end
