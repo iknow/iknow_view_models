@@ -531,6 +531,8 @@ class ViewModel::ActiveRecord
               index += 1 if fupdate.after
               child_datas.insert(index, *fupdate.contents)
 
+            elsif fupdate.prepend
+              child_datas.insert(0, *fupdate.contents)
             else
               child_datas.concat(fupdate.contents)
             end

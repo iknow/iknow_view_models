@@ -45,9 +45,11 @@ module ViewModel::ActiveRecord::CollectionNestedController
 
       before = parse_relative_position(:before)
       after  = parse_relative_position(:after)
+      prepend = parse_boolean_param(:prepend, default: nil)
 
-      if before && after
-        raise ViewModel::DeserializationError::InvalidSyntax.new("Can not provide both `before` and `after` anchors for a collection append")
+      if [before, after, prepend].count { |x| !x.nil? } > 1
+        raise ViewModel::DeserializationError::InvalidSyntax.new(
+                'Only one of `prepend`, `before`, and `after` may be specified for a collection append')
       end
 
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)

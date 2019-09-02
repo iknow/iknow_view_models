@@ -22,7 +22,7 @@ class ViewModel::ActiveRecord
 
     class Append
       NAME = 'append'
-      attr_accessor :before, :after
+      attr_accessor :before, :after, :prepend
       attr_reader :contents
       def initialize(contents)
         @contents = contents
@@ -187,12 +187,15 @@ class ViewModel::ActiveRecord
           update.after = parse_anchor(after)
         end
 
-        if before && after
-          raise ViewModel::DeserializationError::InvalidSyntax.new(
-                  "Append may not specify both 'after' and 'before'",
-                  blame_reference)
+        if (prepend = action[PREPEND_ATTRIBUTE])
+          update.prepend = prepend
         end
 
+        if [before, after, prepend].count { |x| !x.nil? } > 1
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
+                  "Append may specify only one of 'prepend', 'before' and 'after'",
+                  blame_reference)
+        end
         update
       end
 
@@ -426,7 +429,8 @@ class ViewModel::ActiveRecord
         'properties'           => {
           ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME] },
           BEFORE_ATTRIBUTE          => viewmodel_reference_only,
-          AFTER_ATTRIBUTE           => viewmodel_reference_only
+          AFTER_ATTRIBUTE           => viewmodel_reference_only,
+          PREPEND_ATTRIBUTE         => { 'type' => 'boolean' }
         },
       }
 

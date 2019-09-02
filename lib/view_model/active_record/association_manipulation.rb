@@ -96,7 +96,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   # Create or update members of a associated collection. For an ordered
   # collection, the items are inserted either before `before`, after `after`, or
   # at the end.
-  def append_associated(association_name, subtree_hash_or_hashes, references: {}, before: nil, after: nil, deserialize_context: self.class.new_deserialize_context)
+  def append_associated(association_name, subtree_hash_or_hashes, references: {}, before: nil, after: nil, prepend: nil, deserialize_context: self.class.new_deserialize_context)
     if self.changes.changed?
       raise ArgumentError.new('Invalid call to append_associated on viewmodel with pending changes')
     end
@@ -132,7 +132,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
             new_positions = select_append_positions(association_data,
                                                     direct_viewmodel_class._list_attribute_name,
                                                     update_context.root_updates.count,
-                                                    before: before, after: after)
+                                                    before: before, after: after, prepend: prepend)
 
             update_context.root_updates.zip(new_positions).each do |update, new_pos|
               update.reposition_to = new_pos
@@ -354,7 +354,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   end
 
   # TODO: this functionality could reasonably be extracted into `acts_as_manual_list`.
-  def select_append_positions(association_data, position_attr, append_count, before:, after:)
+  def select_append_positions(association_data, position_attr, append_count, before:, after:, prepend:)
     direct_reflection = association_data.direct_reflection
     association_scope = model.association(direct_reflection.name).scope
 
@@ -379,6 +379,9 @@ module ViewModel::ActiveRecord::AssociationManipulation
                                                                       relative_ref,
                                                                       blame_reference)
       end
+    elsif prepend
+      start_pos = nil
+      end_pos = association_scope.minimum(position_attr)
     else
       start_pos = association_scope.maximum(position_attr)
       end_pos   = nil

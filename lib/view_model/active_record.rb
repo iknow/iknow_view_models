@@ -18,6 +18,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   VALUES_ATTRIBUTE       = "values"
   BEFORE_ATTRIBUTE       = "before"
   AFTER_ATTRIBUTE        = "after"
+  PREPEND_ATTRIBUTE      = "prepend"
 
   require 'view_model/utils/collections'
   require 'view_model/active_record/association_data'
