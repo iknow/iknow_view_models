@@ -276,7 +276,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # insert before
     pv.append_associated(:children,
                          { '_type' => 'Child', 'id' => c3.id },
-                         before: ViewModel::Reference.new(child_viewmodel_class, c1.id),
+                         prepend: true, anchor: ViewModel::Reference.new(child_viewmodel_class, c1.id),
                          deserialize_context: (context = viewmodel_class.new_deserialize_context))
 
     expected_edit_checks = [pv.to_reference]
@@ -288,7 +288,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # insert after
     pv.append_associated(:children,
                          { '_type' => 'Child', 'id' => c3.id },
-                         after: ViewModel::Reference.new(child_viewmodel_class, c1.id),
+                         prepend: false, anchor: ViewModel::Reference.new(child_viewmodel_class, c1.id),
                          deserialize_context: (context = viewmodel_class.new_deserialize_context))
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
@@ -306,6 +306,17 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal([c1, c2, c3],
                  @model1.children.order(:position))
 
+    # prepend
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'id' => c3.id },
+                         prepend: true,
+                         deserialize_context: (context = viewmodel_class.new_deserialize_context))
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
+
+    assert_equal([c3, c1, c2],
+                 @model1.children.order(:position))
+
     # move from another parent
     p2c1 = @model2.children.order(:position).first
 
@@ -318,7 +329,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
-    assert_equal([c1, c2, c3, p2c1],
+    assert_equal([c3, c1, c2, p2c1],
                  @model1.children.order(:position))
   end
 
@@ -329,7 +340,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # insert before
     pv.append_associated(:children,
                          { '_type' => 'Child', 'name' => 'new1' },
-                         before: ViewModel::Reference.new(child_viewmodel_class, c2.id),
+                         prepend: true, anchor: ViewModel::Reference.new(child_viewmodel_class, c2.id),
                          deserialize_context: (context = viewmodel_class.new_deserialize_context))
 
     n1 = child_model_class.find_by_name('new1')
@@ -345,7 +356,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # insert after
     pv.append_associated(:children,
                          { '_type' => 'Child', 'name' => 'new2' },
-                         after: ViewModel::Reference.new(child_viewmodel_class, c2.id),
+                         prepend: false, anchor: ViewModel::Reference.new(child_viewmodel_class, c2.id),
                          deserialize_context: (context = viewmodel_class.new_deserialize_context))
 
     n2 = child_model_class.find_by_name('new2')
@@ -371,6 +382,22 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
     assert_equal([c1, n1, c2, n2, c3, n3],
+                 @model1.children.order(:position))
+
+    # prepend
+    pv.append_associated(:children,
+                         { '_type' => 'Child', 'name' => 'new4' },
+                         prepend: true,
+                         deserialize_context: (context = viewmodel_class.new_deserialize_context))
+
+    n4 = child_model_class.find_by_name('new4')
+
+    expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
+                            ViewModel::Reference.new(child_viewmodel_class, n4.id)]
+
+    assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
+
+    assert_equal([n4, c1, n1, c2, n2, c3, n3],
                  @model1.children.order(:position))
   end
 
@@ -640,13 +667,35 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                  @model1.children.order(:position).pluck(:id))
   end
 
+  def test_functional_update_prepend
+    c1, c2, c3 = @model1.children.order(:position)
+
+    fupdate = build_fupdate do
+      append([{ '_type' => 'Child', 'name' => 'new c1' },
+              { '_type' => 'Child', 'name' => 'new c2' }],
+             prepend: true)
+    end
+
+    append_view = {
+      '_type'    => 'Model',
+      'id'       => @model1.id,
+      'children' => fupdate,
+    }
+
+    viewmodel_class.deserialize_from_view(append_view)
+    @model1.reload
+
+    assert_equal(['new c1', 'new c2', c1.name, c2.name, c3.name],
+                 @model1.children.order(:position).pluck(:name))
+  end
+
   def test_functional_update_append_before_mid
     c1, c2, c3  = @model1.children.order(:position)
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             before: { '_type' => 'Child', 'id' => c2.id })
+             prepend: true, anchor: { '_type' => 'Child', 'id' => c2.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -664,7 +713,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'id' => c3.id }],
-             before: { '_type' => 'Child', 'id' => c2.id })
+             prepend: true, anchor: { '_type' => 'Child', 'id' => c2.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -683,7 +732,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             before: { '_type' => 'Child', 'id' => c1.id })
+             prepend: true, anchor: { '_type' => 'Child', 'id' => c1.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -703,7 +752,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             before: { '_type' => 'Child', 'id' => c2.id })
+             prepend: true, anchor: { '_type' => 'Child', 'id' => c2.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -720,7 +769,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             after: { '_type' => 'Child', 'id' => c2.id })
+             prepend: false, anchor: { '_type' => 'Child', 'id' => c2.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -739,7 +788,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             after: { '_type' => 'Child', 'id' => c3.id, })
+             prepend: false, anchor: { '_type' => 'Child', 'id' => c3.id, })
     end
 
     append_view = { '_type'    => 'Model',
@@ -759,7 +808,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
               { '_type' => 'Child', 'name' => 'new c2' }],
-             after: { '_type' => 'Child', 'id' => c2.id },
+             prepend: false, anchor: { '_type' => 'Child', 'id' => c2.id },
              )
     end
 
@@ -1039,7 +1088,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
         view['children'] = build_fupdate do
           append([{ '_ref' => 'repl_ref' }],
-                 after: { '_type' => 'Child', 'id' => removed_id })
+                 prepend: false, anchor: { '_type' => 'Child', 'id' => removed_id })
           remove([{ '_type' => 'Child', 'id' => removed_id }])
         end
 
@@ -1087,6 +1136,16 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     end
 
     describe 'with association manipulation' do
+      it 'prepends a child' do
+        view = create_viewmodel!
+
+        view.append_associated(:children, { '_type' => 'Child', 'name' => 'newchildname' }, prepend: true)
+
+        view.model.reload
+        assert_equal(3, view.children.size)
+        assert_equal('newchildname', view.children.first.name)
+      end
+
       it 'appends a child' do
         view = create_viewmodel!
 
@@ -1103,7 +1162,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
         view.append_associated(:children,
                                { '_type' => 'Child', 'name' => 'newchildname' },
-                               after: c1.to_reference)
+                               prepend: false, anchor: c1.to_reference)
         view.model.reload
 
         assert_equal(3, view.children.size)
@@ -1116,7 +1175,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
         view.append_associated(:children,
                                { '_type' => 'Child', 'id' => c2.id },
-                               before: c1.to_reference)
+                               prepend: true, anchor: c1.to_reference)
         view.model.reload
 
         assert_equal(2, view.children.size)

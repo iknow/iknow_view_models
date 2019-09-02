@@ -43,23 +43,18 @@ module ViewModel::ActiveRecord::CollectionNestedController
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      before = parse_relative_position(:before)
-      after  = parse_relative_position(:after)
-      prepend = parse_boolean_param(:prepend, default: nil)
-
-      if [before, after, prepend].count { |x| !x.nil? } > 1
-        raise ViewModel::DeserializationError::InvalidSyntax.new(
-                'Only one of `prepend`, `before`, and `after` may be specified for a collection append')
-      end
+      prepend = parse_boolean_param(:prepend, default: false)
+      anchor  = parse_relative_position(:anchor)
 
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
 
       assoc_view = owner_view.append_associated(association_name,
                                                 update_hash,
-                                                references: refs,
-                                                before:     before,
-                                                after:      after,
+                                                references:          refs,
+                                                prepend:             prepend,
+                                                anchor:              anchor,
                                                 deserialize_context: deserialize_context)
+
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         child_context = owner_view.context_for_child(association_name, context: serialize_context)
         ViewModel.preload_for_serialization(assoc_view, serialize_context: child_context)
