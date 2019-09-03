@@ -12,6 +12,12 @@ module ViewModel::ActiveRecord::Cache::CacheableView
   CacheClearer = Struct.new(:cache, :id) do
     include ViewModel::AfterTransactionRunner
 
+    # It's important that we clear the cache before committing, because we rely
+    # on database locking to prevent cache race conditions. We require
+    # reading/refreshing the cache to obtain a FOR SHARE lock, which means that
+    # a reader must wait for a concurrent writer to commit before continuing to
+    # the cache. If the writer cleared the cache after commit, the reader could
+    # obtain old data before the clear, and then save the old data after it.
     def before_commit
       cache.delete(id)
     end
