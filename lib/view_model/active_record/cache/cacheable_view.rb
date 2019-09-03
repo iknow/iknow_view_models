@@ -12,7 +12,11 @@ module ViewModel::ActiveRecord::Cache::CacheableView
   CacheClearer = Struct.new(:cache, :id) do
     include ViewModel::AfterTransactionRunner
 
-    def after_transaction
+    def before_commit
+      cache.delete(id)
+    end
+
+    def after_rollback
       cache.delete(id)
     end
 
