@@ -193,6 +193,12 @@ class ViewModel::ActiveRecord
       end
     end
 
+    class IgnoreChildrenAssociationCloner < Cloner
+      def visit_model_view(node, model)
+        ignore_association!(:children)
+      end
+    end
+
     describe "with has_many children" do
       include ViewModelSpecHelpers::ParentAndHasManyChildren
       def new_child_models
@@ -258,6 +264,16 @@ class ViewModel::ActiveRecord
         assert_equal(1, clone_model.children.size)
         assert_equal(model.children[1].name, clone_model.children[0].name)
       end
+
+      it "can ignore the children association" do
+        clone_model = IgnoreChildrenAssociationCloner.new.clone(viewmodel)
+
+        assert(clone_model.new_record?)
+        assert_nil(clone_model.id)
+        assert_equal(model.name, clone_model.name)
+
+        assert(clone_model.children.blank?)
+      end
     end
 
     describe "with has_many_through shared children" do
@@ -307,6 +323,16 @@ class ViewModel::ActiveRecord
           refute_equal(clone_model_child, model_child)
           assert_equal(clone_model_child.child, model_child.child)
         end
+      end
+
+      it "can ignore the children association" do
+        clone_model = IgnoreChildrenAssociationCloner.new.clone(viewmodel)
+
+        assert(clone_model.new_record?)
+        assert_nil(clone_model.id)
+        assert_equal(model.name, clone_model.name)
+
+        assert(clone_model.model_children.blank?)
       end
     end
   end
