@@ -40,7 +40,7 @@ class ViewModel::ActiveRecord::Cloner
       reflection = association_data.direct_reflection
 
       if ignored_associations.include?(name)
-        new_associated = nil
+        new_associated = association_data.collection? ? [] : nil
       else
         # Load the record associated with the old model
         associated = node.model.public_send(reflection.name)
