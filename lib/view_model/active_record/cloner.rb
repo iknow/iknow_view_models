@@ -33,12 +33,13 @@ class ViewModel::ActiveRecord::Cloner
 
     # visit the underlying viewmodel for each association, ignoring any
     # customization
+    ignored_associations = @ignored_associations
     node.class._members.each do |name, association_data|
       next unless association_data.is_a?(ViewModel::ActiveRecord::AssociationData)
 
       reflection = association_data.direct_reflection
 
-      if association_ignored?(name)
+      if ignored_associations.include?(name)
         new_associated = nil
       else
         # Load the record associated with the old model
@@ -105,9 +106,5 @@ class ViewModel::ActiveRecord::Cloner
 
   def ignored?
     @ignored
-  end
-
-  def association_ignored?(name)
-    @ignored_associations.include?(name.to_s)
   end
 end
