@@ -10,6 +10,8 @@ class ViewModel::ActiveRecord::Visitor
   end
 
   def visit(view, context: nil)
+    reset_state!
+
     return unless pre_visit(view, context: context)
 
     run_callback(ViewModel::Callbacks::Hook::BeforeVisit, view, context: context)
@@ -29,8 +31,10 @@ class ViewModel::ActiveRecord::Visitor
     if visit_children
       # visit the underlying viewmodel for each association, ignoring any
       # customization
+      ignored_associations = @ignored_associations
       view.class._members.each do |name, member_data|
         next unless member_data.association?
+        next if ignored_associations.include?(name)
         next if member_data.referenced? && !visit_referenced
         next if !member_data.owned? && !visit_shared
 
@@ -77,4 +81,15 @@ class ViewModel::ActiveRecord::Visitor
   def changes(_view)
     ViewModel::Changes.new
   end
+
+  private
+
+  def ignore_association!(name)
+    @ignored_associations.add(name.to_s)
+  end
+
+  def reset_state!
+    @ignored_associations = Set.new
+  end
+
 end
