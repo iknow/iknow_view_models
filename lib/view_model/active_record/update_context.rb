@@ -94,11 +94,16 @@ class ViewModel::ActiveRecord
       # won't yet include through a polymorphic boundary: for now we become
       # lazy-loading and slow every time that happens.
 
-      # Combine our root and referenced updates, and separate by viewmodel type
+      # Combine our root and referenced updates, and separate by viewmodel type.
+      # Sort by id where possible to obtain as close to possible a deterministic
+      # update order to avoid database write deadlocks. This can't be entirely
+      # comprehensive, since we can't control the order that shared references
+      # are referred to from roots (and therefore visited).
       updates_by_viewmodel_class =
         root_updates.lazily
           .map { |root_update| [nil, root_update] }
           .concat(referenced_updates)
+          .sort_by { |_, update_data| update_data.metadata.id.to_s }
           .group_by { |_, update_data| update_data.viewmodel_class }
 
       # For each viewmodel type, look up referenced models and construct viewmodels to update
@@ -115,7 +120,7 @@ class ViewModel::ActiveRecord
 
             if models.size < model_ids.size
               missing_model_ids = model_ids - models.map(&:id)
-              missing_viewmodel_refs = missing_model_ids.map  { |id| ViewModel::Reference.new(viewmodel_class, id) }
+              missing_viewmodel_refs = missing_model_ids.map { |id| ViewModel::Reference.new(viewmodel_class, id) }
               raise ViewModel::DeserializationError::NotFound.new(missing_viewmodel_refs)
             end
 
