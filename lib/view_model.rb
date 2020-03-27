@@ -89,7 +89,7 @@ class ViewModel
     end
 
     def member_names
-      _attributes
+      _attributes.map(&:to_s)
     end
 
     # In deserialization, verify and extract metadata from a provided hash.
