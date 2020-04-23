@@ -93,12 +93,14 @@ class ViewModel::TraversalContext
   end
 
   def run_callback(hook, view, **args)
-    callbacks.each do |callback|
-      callback.run_callback(hook, view, self, **args)
-    end
-
+    # Run in-viewmodel callback hooks before context hooks, as they are
+    # permitted to alter the model.
     if view.respond_to?(hook.dsl_viewmodel_callback_method)
       view.public_send(hook.dsl_viewmodel_callback_method, hook.context_name => self, **args)
+    end
+
+    callbacks.each do |callback|
+      callback.run_callback(hook, view, self, **args)
     end
   end
 
