@@ -17,7 +17,7 @@ class ViewModel::ActiveRecord::AssociationData
 
     @direct_reflection = owner.model_class.reflect_on_association(direct_association_name)
     if @direct_reflection.nil?
-      raise InvalidAssociation.new("Association '#{direct_association_name}' not found in model '#{model_class.name}'")
+      raise InvalidAssociation.new("Association '#{direct_association_name}' not found in model '#{owner.model_class.name}'")
     end
 
     @indirect_association_name = indirect_association_name
