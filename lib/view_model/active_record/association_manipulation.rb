@@ -96,7 +96,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   # Create or update members of a associated collection. For an ordered
   # collection, the items are inserted either before `before`, after `after`, or
   # at the end.
-  def append_associated(association_name, subtree_hash_or_hashes, references: {}, before: nil, after: nil, deserialize_context: self.class.new_deserialize_context)
+  def append_associated(association_name, subtree_hash_or_hashes, references: {}, prepend: false, anchor: nil, deserialize_context: self.class.new_deserialize_context)
     if self.changes.changed?
       raise ArgumentError.new('Invalid call to append_associated on viewmodel with pending changes')
     end
@@ -132,7 +132,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
             new_positions = select_append_positions(association_data,
                                                     direct_viewmodel_class._list_attribute_name,
                                                     update_context.root_updates.count,
-                                                    before: before, after: after)
+                                                    prepend: prepend, anchor: anchor)
 
             update_context.root_updates.zip(new_positions).each do |update, new_pos|
               update.reposition_to = new_pos
@@ -354,7 +354,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
   end
 
   # TODO: this functionality could reasonably be extracted into `acts_as_manual_list`.
-  def select_append_positions(association_data, position_attr, append_count, before:, after:)
+  def select_append_positions(association_data, position_attr, append_count, prepend:, anchor:)
     direct_reflection = association_data.direct_reflection
     association_scope = model.association(direct_reflection.name).scope
 
@@ -365,9 +365,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
         :id
       end
 
-    if (relative_ref = (before || after))
-      relative_target = association_scope.where(search_key => relative_ref.model_id).select(:position)
-      if before
+    if anchor
+      relative_target = association_scope.where(search_key => anchor.model_id).select(:position)
+
+      if prepend
         end_pos, start_pos = association_scope.where("#{position_attr} <= (?)", relative_target).order("#{position_attr} DESC").limit(2).pluck(:position)
       else
         start_pos, end_pos = association_scope.where("#{position_attr} >= (?)", relative_target).order("#{position_attr} ASC").limit(2).pluck(:position)
@@ -376,9 +377,12 @@ module ViewModel::ActiveRecord::AssociationManipulation
       if start_pos.nil? && end_pos.nil?
         # Attempted to insert relative to ref that's not in the association
         raise ViewModel::DeserializationError::AssociatedNotFound.new(association_data.association_name.to_s,
-                                                                      relative_ref,
+                                                                      anchor,
                                                                       blame_reference)
       end
+    elsif prepend
+      start_pos = nil
+      end_pos = association_scope.minimum(position_attr)
     else
       start_pos = association_scope.maximum(position_attr)
       end_pos   = nil

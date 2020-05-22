@@ -513,24 +513,24 @@ class ViewModel::ActiveRecord
               child_ref && existing_refs.include?(child_ref)
             end
 
-            if fupdate.before || fupdate.after
-              rel_ref = fupdate.before || fupdate.after
-
+            if (anchor = fupdate.anchor)
               # Find the relative insert location. This might be an empty
               # UpdateData from a previous child or an already-fupdated
               # reference string.
               index = child_datas.find_index do |child_data|
-                rel_ref == resolve_child_data_reference.(child_data)
+                anchor == resolve_child_data_reference.(child_data)
               end
 
               unless index
                 raise ViewModel::DeserializationError::AssociatedNotFound.new(
-                        association_data.association_name.to_s, rel_ref, blame_reference)
+                        association_data.association_name.to_s, anchor, blame_reference)
               end
 
-              index += 1 if fupdate.after
+              index += 1 unless fupdate.prepend?
               child_datas.insert(index, *fupdate.contents)
 
+            elsif fupdate.prepend?
+              child_datas.insert(0, *fupdate.contents)
             else
               child_datas.concat(fupdate.contents)
             end
@@ -688,18 +688,31 @@ class ViewModel::ActiveRecord
         free_members_by_indirect_ref.clear
       end
 
-      def insert_before(relative_to, references)
-        insert_relative(relative_to, 0, references)
-      end
-
-      def insert_after(relative_to, references)
-        insert_relative(relative_to, 1, references)
-      end
-
-      def concat(references)
+      def insert_relative(relative_vm_ref, references, prepend)
         new_members = claim_or_create_references(references)
         remove_from_members(new_members)
-        members.concat(new_members)
+
+        offset = prepend ? 0 : 1
+
+        index = members.find_index { |m| m.indirect_viewmodel_reference == relative_vm_ref }
+
+        unless index
+          raise ViewModel::DeserializationError::AssociatedNotFound.new(
+                  association_data.association_name.to_s, relative_vm_ref, blame_reference)
+        end
+
+        members.insert(index + offset, *new_members)
+      end
+
+      def insert_absolute(references, prepend)
+        new_members = claim_or_create_references(references)
+        remove_from_members(new_members)
+
+        if prepend
+          members.insert(0, *new_members)
+        else
+          members.concat(new_members)
+        end
       end
 
       def remove(vm_references)
@@ -718,20 +731,6 @@ class ViewModel::ActiveRecord
 
       attr_reader :free_members_by_indirect_ref
       attr_reader :association_data, :update_context
-
-      def insert_relative(relative_vm_ref, offset, references)
-        new_members = claim_or_create_references(references)
-        remove_from_members(new_members)
-
-        index = members.find_index { |m| m.indirect_viewmodel_reference == relative_vm_ref }
-
-        unless index
-          raise ViewModel::DeserializationError::AssociatedNotFound.new(
-            association_data.association_name.to_s, relative_vm_ref, blame_reference)
-        end
-
-        members.insert(index + offset, *new_members)
-      end
 
       # Reclaim existing members corresponding to the specified references, or create new ones if not found.
       def claim_or_create_references(references)
@@ -833,13 +832,10 @@ class ViewModel::ActiveRecord
         association_update.actions.each do |fupdate|
           case fupdate
           when FunctionalUpdate::Append # Append new members, possibly relative to another member
-            case
-            when fupdate.before
-              target_collection.insert_before(fupdate.before, fupdate.contents)
-            when fupdate.after
-              target_collection.insert_after(fupdate.after, fupdate.contents)
+            if fupdate.anchor
+              target_collection.insert_relative(fupdate.anchor, fupdate.contents, fupdate.prepend?)
             else
-              target_collection.concat(fupdate.contents)
+              target_collection.insert_absolute(fupdate.contents, fupdate.prepend?)
             end
 
           when FunctionalUpdate::Remove

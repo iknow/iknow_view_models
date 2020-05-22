@@ -22,10 +22,15 @@ class ViewModel::ActiveRecord
 
     class Append
       NAME = 'append'
-      attr_accessor :before, :after
+      attr_accessor :prepend, :anchor
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
+      end
+
+      def prepend?
+        prepend
       end
     end
 
@@ -179,19 +184,11 @@ class ViewModel::ActiveRecord
         values = action[VALUES_ATTRIBUTE]
         update = FunctionalUpdate::Append.new(parse_contents(values))
 
-        if (before = action[BEFORE_ATTRIBUTE])
-          update.before = parse_anchor(before)
+        if (anchor = action[ANCHOR_ATTRIBUTE])
+          update.anchor = parse_anchor(anchor)
         end
 
-        if (after = action[AFTER_ATTRIBUTE])
-          update.after = parse_anchor(after)
-        end
-
-        if before && after
-          raise ViewModel::DeserializationError::InvalidSyntax.new(
-                  "Append may not specify both 'after' and 'before'",
-                  blame_reference)
-        end
+        update.prepend = action.fetch(PREPEND_ATTRIBUTE, false)
 
         update
       end
@@ -425,8 +422,8 @@ class ViewModel::ActiveRecord
         'additionalProperties' => false,
         'properties'           => {
           ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME] },
-          BEFORE_ATTRIBUTE          => viewmodel_reference_only,
-          AFTER_ATTRIBUTE           => viewmodel_reference_only
+          PREPEND_ATTRIBUTE         => { 'type' => 'boolean' },
+          ANCHOR_ATTRIBUTE          => viewmodel_reference_only,
         },
       }
 

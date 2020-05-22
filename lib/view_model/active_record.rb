@@ -16,8 +16,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
   FUNCTIONAL_UPDATE_TYPE = "_update"
   ACTIONS_ATTRIBUTE      = "actions"
   VALUES_ATTRIBUTE       = "values"
-  BEFORE_ATTRIBUTE       = "before"
-  AFTER_ATTRIBUTE        = "after"
+  PREPEND_ATTRIBUTE      = "prepend"
+  ANCHOR_ATTRIBUTE       = "anchor"
 
   require 'view_model/utils/collections'
   require 'view_model/active_record/association_data'
