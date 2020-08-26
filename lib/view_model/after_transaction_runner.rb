@@ -33,7 +33,8 @@ module ViewModel::AfterTransactionRunner
     if connection.transaction_open?
       connection.add_transaction_record(self)
     else
-      after_transaction
+      before_commit
+      after_commit
     end
   end
 
