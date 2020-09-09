@@ -102,15 +102,15 @@ workflows:
   build:
     jobs:
       - test:
-          name: 'ruby 2.6 rails 5.2 pg 11'
+          name: 'ruby 2.6 rails 5.2 pg 12'
           ruby-version: "2.6"
-          pg-version: "11"
+          pg-version: "12"
           gemfile: gemfiles/rails_5_2.gemfile
       - test:
-          name: 'ruby 2.6 rails 6.0 pg 11'
-          ruby-version: "2.6"
-          pg-version: "11"
-          gemfile: gemfiles/rails_6_0_beta.gemfile
+          name: 'ruby 2.7 rails 6.0 pg 12'
+          ruby-version: "2.7"
+          pg-version: "12"
+          gemfile: gemfiles/rails_6_0.gemfile
       - publish:
           filters:
             branches:

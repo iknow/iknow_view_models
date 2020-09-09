@@ -42,7 +42,7 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "byebug"
   spec.add_development_dependency "method_source"
   spec.add_development_dependency "minitest-hooks"
-  spec.add_development_dependency "pg", '~> 0.18' # As of 5.1.4, Rails runtime check excludes pg 1.x, see #31669
+  spec.add_development_dependency "pg"
   spec.add_development_dependency "pry"
   spec.add_development_dependency "rake"
   spec.add_development_dependency "rspec-expectations"
