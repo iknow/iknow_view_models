@@ -7,5 +7,5 @@ gemspec
 gem 'minitest-ci'
 
 # Override gemspec for development version preferences
-gem 'activerecord',  '~> 5.2.0'
-gem 'activesupport', '~> 5.2.0'
+gem 'activerecord',  '~> 6.0.0'
+gem 'activesupport', '~> 6.0.0'

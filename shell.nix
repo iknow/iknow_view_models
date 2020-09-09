@@ -1,10 +1,15 @@
-with import <nixpkgs> {};
+{ pkgs ? import <nixpkgs> {} }:
 
+with pkgs;
+
+let
+  dependencies = import ./nix/dependencies.nix { inherit pkgs; };
+in
 (bundlerEnv {
   name = "iknow-view-models-shell";
   gemdir = ./nix/gem;
 
-  gemConfig = (defaultGemConfig.override { postgresql = postgresql_11; });
+  gemConfig = (defaultGemConfig.override { inherit (dependencies) postgresql; });
 
-  ruby = ruby_2_6;
+  inherit (dependencies) ruby;
 }).env
