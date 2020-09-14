@@ -10,6 +10,7 @@ class ViewModel::Record < ViewModel
   attr_accessor :model
 
   require 'view_model/record/attribute_data'
+  require 'view_model/migratable_view'
 
   class << self
     attr_reader :_members
@@ -25,6 +26,9 @@ class ViewModel::Record < ViewModel
       @_members       = {}
       @abstract_class = false
       @unregistered   = false
+
+      include ViewModel::MigratableView
+      initialize_as_migratable_view
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module
@@ -207,7 +211,7 @@ class ViewModel::Record < ViewModel
   end
 
   def serialize_view(json, serialize_context: self.class.new_serialize_context)
-    json.set!(ViewModel::ID_ATTRIBUTE, model.id) if model.respond_to?(:id)
+    json.set!(ViewModel::ID_ATTRIBUTE, self.id) if stable_id?
     json.set!(ViewModel::TYPE_ATTRIBUTE, self.view_name)
     json.set!(ViewModel::VERSION_ATTRIBUTE, self.class.schema_version)
 

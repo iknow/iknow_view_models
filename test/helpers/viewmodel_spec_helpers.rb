@@ -120,8 +120,8 @@ module ViewModelSpecHelpers
     def model_attributes
       f = subject_association_features
       super.merge(schema:    ->(t) { t.references :child, foreign_key: true },
-                  model:     ->(m) { belongs_to :child, inverse_of: :model, dependent: :destroy },
-                  viewmodel: ->(v) { association :child, **f })
+                  model:     ->(_m) { belongs_to :child, inverse_of: :model, dependent: :destroy },
+                  viewmodel: ->(_v) { association :child, **f })
     end
 
     def child_attributes
@@ -136,6 +136,71 @@ module ViewModelSpecHelpers
 
     def subject_association
       viewmodel_class._association_data('child')
+    end
+  end
+
+  module ParentAndBelongsToChildWithMigration
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    def model_attributes
+      super.merge(
+        schema: ->(t) { t.integer :new_field, default: 1, null: false },
+        viewmodel: ->(_v) {
+          self.schema_version = 4
+
+          attribute :new_field
+
+          # add: old_field (one-way)
+          migrates from: 1, to: 2 do
+            down do |view, _refs|
+              view.delete('old_field')
+            end
+          end
+
+          # rename: old_field -> mid_field
+          migrates from: 2, to: 3 do
+            up do |view, _refs|
+              if view.has_key?('old_field')
+                view['mid_field'] = view.delete('old_field') + 1
+              end
+            end
+
+            down do |view, _refs|
+              view['old_field'] = view.delete('mid_field') - 1
+            end
+          end
+
+          # rename: mid_field -> new_field
+          migrates from: 3, to: 4 do
+            up do |view, _refs|
+              if view.has_key?('mid_field')
+                view['new_field'] = view.delete('mid_field') + 1
+              end
+            end
+
+            down do |view, _refs|
+              view['mid_field'] = view.delete('new_field') - 1
+            end
+          end
+        })
+    end
+
+    def child_attributes
+      super.merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 3
+
+          # delete: former_field
+          migrates from: 2, to: 3 do
+            up do |view, _refs|
+              view.delete('former_field')
+            end
+
+            down do |view, _refs|
+              view['former_field'] = 'reconstructed'
+            end
+          end
+        })
     end
   end
 

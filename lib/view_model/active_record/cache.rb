@@ -5,6 +5,7 @@ require 'iknow_cache'
 # Cache for ViewModels that wrap ActiveRecord models.
 class ViewModel::ActiveRecord::Cache
   require 'view_model/active_record/cache/cacheable_view'
+  require 'view_model/migrator'
 
   class UncacheableViewModelError < RuntimeError; end
 
@@ -13,13 +14,20 @@ class ViewModel::ActiveRecord::Cache
   # If cache_group: is specified, it must be a group of a single key: `:id`
   def initialize(viewmodel_class, cache_group: nil)
     @viewmodel_class = viewmodel_class
-    @cache_group = cache_group || create_default_cache_group # requires @viewmodel_class
+
+    @cache_group = cache_group || create_default_cache_group
+    @migrated_cache_group = @cache_group.register_child_group(:migrated, :version)
+
+    # /viewname/:id/viewname-currentversion
     @cache = @cache_group.register_cache(cache_name)
+
+    # /viewname/:id/migrated/:oldversion/viewname-currentversion
+    @migrated_cache = @migrated_cache_group.register_cache(cache_name)
   end
 
   def delete(*ids)
     ids.each do |id|
-      @cache_group.delete_all(key_for(id))
+      @cache_group.delete_all(@cache.key.new(id))
     end
   end
 
@@ -27,14 +35,14 @@ class ViewModel::ActiveRecord::Cache
     @cache_group.invalidate_cache_group
   end
 
-  def fetch_by_viewmodel(viewmodels, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
+  def fetch_by_viewmodel(viewmodels, migration_versions: {}, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
     ids = viewmodels.map(&:id)
-    fetch(ids, initial_viewmodels: viewmodels, locked: false, serialize_context: serialize_context)
+    fetch(ids, initial_viewmodels: viewmodels, migration_versions: migration_versions, locked: locked, serialize_context: serialize_context)
   end
 
-  def fetch(ids, initial_viewmodels: nil, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
+  def fetch(ids, initial_viewmodels: nil, migration_versions: {}, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
     data_serializations = Array.new(ids.size)
-    worker = CacheWorker.new(serialize_context: serialize_context)
+    worker = CacheWorker.new(migration_versions: migration_versions, serialize_context: serialize_context)
 
     # If initial root viewmodels were provided, visit them to ensure that they
     # are visible. Other than this, no traversal callbacks are performed, as a
@@ -98,12 +106,14 @@ class ViewModel::ActiveRecord::Cache
     SENTINEL = Object.new
     WorklistEntry = Struct.new(:ref_name, :viewmodel)
 
-    attr_reader :serialize_context, :resolved_references
+    attr_reader :migration_versions, :serialize_context, :resolved_references
 
-    def initialize(serialize_context:)
-      @worklist            = {}
-      @resolved_references = {}
-      @serialize_context   = serialize_context
+    def initialize(migration_versions:, serialize_context:)
+      @worklist                = {}
+      @resolved_references     = {}
+      @migration_versions      = migration_versions
+      @migrated_cache_versions = {}
+      @serialize_context       = serialize_context
     end
 
     def resolve_references!
@@ -141,11 +151,15 @@ class ViewModel::ActiveRecord::Cache
       end
     end
 
+    def migrated_cache_version(viewmodel_cache)
+      @migrated_cache_versions[viewmodel_cache] ||= viewmodel_cache.migrated_cache_version(migration_versions)
+    end
+
     # Loads the specified entities from the cache and returns a hash of
     # {id=>serialized_view}. Any references encountered are added to the
     # worklist.
     def load_from_cache(viewmodel_cache, ids)
-      cached_serializations = viewmodel_cache.load(ids, serialize_context: serialize_context)
+      cached_serializations = viewmodel_cache.load(ids, migrated_cache_version(viewmodel_cache), serialize_context: serialize_context)
 
       cached_serializations.each_with_object({}) do |(id, cached_serialization), result|
         add_refs_to_worklist(cached_serialization[:ref_cache])
@@ -159,17 +173,54 @@ class ViewModel::ActiveRecord::Cache
     # added to the worklist.
     def serialize_and_cache(viewmodels)
       viewmodels.each_with_object({}) do |viewmodel, result|
-        data_serialization = Jbuilder.encode do |json|
+        builder = Jbuilder.new do |json|
           ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
         end
 
         referenced_viewmodels = serialize_context.extract_referenced_views!
+
+        if migration_versions.present?
+          migrator = ViewModel::DownMigrator.new(migration_versions)
+
+          # This migration isn't given the chance to inspect/alter the contents
+          # of referenced views, only their presence: it's strictly less
+          # powerful than migrations on a fully serialized tree, as the only
+          # possible action on a referenced child is to delete it. The effect of
+          # this is that for sufficiently complex migrations where a parent view
+          # must introduce children or alter the contents of its referenced
+          # children, we may have to avoid caching while the migration is in
+          # use.
+          dummy_references = referenced_viewmodels.transform_values do |ref_vm|
+            {
+              ViewModel::TYPE_ATTRIBUTE    => ref_vm.class.view_name,
+              ViewModel::VERSION_ATTRIBUTE => ref_vm.class.schema_version,
+              ViewModel::ID_ATTRIBUTE      => ref_vm.id,
+            }.freeze
+          end
+
+          migrator.migrate!(builder.attributes!, references: dummy_references)
+
+          # Removed dummy references can be removed from referenced_viewmodels.
+          referenced_viewmodels.keep_if { |k, _| dummy_references.has_key?(k) }
+
+          # Introduced dummy references cannot be handled.
+          if dummy_references.keys != referenced_viewmodels.keys
+            version = migration_versions[viewmodel.class]
+            raise ViewModel::Error.new(
+                    status: 500,
+                    detail: "Down-migration for cacheable view #{viewmodel.class} to v#{version} must not introduce new shared references")
+          end
+        end
+
+        data_serialization = builder.target!
+
         add_viewmodels_to_worklist(referenced_viewmodels)
 
         if viewmodel.class < CacheableView
           cacheable_references = referenced_viewmodels.transform_values { |vm| cacheable_reference(vm) }
-          viewmodel.class.viewmodel_cache.store(viewmodel.id, data_serialization, cacheable_references,
-                                                serialize_context: serialize_context)
+          target_cache = viewmodel.class.viewmodel_cache
+          target_cache.store(viewmodel.id, migrated_cache_version(target_cache), data_serialization, cacheable_references,
+                             serialize_context: serialize_context)
         end
 
         result[viewmodel.id] = data_serialization
@@ -225,8 +276,20 @@ class ViewModel::ActiveRecord::Cache
     end
   end
 
-  def key_for(id)
-    cache.key.new(id)
+  def cache_for(migration_version)
+    if migration_version
+      @migrated_cache
+    else
+      @cache
+    end
+  end
+
+  def key_for(id, migration_version)
+    if migration_version
+      @migrated_cache.key.new(id, migration_version)
+    else
+      @cache.key.new(id)
+    end
   end
 
   def id_for(key)
@@ -234,32 +297,47 @@ class ViewModel::ActiveRecord::Cache
   end
 
   # Save the provided serialization and reference data in the cache
-  def store(id, data_serialization, ref_cache, serialize_context:)
-    cache.write(key_for(id), { data: data_serialization, ref_cache: ref_cache })
+  def store(id, migration_version, data_serialization, ref_cache, serialize_context:)
+    key = key_for(id, migration_version)
+    cache_for(migration_version).write(key, { data: data_serialization, ref_cache: ref_cache })
   end
 
-  def load(ids, serialize_context:)
-    keys = ids.map { |id| key_for(id) }
-    results = cache.read_multi(keys)
+  def load(ids, migration_version, serialize_context:)
+    keys = ids.map { |id| key_for(id, migration_version) }
+    results = cache_for(migration_version).read_multi(keys)
     results.transform_keys! { |key| id_for(key) }
   end
 
-  private
+  def cache_version
+    @cache_version ||=
+      begin
+        versions = @viewmodel_class.deep_schema_version(include_referenced: false)
+        ViewModel.schema_hash(versions)
+      end
+  end
 
-  attr_reader :cache
+  def migrated_cache_version(migration_versions)
+    versions = ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: false)
+    version_hash = ViewModel.schema_hash(versions)
+
+    if version_hash == cache_version
+      # no migrations affect this view
+      nil
+    else
+      version_hash
+    end
+  end
+
+  private
 
   def create_default_cache_group
     IknowCache.register_group(@viewmodel_class.name, :id)
   end
 
-  # Statically version the terminal cache based on the deep schema versions of
-  # the constituent viewmodels, so that viewmodel changes force invalidation.
+  # Statically version the cache name based on the (current) deep schema
+  # versions of the constituent viewmodels, so that viewmodel changes force
+  # invalidation.
   def cache_name
-    "#{@viewmodel_class.name}_#{cache_version}"
-  end
-
-  def cache_version
-    version_string = @viewmodel_class.deep_schema_version(include_referenced: false).to_a.sort.join(',')
-    Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
+    "vmcache_#{cache_version}"
   end
 end

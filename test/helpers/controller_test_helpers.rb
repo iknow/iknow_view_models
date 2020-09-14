@@ -79,11 +79,25 @@ module ControllerTestModels
       end
       define_viewmodel do
         root!
+        self.schema_version = 2
+
         attributes   :name
         associations :label, :target
         association  :children
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
         association  :category, external: true
+
+        migrates from: 1, to: 2 do
+          up do |view, _refs|
+            if view.has_key?('old_name')
+              view['name'] = view.delete('old_name')
+            end
+          end
+
+          down do |view, refs|
+            view['old_name'] = view.delete('name')
+          end
+        end
       end
     end
 

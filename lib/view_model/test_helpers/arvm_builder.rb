@@ -4,7 +4,8 @@ class ViewModel::TestHelpers::ARVMBuilder
   # Building an ARVM requires three blocks, to define schema, model and
   # viewmodel. Support providing these either in an spec argument or as a
   # dsl-style builder.
-  Spec = Struct.new(:schema, :model, :viewmodel) do
+  Spec = Struct.new(:schema, :model, :viewmodel)
+  class Spec
     def initialize(schema:, model:, viewmodel:)
       super(schema, model, viewmodel)
     end
