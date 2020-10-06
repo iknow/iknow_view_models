@@ -3,6 +3,10 @@ source 'https://rubygems.org'
 # Specify your gem's dependencies in cerego_view_models.gemspec
 gemspec
 
+# Add our linter rules as a development dependency
+gem 'rubocop'
+gem 'rubocop-iknow'
+
 # Test metadata collection for circleci
 gem 'minitest-ci'
 
