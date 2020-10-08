@@ -82,7 +82,7 @@ module ViewModel::ActiveRecord::PolyTest
       p1_view = {
         '_type' => 'PolyParentOne',
         'text'  => 'p',
-        'child' => { '_type' => 'Child', 'text' => 'c' }
+        'child' => { '_type' => 'Child', 'text' => 'c' },
       }
       p1v = PolyParentOneView.deserialize_from_view(p1_view)
       p1 = p1v.model
@@ -96,7 +96,7 @@ module ViewModel::ActiveRecord::PolyTest
       p2_view = {
         '_type' => 'PolyParentTwo',
         'num'   => '2',
-        'children' => [{ '_type' => 'Child', 'text' => 'c1' }, { '_type' => 'Child', 'text' => 'c2' }]
+        'children' => [{ '_type' => 'Child', 'text' => 'c1' }, { '_type' => 'Child', 'text' => 'c2' }],
       }
       p2v = PolyParentTwoView.deserialize_from_view(p2_view)
       p2 = p2v.model
@@ -206,7 +206,7 @@ module ViewModel::ActiveRecord::PolyTest
       view = {
         '_type'    => 'Parent',
         'name'     => 'p',
-        'poly'     => { '_type' => 'PolyTwo', 'text' => 'pol' }
+        'poly'     => { '_type' => 'PolyTwo', 'text' => 'pol' },
       }
 
       pv = ParentView.deserialize_from_view(view)
@@ -232,7 +232,7 @@ module ViewModel::ActiveRecord::PolyTest
                      'poly'     => { '_type'    => @parent1.poly_type,
                                      '_version' => 1,
                                      'id'       => @parent1.poly.id,
-                                     'number'   => @parent1.poly.number }
+                                     'number'   => @parent1.poly.number },
                    },
                    view)
     end

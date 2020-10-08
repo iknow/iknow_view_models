@@ -85,7 +85,7 @@ class ViewModel::AbstractError < StandardError
   def format_reference(viewmodel_ref)
     {
       ViewModel::TYPE_ATTRIBUTE => viewmodel_ref.viewmodel_class.view_name,
-      ViewModel::ID_ATTRIBUTE   => viewmodel_ref.model_id
+      ViewModel::ID_ATTRIBUTE   => viewmodel_ref.model_id,
     }
   end
 end
@@ -106,7 +106,7 @@ class ViewModel::AbstractErrorWithBlame < ViewModel::AbstractError
 
   def meta
     {
-      nodes: format_references(nodes)
+      nodes: format_references(nodes),
     }
   end
 end

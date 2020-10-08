@@ -105,7 +105,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       '_type' => 'Parent',
       'id'    => 9999,
       'name'  => 'p',
-      '_new'  => true
+      '_new'  => true,
     }
     pv = ParentView.deserialize_from_view(view)
     p = pv.model
@@ -119,7 +119,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     view = {
       '_type' => 'Parent',
       'id'    => 9999,
-      '_new'  => true
+      '_new'  => true,
     }
     ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
       ParentView.deserialize_from_view(view)
@@ -133,7 +133,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       '_type' => 'Parent',
       'one'   => 2,
       'id'    => 9999,
-      '_new'  => true
+      '_new'  => true,
     }
     ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
       ParentView.deserialize_from_view(view)
@@ -229,7 +229,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_multiple
     view = [{ '_type' => 'Parent', 'name' => 'newp1' },
-            { '_type' => 'Parent', 'name' => 'newp2' }]
+            { '_type' => 'Parent', 'name' => 'newp2' },]
 
     result = ParentView.deserialize_from_view(view)
 
@@ -300,7 +300,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   def test_edit_missing_root
     view = {
       '_type' => 'Parent',
-      'id'    => 9999
+      'id'    => 9999,
     }
 
     ex = assert_raises(ViewModel::DeserializationError::NotFound) do

@@ -151,7 +151,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
     assert_equal(target_child, to_model.child, 'target child moved')
     assert_equal([ViewModel::Reference.new(ModelView, from_model.id),
-                  ViewModel::Reference.new(ModelView, to_model.id)],
+                  ViewModel::Reference.new(ModelView, to_model.id),],
                  d_context.valid_edit_refs,
                  'only models are checked for change; child was not')
   end

@@ -20,12 +20,12 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     @model1 = model_class.new(name: 'p1',
                           children: [child_model_class.new(name: 'p1c1', position: 1),
                                      child_model_class.new(name: 'p1c2', position: 2),
-                                     child_model_class.new(name: 'p1c3', position: 3)])
+                                     child_model_class.new(name: 'p1c3', position: 3),])
     @model1.save!
 
     @model2 = model_class.new(name: 'p2',
                           children: [child_model_class.new(name: 'p2c1').tap { |c| c.position = 1 },
-                                     child_model_class.new(name: 'p2c2').tap { |c| c.position = 2 }])
+                                     child_model_class.new(name: 'p2c2').tap { |c| c.position = 2 },])
 
     @model2.save!
 
@@ -68,7 +68,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       '_type'    => 'Model',
       'name'     => 'p',
       'children' => [{ '_type' => 'Child', 'name' => 'c1' },
-                     { '_type' => 'Child', 'name' => 'c2' }]
+                     { '_type' => 'Child', 'name' => 'c2' },],
     }
 
     pv = viewmodel_class.deserialize_from_view(view)
@@ -111,7 +111,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view = { '_type'    => 'Model',
              'name'     => 'p',
              'children' => [{ '_type' => 'Child', 'name' => 'c1' },
-                            { '_type' => 'Child', 'name' => 'c2' }] }
+                            { '_type' => 'Child', 'name' => 'c2' },] }
 
     context = viewmodel_class.new_deserialize_context
     pv = viewmodel_class.deserialize_from_view(view, deserialize_context: context)
@@ -126,7 +126,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_nil_multiple_association
     view = {
       '_type' => 'Model',
-      'children' => nil
+      'children' => nil,
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       viewmodel_class.deserialize_from_view(view)
@@ -138,7 +138,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_non_array_multiple_association
     view = {
       '_type' => 'Model',
-      'children' => { '_type' => 'Child', 'name' => 'c1' }
+      'children' => { '_type' => 'Child', 'name' => 'c1' },
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       viewmodel_class.deserialize_from_view(view)
@@ -170,7 +170,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     expected_edit_checks = [pv.to_reference,
                             *old_children.map { |x| ViewModel::Reference.new(child_viewmodel_class, x.id) },
-                            *nc.map(&:to_reference)]
+                            *nc.map(&:to_reference),]
 
     assert_contains_exactly(expected_edit_checks,
                             context.valid_edit_refs)
@@ -201,7 +201,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     expected_edit_checks = [pv.to_reference,
                             ViewModel::Reference.new(child_viewmodel_class, new_child.id),
                             ViewModel::Reference.new(child_viewmodel_class, old_children.first.id),
-                            ViewModel::Reference.new(child_viewmodel_class, old_children.last.id)]
+                            ViewModel::Reference.new(child_viewmodel_class, old_children.last.id),]
 
     assert_contains_exactly(expected_edit_checks,
                             context.valid_edit_refs)
@@ -240,7 +240,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          deserialize_context: context)
 
     expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
-                            ViewModel::Reference.new(child_viewmodel_class, c1.id)].to_set
+                            ViewModel::Reference.new(child_viewmodel_class, c1.id),].to_set
 
     assert_equal(expected_edit_checks,
                  context.valid_edit_refs.to_set)
@@ -262,7 +262,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_contains_exactly(
       [ViewModel::Reference.new(viewmodel_class, @model1.id),
        ViewModel::Reference.new(child_viewmodel_class,  c1.id),  # deleted child
-       ViewModel::Reference.new(child_viewmodel_class,  nc.id)], # created child
+       ViewModel::Reference.new(child_viewmodel_class,  nc.id),], # created child
       context.valid_edit_refs)
 
     assert_equal([c2, c3, child_model_class.find_by_name('new_c')],
@@ -315,7 +315,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
                          deserialize_context: (context = viewmodel_class.new_deserialize_context))
 
     expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
-                            ViewModel::Reference.new(viewmodel_class, @model2.id)]
+                            ViewModel::Reference.new(viewmodel_class, @model2.id),]
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
@@ -336,7 +336,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     n1 = child_model_class.find_by_name('new1')
 
     expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
-                            ViewModel::Reference.new(child_viewmodel_class, n1.id)]
+                            ViewModel::Reference.new(child_viewmodel_class, n1.id),]
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
@@ -352,7 +352,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     n2 = child_model_class.find_by_name('new2')
 
     expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
-                            ViewModel::Reference.new(child_viewmodel_class, n2.id)]
+                            ViewModel::Reference.new(child_viewmodel_class, n2.id),]
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
@@ -367,7 +367,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     n3 = child_model_class.find_by_name('new3')
 
     expected_edit_checks = [ViewModel::Reference.new(viewmodel_class, @model1.id),
-                            ViewModel::Reference.new(child_viewmodel_class, n3.id)]
+                            ViewModel::Reference.new(child_viewmodel_class, n3.id),]
 
     assert_contains_exactly(expected_edit_checks, context.valid_edit_refs)
 
@@ -392,8 +392,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       '_type' => 'Model',
       'children' => [{
                        '_type' => 'Child',
-                       'id'    => 9999
-                     }]
+                       'id'    => 9999,
+                     }],
     }
 
     ex = assert_raises(ViewModel::DeserializationError::NotFound) do
@@ -412,7 +412,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view = { '_type'    => 'Model',
              'name'     => 'new_p',
              'children' => [moved_child_ref,
-                            { '_type' => 'Child', 'name' => 'new' }] }
+                            { '_type' => 'Child', 'name' => 'new' },] }
 
     retained_children = old_children - [moved_child]
     release_view = { '_type'    => 'Model',
@@ -566,7 +566,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     release_view = { '_type' => 'Model',
                      'id' => @model1.id,
                      'children' => [{ '_type' => 'Child', 'id' => @model1.children[0].id },
-                                    { '_type' => 'Child', 'id' => @model1.children[2].id }] }
+                                    { '_type' => 'Child', 'id' => @model1.children[2].id },] }
 
     pv = viewmodel_class.deserialize_from_view([view, release_view])
     new_parent = pv.first.model
@@ -596,7 +596,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     release_view = { '_type' => 'Model', 'id' => @model1.id,
                     'children' => [{ '_type' => 'Child', 'id' => @model1.children[0].id },
-                                   { '_type' => 'Child', 'id' => @model1.children[2].id }] }
+                                   { '_type' => 'Child', 'id' => @model1.children[2].id },] }
 
     viewmodel_class.deserialize_from_view([view, release_view])
 
@@ -625,7 +625,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     children_before = @model1.children.order(:position).pluck(:id)
     fupdate = build_fupdate do
       append([{ '_type' => 'Child' },
-              { '_type' => 'Child' }])
+              { '_type' => 'Child' },])
     end
 
     append_view = { '_type' => 'Model',
@@ -646,7 +646,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
+              { '_type' => 'Child', 'name' => 'new c2' },],
              before: { '_type' => 'Child', 'id' => c2.id })
     end
 
@@ -683,7 +683,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
+              { '_type' => 'Child', 'name' => 'new c2' },],
              before: { '_type' => 'Child', 'id' => c1.id })
     end
 
@@ -703,7 +703,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
+              { '_type' => 'Child', 'name' => 'new c2' },],
              before: { '_type' => 'Child', 'id' => c2.id })
     end
 
@@ -720,7 +720,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
+              { '_type' => 'Child', 'name' => 'new c2' },],
              after: { '_type' => 'Child', 'id' => c2.id })
     end
 
@@ -739,8 +739,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
-             after: { '_type' => 'Child', 'id' => c3.id, })
+              { '_type' => 'Child', 'name' => 'new c2' },],
+             after: { '_type' => 'Child', 'id' => c3.id })
     end
 
     append_view = { '_type'    => 'Model',
@@ -759,7 +759,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     fupdate = build_fupdate do
       append([{ '_type' => 'Child', 'name' => 'new c1' },
-              { '_type' => 'Child', 'name' => 'new c2' }],
+              { '_type' => 'Child', 'name' => 'new c2' },],
              after: { '_type' => 'Child', 'id' => c2.id },
             )
     end

@@ -89,7 +89,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     super
     @parent = Parent.create(name: 'p',
                             children: [Child.new(name: 'c1', position: 1.0),
-                                       Child.new(name: 'c2', position: 2.0)],
+                                       Child.new(name: 'c2', position: 2.0),],
                             label: Label.new,
                             target: Target.new)
 
@@ -150,7 +150,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
         'label'    => { '_type' => 'Label', 'text' => 'l' },
         'target'   => { '_type' => 'Target', 'text' => 't' },
         'children' => [{ '_type' => 'Child', 'name' => 'c1' },
-                       { '_type' => 'Child', 'name' => 'c2' }]
+                       { '_type' => 'Child', 'name' => 'c2' },],
     }
 
     parentcontroller = ParentController.new(data: data)
@@ -352,7 +352,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_nested_collection_append_many
     data = [{ '_type' => 'Child', 'name' => 'c3' },
-            { '_type' => 'Child', 'name' => 'c4' }]
+            { '_type' => 'Child', 'name' => 'c4' },]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
     childcontroller.invoke(:append)
@@ -375,7 +375,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     old_children = @parent.children
 
     data = [{ '_type' => 'Child', 'name' => 'newc1' },
-            { '_type' => 'Child', 'name' => 'newc2' }]
+            { '_type' => 'Child', 'name' => 'newc2' },]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
     childcontroller.invoke(:replace)

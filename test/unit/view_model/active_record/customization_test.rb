@@ -75,7 +75,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
 
     @text1 = Text.create(text: 'dog',
                     translations: [Translation.new(language: 'ja', translation: '犬'),
-                                   Translation.new(language: 'fr', translation: 'chien')])
+                                   Translation.new(language: 'fr', translation: 'chien'),])
 
     @text1_view = {
       'id'           => @text1.id,
@@ -84,8 +84,8 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
       'text'         => 'dog',
       'translations' => {
         'ja' => '犬',
-        'fr' => 'chien'
-      }
+        'fr' => 'chien',
+      },
     }
 
     enable_logging!
@@ -106,7 +106,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
       [x['language'], x['translation']]
     end
     assert_equal([%w(fr chien),
-                  %w(ja 犬)],
+                  %w(ja 犬),],
                  new_translations.sort)
   end
 
@@ -256,7 +256,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
       '_type'        => 'Section',
       '_version'     => 1,
       'section_type' => 'Simple',
-      'name'         => 'simple1'
+      'name'         => 'simple1',
     }
 
     @quizsection = Section.create(name: 'quiz1', section_data: QuizSection.new(quiz_name: 'qq'))
@@ -266,7 +266,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
       '_version'     => 1,
       'section_type' => 'Quiz',
       'name'         => 'quiz1',
-      'quiz_name'    => 'qq'
+      'quiz_name'    => 'qq',
     }
 
     @vocabsection = Section.create(name: 'vocab1', section_data: VocabSection.new(vocab_word: 'dog'))
@@ -276,7 +276,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
       '_version'     => 1,
       'section_type' => 'Vocab',
       'name'         => 'vocab1',
-      'vocab_word'   => 'dog'
+      'vocab_word'   => 'dog',
     }
 
     enable_logging!
@@ -382,7 +382,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
                                          'name'         => 'vocab_new',
                                          'vocab_word'   => 'cat',
                                        }],
-                        }]
+                        }],
         }
       end
     end

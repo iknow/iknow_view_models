@@ -78,11 +78,11 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
     ModelView.deserialize_from_view(
       [update_hash_for(ModelView, @model1) { |p| p['child'] = update_hash_for(ChildView, t2) },
-       update_hash_for(ModelView, @model2) { |p| p['child'] = update_hash_for(ChildView, t1) }],
+       update_hash_for(ModelView, @model2) { |p| p['child'] = update_hash_for(ChildView, t1) },],
       deserialize_context: deserialize_context)
 
     assert_equal(Set.new([ViewModel::Reference.new(ModelView, @model1.id),
-                          ViewModel::Reference.new(ModelView, @model2.id)]),
+                          ViewModel::Reference.new(ModelView, @model2.id),]),
                  deserialize_context.valid_edit_refs.to_set)
 
     @model1.reload
@@ -181,7 +181,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   def test_bad_single_association
     view = {
       '_type' => 'Model',
-      'child' => []
+      'child' => [],
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ModelView.deserialize_from_view(view)

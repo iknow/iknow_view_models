@@ -101,7 +101,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                              parents_tags: [ParentsTag.new(tag: @tag_a1, position: 1.0),
                                             ParentsTag.new(tag: @tag_a2, position: 2.0),
                                             ParentsTag.new(tag: @tag_b1, position: 3.0),
-                                            ParentsTag.new(tag: @tag_b2, position: 4.0)])
+                                            ParentsTag.new(tag: @tag_b2, position: 4.0),])
 
     enable_logging!
   end
@@ -163,7 +163,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A1' },
                   { 'id' => @tag_a2.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A2' },
                   { 'id' => @tag_b1.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B1' },
-                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' }],
+                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' },],
                  tag_data)
   end
 

@@ -78,7 +78,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
                      {
                        '_type'    => 'Target',
                        'id'       => @parent_with_a.target.id,
-                       '_version' => 20
+                       '_version' => 20,
                      } },
                  refs)
   end

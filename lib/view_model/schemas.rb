@@ -11,7 +11,7 @@ class ViewModel::Schemas
 
   ID_SCHEMA =
     { 'oneOf' => [{ 'type' => 'integer' },
-                  { 'type' => 'string', 'format' => 'uuid' }] }
+                  { 'type' => 'string', 'format' => 'uuid' },] }
   ID = JsonSchema.parse!(ID_SCHEMA)
 
   VIEWMODEL_UPDATE_SCHEMA =
@@ -22,7 +22,7 @@ class ViewModel::Schemas
                          ViewModel::ID_ATTRIBUTE      => ID_SCHEMA,
                          ViewModel::NEW_ATTRIBUTE     => { 'type' => 'boolean' },
                          ViewModel::VERSION_ATTRIBUTE => { 'type' => 'integer' } },
-      'required'    => [ViewModel::TYPE_ATTRIBUTE]
+      'required'    => [ViewModel::TYPE_ATTRIBUTE],
     }
   VIEWMODEL_UPDATE = JsonSchema.parse!(VIEWMODEL_UPDATE_SCHEMA)
 

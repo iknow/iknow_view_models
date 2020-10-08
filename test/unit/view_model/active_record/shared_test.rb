@@ -87,7 +87,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
       'category' => { '_ref' => 'r1' },
     }
     refs = {
-      'r1' => { '_type' => 'Category', 'name' => 'newcat' }
+      'r1' => { '_type' => 'Category', 'name' => 'newcat' },
     }
 
     pv = ParentView.deserialize_from_view(view, references: refs)
@@ -128,7 +128,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
   def test_shared_serialize_interning
     @parent2.update(category: @parent1.category)
     view, refs = serialize_with_references([ParentView.new(@parent1),
-                                            ParentView.new(@parent2)])
+                                            ParentView.new(@parent2),])
 
     category_ref = view.first['category']['_ref']
 

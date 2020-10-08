@@ -574,7 +574,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         model_class.new(
           name: 'a',
           children: [child_model_class.new(name: 'x', position: 1),
-                     child_model_class.new(name: 'y', position: 2)])
+                     child_model_class.new(name: 'y', position: 2),])
       end
 
       it 'records new children' do

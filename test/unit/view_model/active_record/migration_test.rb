@@ -35,7 +35,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
         'name' => viewmodel.child.name,
         'former_field' => 'former_value',
-      }
+      },
     }
   end
 
@@ -59,8 +59,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           'old_field' => -1,
           'child' => {
             ViewModel::MIGRATED_ATTRIBUTE => true,
-            'former_field' => 'reconstructed'
-          }
+            'former_field' => 'reconstructed',
+          },
         }
       )
     end

@@ -417,11 +417,11 @@ class ViewModel::ActiveRecord
           'properties'  => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME,
                                                       FunctionalUpdate::Update::NAME,
-                                                      FunctionalUpdate::Remove::NAME] },
+                                                      FunctionalUpdate::Remove::NAME,] },
             VALUES_ATTRIBUTE => { 'type'  => 'array',
-                                  'items' => value_schema }
+                                  'items' => value_schema },
           },
-          'required' => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE]
+          'required' => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
         }
       end
 
@@ -431,7 +431,7 @@ class ViewModel::ActiveRecord
         'properties'           => {
           ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME] },
           BEFORE_ATTRIBUTE          => viewmodel_reference_only,
-          AFTER_ATTRIBUTE           => viewmodel_reference_only
+          AFTER_ATTRIBUTE           => viewmodel_reference_only,
         },
       }
 
@@ -440,7 +440,7 @@ class ViewModel::ActiveRecord
 
       fupdate_shared =
         fupdate_base.({ 'oneOf' => [ViewModel::Schemas::VIEWMODEL_REFERENCE_SCHEMA,
-                                    viewmodel_reference_only] })
+                                    viewmodel_reference_only,] })
 
       # Referenced updates are special:
       #  - Append requires `_ref` hashes
@@ -455,7 +455,7 @@ class ViewModel::ActiveRecord
         'description'          => 'collection update',
         'additionalProperties' => false,
         'properties'           => {
-          ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Update::NAME] }
+          ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Update::NAME] },
         },
       }
 
@@ -484,7 +484,7 @@ class ViewModel::ActiveRecord
           'required'             => [ViewModel::TYPE_ATTRIBUTE, ACTIONS_ATTRIBUTE],
           'properties'           => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FUNCTIONAL_UPDATE_TYPE] },
-            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_schema }
+            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_schema },
             # The ACTIONS_ATTRIBUTE could be accurately expressed as
             #
             #   { 'oneOf' => [append, update, remove] }
@@ -492,7 +492,7 @@ class ViewModel::ActiveRecord
             # but this produces completely unusable error messages.  Instead we
             # specify it must be an array, and defer checking to the code that
             # can determine the schema by inspecting the type field.
-          }
+          },
         }
       end
 
