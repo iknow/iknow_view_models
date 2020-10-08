@@ -54,11 +54,11 @@ class ViewModel::ActiveRecord::NamespacingTest < ActiveSupport::TestCase
     include ARVMTestUtilities
 
     it 'can apply access control policy for namespaced classes' do
-      _viewmodel_class = viewmodel_class
+      p_viewmodel_class = viewmodel_class
 
       access_control_class =
         Class.new(ViewModel::AccessControl::Tree) do
-          view(_viewmodel_class.view_name) do
+          view(p_viewmodel_class.view_name) do
             visible_unless!('VETO-ERROR-MESSAGE') { true }
           end
         end

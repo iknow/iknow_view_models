@@ -93,7 +93,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     end
 
     def initialize_as_composed_access_control
-      @included_checkers   = []
+      @included_checkers = []
 
       @edit_valid_ifs      = []
       @edit_valid_unlesses = []

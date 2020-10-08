@@ -414,6 +414,7 @@ class ViewModel::ActiveRecord
         {
           'description' => 'functional update',
           'type'        => 'object',
+          'required'    => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
           'properties'  => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME,
                                                       FunctionalUpdate::Update::NAME,
@@ -421,7 +422,6 @@ class ViewModel::ActiveRecord
             VALUES_ATTRIBUTE => { 'type'  => 'array',
                                   'items' => value_schema },
           },
-          'required' => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
         }
       end
 
@@ -669,7 +669,7 @@ class ViewModel::ActiveRecord
 
       # handle view pre-parsing if defined
       self.viewmodel_class.pre_parse(viewmodel_reference, metadata, hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
-      hash_data.keys.each do |key|
+      hash_data.keys.each do |key| # rubocop:disable Style/HashEachMethods
         if self.viewmodel_class.respond_to?(:"pre_parse_#{key}")
           self.viewmodel_class.public_send("pre_parse_#{key}", viewmodel_reference, metadata, hash_data, hash_data.delete(key))
         end
@@ -714,19 +714,18 @@ class ViewModel::ActiveRecord
               referenced_associations[name] = ref
             end
           else
-            if association_data.collection?
-              associations[name] =
+            associations[name] =
+              if association_data.collection?
                 OwnedCollectionUpdate::Parser
                   .new(association_data, blame_reference, valid_reference_keys)
                   .parse(value)
-            else # not a collection
-              associations[name] =
-                if value.nil?
+              else # not a collection
+                if value.nil? # rubocop:disable Style/IfInsideElse
                   nil
                 else
                   self.class.parse_associated(association_data, blame_reference, valid_reference_keys, value)
                 end
-            end
+              end
           end
         else
           raise ViewModel::DeserializationError::UnknownAttribute.new(name, blame_reference)

@@ -125,7 +125,7 @@ class ViewModel
       hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
-    def is_update_hash?(hash)
+    def is_update_hash?(hash) # rubocop:disable Naming/PredicateName
       ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_UPDATE, hash)
       hash.has_key?(ViewModel::ID_ATTRIBUTE) &&
         !hash.fetch(ViewModel::ActiveRecord::NEW_ATTRIBUTE, false)
@@ -201,12 +201,12 @@ class ViewModel
         end
 
         member_names.each do |attr|
-          if view_hash.has_key?(attr)
-            viewmodel.public_send("deserialize_#{attr}",
-                                  view_hash[attr],
-                                  references: references,
-                                  deserialize_context: deserialize_context)
-          end
+          next unless view_hash.has_key?(attr)
+
+          viewmodel.public_send("deserialize_#{attr}",
+                                view_hash[attr],
+                                references: references,
+                                deserialize_context: deserialize_context)
         end
 
         deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)

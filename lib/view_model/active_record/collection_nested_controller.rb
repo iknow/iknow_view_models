@@ -55,8 +55,8 @@ module ViewModel::ActiveRecord::CollectionNestedController
       assoc_view = owner_view.append_associated(association_name,
                                                 update_hash,
                                                 references: refs,
-                                                before:     before,
-                                                after:      after,
+                                                before: before,
+                                                after: after,
                                                 deserialize_context: deserialize_context)
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         child_context = owner_view.context_for_child(association_name, context: serialize_context)

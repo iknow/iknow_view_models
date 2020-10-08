@@ -155,7 +155,7 @@ class DummyController
 
   def invoke(method)
     self.public_send(method)
-  rescue Exception => ex
+  rescue StandardError => ex
     handler = self.class.rescue_block(ex.class)
     case handler
     when nil

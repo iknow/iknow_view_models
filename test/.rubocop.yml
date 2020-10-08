@@ -10,3 +10,5 @@ Layout/HashAlignment:
   Enabled: false
 Layout/BlockEndNewline:
   Enabled: false
+Style/Semicolon:
+  Enabled: false

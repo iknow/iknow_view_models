@@ -74,7 +74,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
     Parent.create(category: Category.new)
 
     log_queries do
-      serialize(ParentView.load())
+      serialize(ParentView.load)
     end
     assert_equal(['Parent Load', 'Category Load'],
                  logged_load_queries)

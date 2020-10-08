@@ -261,7 +261,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_contains_exactly(
       [ViewModel::Reference.new(viewmodel_class, @model1.id),
-       ViewModel::Reference.new(child_viewmodel_class,  c1.id),  # deleted child
+       ViewModel::Reference.new(child_viewmodel_class,  c1.id), # deleted child
        ViewModel::Reference.new(child_viewmodel_class,  nc.id),], # created child
       context.valid_edit_refs)
 

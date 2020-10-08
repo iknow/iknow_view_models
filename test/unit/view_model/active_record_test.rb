@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # frozen_string_literal: true
 
 require_relative '../../helpers/arvm_test_utilities'
@@ -260,11 +259,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
     assert_match(/"_type" wasn't supplied/, ex.message)
 
-    ex = assert_raises(ViewModel::DeserializationError::InvalidViewType) do
+    assert_raises(ViewModel::DeserializationError::InvalidViewType) do
       ParentView.deserialize_from_view({ '_type' => 'Invalid' })
     end
 
-    ex = assert_raises(ViewModel::DeserializationError::UnknownView) do
+    assert_raises(ViewModel::DeserializationError::UnknownView) do
       ParentView.deserialize_from_view({ '_type' => 'NotAViewmodelType' })
     end
   end

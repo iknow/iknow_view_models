@@ -534,7 +534,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     # append
     pv.append_associated(:tags,
                          { '_type' => 'Tag', 'id' => @tag1.id },
-                         deserialize_context: (context = ParentView.new_deserialize_context))
+                         deserialize_context: ParentView.new_deserialize_context)
 
     assert_equal([@tag2, @tag1],
                  tags(@parent1))
@@ -574,7 +574,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     # append
     pv.append_associated(:tags,
                          { '_type' => 'Tag', 'id' => @tag3.id },
-                         deserialize_context: (context = ParentView.new_deserialize_context))
+                         deserialize_context: ParentView.new_deserialize_context)
 
     assert_equal([@tag1, @tag2, @tag3],
                  tags(@parent1))

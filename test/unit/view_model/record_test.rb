@@ -27,16 +27,9 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     end
 
     delegate :targets, to: :shared_context
-
-    def initialize(**rest)
-      super(**rest)
-    end
   end
 
   class TestSerializeContext < ViewModel::SerializeContext
-    def initialize(**rest)
-      super(**rest)
-    end
   end
 
   class TestViewModel < ViewModel::Record

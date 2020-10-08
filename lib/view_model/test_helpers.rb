@@ -56,9 +56,10 @@ module ViewModel::TestHelpers
 
     been_there << viewmodel.model
 
-    if viewmodel.is_a?(ViewModel::ActiveRecord)
+    case viewmodel
+    when ViewModel::ActiveRecord
       assert_model_represents_database(viewmodel.model, been_there: been_there)
-    elsif viewmodel.is_a?(ViewModel::Record)
+    when ViewModel::Record
       viewmodel.class._members.each do |name, attribute_data|
         if attribute_data.attribute_viewmodel
           assert_consistent_record(viewmodel.send(name), been_there: been_there)

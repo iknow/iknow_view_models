@@ -279,7 +279,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller.invoke(:create)
 
     assert_equal(400, parentcontroller.status)
-    assert_match(%r{check constraint}i,
+    assert_match(/check constraint/i,
                  parentcontroller.hash_response['error']['detail'],
                  'Database error propagated')
   end

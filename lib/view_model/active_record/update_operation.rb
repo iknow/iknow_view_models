@@ -903,11 +903,12 @@ class ViewModel::ActiveRecord
 
     def clear_association_cache(model, reflection)
       association = model.association(reflection.name)
-      if reflection.collection?
-        association.target = []
-      else
-        association.target = nil
-      end
+      association.target =
+        if reflection.collection?
+          []
+        else
+          nil
+        end
     end
 
     def blame_reference

@@ -79,7 +79,7 @@ module ViewModel::Callbacks
             end
           SRC
         else
-          def self.create(callbacks, view, context)
+          def self.create(callbacks, view, context) # rubocop:disable Lint/NestedMethodDefinition
             self.new(callbacks, view, context)
           end
         end

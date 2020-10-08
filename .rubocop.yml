@@ -12,3 +12,7 @@ inherit_gem:
 
 Metrics/BlockNesting:
   Enabled: false
+Lint/IneffectiveAccessModifier:
+  Enabled: false
+Lint/UselessAccessModifier:
+  Enabled: false
