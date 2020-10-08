@@ -619,7 +619,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         new_child = vm.children.detect { |c| c.name == 'b' }
         c_changes = ctx.valid_edit_changes(new_child.to_reference)
-        assert_changes_match(c_changes, n:true, att: ['name'])
+        assert_changes_match(c_changes, n: true, att: ['name'])
 
         oc_changes = ctx.valid_edit_changes(
           ViewModel::Reference.new(child_viewmodel_class, replaced_child.id))

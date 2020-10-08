@@ -38,7 +38,6 @@ module ViewModel::AfterTransactionRunner
     end
   end
 
-
   # Override to tie to a specific connection.
   def connection
     ActiveRecord::Base.connection

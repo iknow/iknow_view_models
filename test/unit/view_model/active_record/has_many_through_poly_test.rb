@@ -145,7 +145,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
     root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent',
                                                                                   'tags' => [{ '_ref' => 'r1' }] }],
-                                                                               { 'r1' => { '_type' => 'TagB' } })
+                                                                                  { 'r1' => { '_type' => 'TagB' } })
 
     assert_equal(DeepPreloader::Spec.new(
                   'parents_tags' => DeepPreloader::Spec.new(
@@ -153,7 +153,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                  root_updates.first.preload_dependencies,
                  'mentioning tags causes through association loading, excluding shared')
   end
-
 
   def test_serialize
     view, refs = serialize_with_references(ParentView.new(@parent1))
@@ -248,16 +247,16 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
-        assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
+        assert_equal({ refs.keys.first => { 'id' => @parent.parents_tags.first.tag.id,
                                            '_type'    => 'TagA',
                                            '_version' => 1,
-                                           'name'     => 'tag A name' }}, refs)
+                                           'name'     => 'tag A name' } }, refs)
         assert_equal([{ '_ref' => refs.keys.first }],
                      view['something_else'])
 
         refs.clear
-        refs['new'] = {'_type' => 'TagB', 'name' => 'tag B name'}
-        view['something_else'] = [{'_ref' => 'new'}]
+        refs['new'] = { '_type' => 'TagB', 'name' => 'tag B name' }
+        view['something_else'] = [{ '_ref' => 'new' }]
       end
 
       assert_equal('tag B name', @parent.parents_tags.first.tag.name)

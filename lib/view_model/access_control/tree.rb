@@ -100,6 +100,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     if @root_editability_store.has_key?(view.object_id)
       raise RuntimeError.new('Root access control data already saved for root')
     end
+
     @root_editability_store[view.object_id] = descendent_editability
   end
 
@@ -113,6 +114,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
     if @root_visibility_store.has_key?(view.object_id)
       raise RuntimeError.new('Root access control data already saved for root')
     end
+
     @root_visibility_store[view.object_id] = descendent_visibility
   end
 
@@ -152,6 +154,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
 
       def initialize_as_node
         @root = false
+
         @root_children_editable_ifs      = []
         @root_children_editable_unlesses = []
         @root_children_visible_ifs       = []

@@ -43,6 +43,7 @@ class ViewModel
           # try to auto-detect based on class name
           match = /(.*)View$/.match(self.name)
           raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
+
           ViewModel::Registry.default_view_name(match[1])
         end
     end
@@ -77,6 +78,7 @@ class ViewModel
       end
 
       attr_accessor attr
+
       define_method("deserialize_#{attr}") do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
         self.public_send("#{attr}=", value)
       end

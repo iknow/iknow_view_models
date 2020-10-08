@@ -21,6 +21,7 @@ class ViewModel::TraversalContext
   end
 
   attr_reader :shared_context
+
   delegate :access_control, :callbacks, to: :shared_context
 
   def self.new_child(*args)

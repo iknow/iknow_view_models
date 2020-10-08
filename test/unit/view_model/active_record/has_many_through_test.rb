@@ -305,7 +305,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
                  tags(@parent1).map(&:name))
   end
 
-
   def test_functional_update_append_after_mid
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
@@ -387,13 +386,12 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c1 = c2 = nil
     fupdate_tags(@parent1) do |tags|
       c1, c2 = tags
-      { :fupdate => build_fupdate { update([{ '_ref' => 'c1' }])},
+      { :fupdate => build_fupdate { update([{ '_ref' => 'c1' }]) },
         :refs    => { 'c1' => { '_type' => 'Tag', 'id' => c1.id, 'name' => 'c1 new name' } }
       }
     end
     assert_equal(['c1 new name', c2.name],
                  tags(@parent1).map(&:name))
-
   end
 
   def test_functional_update_update_stale
@@ -404,7 +402,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
       fupdate_tags(@parent1) do |tags|
-#        @parent1.parents_tags.where(tag_id: c2.id).destroy_all
         { :fupdate => build_fupdate { update([{ '_ref' => 'c2' }]) },
           :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id, 'name' => 'c2 new name' } }
         }
@@ -518,7 +515,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     assert_equal(expected_edit_checks, context.valid_edit_refs.to_set)
 
-
     assert_equal([@tag2, @tag1],
                  tags(@parent1))
 
@@ -537,7 +533,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     pv.append_associated(:tags,
                          { '_type' => 'Tag', 'id' => @tag1.id },
                          deserialize_context: (context = ParentView.new_deserialize_context))
-
 
     assert_equal([@tag2, @tag1],
                  tags(@parent1))
@@ -563,7 +558,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
 
     # insert after
     pv.append_associated(:tags,
-                         { '_type' => 'Tag', 'id' =>  @tag3.id },
+                         { '_type' => 'Tag', 'id' => @tag3.id },
                          after: ViewModel::Reference.new(TagView, @tag1.id),
                          deserialize_context: (context = ParentView.new_deserialize_context))
 
@@ -578,7 +573,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     pv.append_associated(:tags,
                          { '_type' => 'Tag', 'id' => @tag3.id },
                          deserialize_context: (context = ParentView.new_deserialize_context))
-
 
     assert_equal([@tag1, @tag2, @tag3],
                  tags(@parent1))
@@ -611,7 +605,6 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       ViewModel::ActiveRecord::HasManyThroughTest.build_join_table_model(self)
     end
 
-
     def setup
       super
 
@@ -629,16 +622,16 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
-        assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
+        assert_equal({ refs.keys.first => { 'id' => @parent.parents_tags.first.tag.id,
                                            '_type'    => 'Tag',
                                            '_version' => 1,
-                                           'name'     => 'tag name' }}, refs)
+                                           'name'     => 'tag name' } }, refs)
         assert_equal([{ '_ref' => refs.keys.first }],
                      view['something_else'])
 
         refs.clear
-        refs['new'] = {'_type' => 'Tag', 'name' => 'tag new name'}
-        view['something_else'] = [{'_ref' => 'new'}]
+        refs['new'] = { '_type' => 'Tag', 'name' => 'tag new name' }
+        view['something_else'] = [{ '_ref' => 'new' }]
       end
 
       assert_equal('tag new name', @parent.parents_tags.first.tag.name)

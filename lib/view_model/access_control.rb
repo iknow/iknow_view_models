@@ -14,6 +14,7 @@ class ViewModel::AccessControl
   Result = Struct.new(:permit, :error) do
     def initialize(permit, error: nil)
       raise ArgumentError.new('Successful AccessControl::Result may not have an error') if permit && error
+
       super(permit, error)
     end
 
@@ -129,6 +130,7 @@ class ViewModel::AccessControl
     if @initial_editability_store.has_key?(view.object_id)
       raise RuntimeError.new("Access control data already recorded for view #{view.to_reference}")
     end
+
     @initial_editability_store[view.object_id] = initial_editability
   end
 
@@ -136,6 +138,7 @@ class ViewModel::AccessControl
     unless @initial_editability_store.has_key?(view.object_id)
       raise RuntimeError.new("No access control data recorded for view #{view.to_reference}")
     end
+
     @initial_editability_store.delete(view.object_id)
   end
 

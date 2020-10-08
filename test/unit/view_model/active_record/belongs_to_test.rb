@@ -136,8 +136,8 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     d_context = ModelView.new_deserialize_context
 
     target_child = Child.create
-    from_model  = Model.create(name: 'from', child: target_child)
-    to_model    = Model.create(name: 'p3')
+    from_model = Model.create(name: 'from', child: target_child)
+    to_model = Model.create(name: 'p3')
 
     alter_by_view!(
       ModelView, [from_model, to_model],
@@ -283,7 +283,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
         end
       end
     end
-
 
     # Do we support replacing a node in the tree and remodeling its children
     # back to it? In theory we want to, but currently we don't: the child node

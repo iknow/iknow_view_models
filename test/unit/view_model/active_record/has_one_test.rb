@@ -40,7 +40,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     view = {
       '_type'    => 'Model',
       'name'     => 'p',
-      'child'   => { '_type' => 'Child', 'name' => 't' },
+      'child' => { '_type' => 'Child', 'name' => 't' },
     }
 
     pv = ModelView.deserialize_from_view(view)
@@ -50,7 +50,6 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     assert(!p.new_record?)
 
     assert_equal('p', p.name)
-
 
     assert(p.child.present?)
     assert_equal('t', p.child.name)
@@ -62,7 +61,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
                    '_version' => 1,
                    'id'       => @model1.id,
                    'name'     => @model1.name,
-                   'child'   => { '_type'    => 'Child',
+                   'child' => { '_type' => 'Child',
                                    '_version' => 1,
                                    'id'       => @model1.child.id,
                                    'name'     => @model1.child.name } },
@@ -428,7 +427,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
         view['something_else']['name'] = 'child new name'
       end
 
-      assert_equal('child new name',  @model.child.name)
+      assert_equal('child new name', @model.child.name)
     end
   end
 

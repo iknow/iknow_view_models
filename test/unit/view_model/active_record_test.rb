@@ -151,7 +151,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::AccessControlError) do
       no_view_context = ViewModelBase.new_deserialize_context(can_view: false)
-      ParentView.deserialize_from_view({'_type' => 'Parent', 'name' => 'p'},
+      ParentView.deserialize_from_view({ '_type' => 'Parent', 'name' => 'p' },
                                        deserialize_context: no_view_context)
     end
   end
@@ -167,7 +167,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_editability_checks_create_on_empty_record
     context = ViewModelBase.new_deserialize_context
-    view = TrivialView.deserialize_from_view({'_type' => 'Trivial' },
+    view = TrivialView.deserialize_from_view({ '_type' => 'Trivial' },
                                              deserialize_context: context)
 
     ref = view.to_reference
@@ -227,20 +227,20 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_create_multiple
-    view = [{'_type' => 'Parent', 'name' => 'newp1'},
-            {'_type' => 'Parent', 'name' => 'newp2'}]
+    view = [{ '_type' => 'Parent', 'name' => 'newp1' },
+            { '_type' => 'Parent', 'name' => 'newp2' }]
 
     result = ParentView.deserialize_from_view(view)
 
-    new_parents = Parent.where(id: result.map{|x| x.model.id})
+    new_parents = Parent.where(id: result.map { |x| x.model.id })
 
     assert_equal(%w{newp1 newp2}, new_parents.pluck(:name).sort)
   end
 
   def test_update_duplicate_specification
     view = [
-      {'_type' => 'Parent', 'id' => @parent1.id},
-      {'_type' => 'Parent', 'id' => @parent1.id},
+      { '_type' => 'Parent', 'id' => @parent1.id },
+      { '_type' => 'Parent', 'id' => @parent1.id },
     ]
     assert_raises(ViewModel::DeserializationError::DuplicateNodes) do
       ParentView.deserialize_from_view(view)
@@ -248,7 +248,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_create_invalid_type
-     build_viewmodel(:Invalid) do
+    build_viewmodel(:Invalid) do
       define_schema { |t| }
       define_model {}
       define_viewmodel {}
@@ -320,7 +320,6 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
   end
 
-
   # Tests for overriding the serialization of attributes using custom viewmodels
   class CustomAttributeViewsTests < ActiveSupport::TestCase
     include ARVMTestUtilities
@@ -357,7 +356,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     def setup
       super
-      @pair = Pair.create!(pair: [1,2])
+      @pair = Pair.create!(pair: [1, 2])
     end
 
     def test_serialize_view
@@ -373,7 +372,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     def test_create
       view = { '_type' => 'Pair', 'pair' => { 'a' => 3, 'b' => 4 } }
       pv = PairView.deserialize_from_view(view)
-      assert_equal([3,4], pv.model.pair)
+      assert_equal([3, 4], pv.model.pair)
     end
   end
 
@@ -383,6 +382,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     class RefError < RuntimeError
       attr_reader :ref
+
       def initialize(ref)
         super('Boom')
         @ref = ref
@@ -405,7 +405,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           association :child
           attribute :explode
           # Escape deserialization with the parent context
-          define_method(:deserialize_explode) do |val, references:, deserialize_context: |
+          define_method(:deserialize_explode) do |val, references:, deserialize_context:|
             raise RefError.new(deserialize_context.parent_ref) if val
           end
         end
@@ -423,7 +423,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
         '_new'  => true,
         'child' => {
           '_type' => 'List',
-        }}
+        } }
 
       ref_error = assert_raises(RefError) do
         ListView.deserialize_from_view(view.deep_merge('child' => { 'explode' => true }))

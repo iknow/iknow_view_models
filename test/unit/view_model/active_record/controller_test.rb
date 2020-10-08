@@ -240,10 +240,10 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 404,
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
-                     'code'   => 'DeserializationError.NotFound',
-                     'meta' => { 'nodes' => [{ '_type' => 'Parent', 'id' => 9999 }]},
+                     'code' => 'DeserializationError.NotFound',
+                     'meta' => { 'nodes' => [{ '_type' => 'Parent', 'id' => 9999 }] },
                      'exception' => nil,
-                     'causes' => nil }},
+                     'causes' => nil } },
                  parentcontroller.hash_response)
   end
 
@@ -261,13 +261,13 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 400,
                      'detail' => 'Validation failed: \'age\' must be less than 42',
                      'title' => nil,
-                     'code'   => 'DeserializationError.Validation',
+                     'code' => 'DeserializationError.Validation',
                      'meta' => { 'nodes' => [{ '_type' => 'Child', 'id' => nil }],
                                  'attribute' => 'age',
                                  'message' => 'must be less than 42',
-                                 'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 }},
+                                 'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 } },
                      'exception' => nil,
-                     'causes' => nil }},
+                     'causes' => nil } },
                  parentcontroller.hash_response)
   end
 
@@ -294,8 +294,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 404,
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
-                     'code'   => 'DeserializationError.NotFound',
-                     'meta' => { 'nodes' => [{'_type' => 'Parent', 'id' => 9999 }] },
+                     'code' => 'DeserializationError.NotFound',
+                     'meta' => { 'nodes' => [{ '_type' => 'Parent', 'id' => 9999 }] },
                      'exception' => nil,
                      'causes' => nil } },
                  parentcontroller.hash_response)
@@ -361,7 +361,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal(%w{c1 c2 c3 c4}, @parent.children.order(:position).pluck(:name))
-    new_children_hashes = @parent.children.last(2).map{ |c| ChildView.new(c).to_hash }
+    new_children_hashes = @parent.children.last(2).map { |c| ChildView.new(c).to_hash }
     assert_equal({ 'data' => new_children_hashes },
                  childcontroller.hash_response)
 
@@ -373,8 +373,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     # Parent.children
     old_children = @parent.children
 
-    data = [{'_type' => 'Child', 'name' => 'newc1'},
-            {'_type' => 'Child', 'name' => 'newc2'}]
+    data = [{ '_type' => 'Child', 'name' => 'newc1' },
+            { '_type' => 'Child', 'name' => 'newc2' }]
 
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
     childcontroller.invoke(:replace)
@@ -464,7 +464,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                  childcontroller.hash_response)
   end
 
-   def test_nested_collection_show
+  def test_nested_collection_show
     old_child = @parent.children.first
 
     childcontroller = ChildController.new(id: old_child.id)
@@ -474,15 +474,14 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                  childcontroller.hash_response)
 
     assert_equal(200, childcontroller.status)
-   end
-
+  end
 
   ## Single association
 
   def test_nested_singular_replace_from_parent
     old_label = @parent.label
 
-    data = {'_type' => 'Label', 'text' => 'new label'}
+    data = { '_type' => 'Label', 'text' => 'new label' }
     labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
     labelcontroller.invoke(:create_associated)
 
@@ -536,7 +535,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_update_from_parent
     old_label = @parent.label
 
-    data = {'_type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
+    data = { '_type' => 'Label', 'id' => old_label.id, 'text' => 'new label' }
     labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
     labelcontroller.invoke(:create_associated)
 
@@ -583,7 +582,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_update
     old_label = @parent.label
 
-    data = {'_type' => 'Label', 'id' => old_label.id, 'text' => 'new label'}
+    data = { '_type' => 'Label', 'id' => old_label.id, 'text' => 'new label' }
     labelcontroller = LabelController.new(data: data)
     labelcontroller.invoke(:create)
 

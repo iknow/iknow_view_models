@@ -6,7 +6,7 @@ class ViewModel::AbstractError < StandardError
     # Brief DSL for quickly defining constant attribute values in subclasses
     [:detail, :status, :title, :code].each do |attribute|
       define_method(attribute) do |x|
-        define_method(attribute){ x }
+        define_method(attribute) { x }
       end
     end
   end
@@ -74,8 +74,6 @@ class ViewModel::AbstractError < StandardError
 
   protected
 
-
-
   def format_references(viewmodel_refs)
     viewmodel_refs.map do |viewmodel_ref|
       format_reference(viewmodel_ref)
@@ -100,6 +98,7 @@ class ViewModel::AbstractErrorWithBlame < ViewModel::AbstractError
     unless @nodes.all? { |n| n.is_a?(ViewModel::Reference) }
       raise ArgumentError.new("#{self.class.name}: 'blame_nodes' must all be of type ViewModel::Reference")
     end
+
     super()
   end
 
@@ -119,6 +118,7 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
     unless @causes.present?
       raise ArgumentError.new('A collection must have at least one cause')
     end
+
     super()
   end
 

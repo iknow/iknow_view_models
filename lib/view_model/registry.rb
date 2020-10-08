@@ -12,7 +12,7 @@ class ViewModel::Registry
 
   def initialize
     @lock = Monitor.new
-    @viewmodel_classes_by_name  = {}
+    @viewmodel_classes_by_name = {}
     @deferred_viewmodel_classes = []
   end
 

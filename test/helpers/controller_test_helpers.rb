@@ -184,6 +184,7 @@ class DummyController
 
   def json_response
     raise 'Not a JSON response' unless @content_type == 'application/json'
+
     @response_body
   end
 
@@ -230,6 +231,7 @@ end
 
 module CallbackTracing
   attr_reader :callback_tracer
+
   delegate :hook_trace, to: :callback_tracer
 
   def new_deserialize_context(**args)

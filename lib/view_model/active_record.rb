@@ -232,6 +232,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       _members.each_value do |data|
         next unless data.is_a?(AssociationData)
         next unless include_referenced || !data.referenced?
+
         data.viewmodel_classes.each do |vm|
           vm.dependent_viewmodels(seen, include_referenced: include_referenced)
         end

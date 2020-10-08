@@ -116,7 +116,7 @@ module ViewModel::ActiveRecord::PolyTest
       end
       @grandparent.reload
       assert_equal('c3', @grandparent.poly_parent_one.child.text)
-      assert_equal(['c1','c2'], @grandparent.poly_parent_two.children.map(&:text).sort)
+      assert_equal(['c1', 'c2'], @grandparent.poly_parent_two.children.map(&:text).sort)
     end
   end
 
@@ -166,12 +166,11 @@ module ViewModel::ActiveRecord::PolyTest
         end
 
         define_viewmodel do
-          attributes   :name
+          attributes :name
           association :poly, viewmodels: [PolyOneView, PolyTwoView]
         end
       end
     end
-
 
     def before_all
       super
@@ -221,7 +220,6 @@ module ViewModel::ActiveRecord::PolyTest
       assert_equal('pol', p.poly.text)
     end
 
-
     def test_serialize_view
       view, _refs = serialize_with_references(ParentView.new(@parent1))
 
@@ -247,8 +245,8 @@ module ViewModel::ActiveRecord::PolyTest
               '_type'    => 'SomethingThatsNotActuallyAType',
               '_version' => 1,
             } })
-        end
-        assert_match(/\binvalid\b.+\bviewmodel type\b/i, ex.message)
+      end
+      assert_match(/\binvalid\b.+\bviewmodel type\b/i, ex.message)
     end
 
     def test_change_polymorphic_type
@@ -308,12 +306,11 @@ module ViewModel::ActiveRecord::PolyTest
                          '_version' => 1,
                          'number'   => 42 },
                        view['something_else'])
-          view['something_else'] = {'_type' => 'PolyTwo', 'text' => 'hi'}
+          view['something_else'] = { '_type' => 'PolyTwo', 'text' => 'hi' }
         end
 
         assert_equal('hi', @parent.poly.text)
       end
     end
-
   end
 end

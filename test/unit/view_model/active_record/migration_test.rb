@@ -46,7 +46,6 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     migrator.migrate!(subject, references: {})
   end
 
-
   describe 'downwards' do
     let(:migrator) { down_migrator }
     let(:subject) { current_serialization.deep_dup }
@@ -69,7 +68,6 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       assert_equal(expected_result, subject)
     end
-
 
     describe 'to an unreachable version' do
       let(:migration_versions) { { viewmodel_class => 2, child_viewmodel_class => 1 } }

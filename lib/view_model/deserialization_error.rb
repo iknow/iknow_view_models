@@ -15,6 +15,7 @@ class ViewModel
       unless nodes.all? { |n| n.viewmodel_class == first }
         raise ArgumentError.new("All nodes must be of the same type for #{self.class.name}")
       end
+
       first
     end
 
@@ -145,6 +146,7 @@ class ViewModel
     # association.
     class InvalidAssociationType < InvalidRequest
       attr_reader :association, :target_type
+
       def initialize(association, target_type, node)
         @association = association
         @target_type = target_type
@@ -218,7 +220,7 @@ class ViewModel
       end
 
       def detail
-        "Duplicate views for the same '#{type}' specified: "+ nodes.map(&:to_s).join(', ')
+        "Duplicate views for the same '#{type}' specified: " + nodes.map(&:to_s).join(', ')
       end
 
       def meta

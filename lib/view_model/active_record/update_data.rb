@@ -24,6 +24,7 @@ class ViewModel::ActiveRecord
       NAME = 'append'
       attr_accessor :before, :after
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -32,6 +33,7 @@ class ViewModel::ActiveRecord
     class Update
       NAME = 'update'
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -56,6 +58,7 @@ class ViewModel::ActiveRecord
     # associations or reference strings for root.
     class Replace
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -66,6 +69,7 @@ class ViewModel::ActiveRecord
     # associations.
     class Functional
       attr_reader :actions
+
       def initialize(actions)
         @actions = actions
       end
@@ -390,6 +394,7 @@ class ViewModel::ActiveRecord
 
   class UpdateData
     attr_accessor :viewmodel_class, :metadata, :attributes, :associations, :referenced_associations
+
     delegate :id, :view_name, :schema_version, to: :metadata
 
     module Schemas
@@ -471,7 +476,6 @@ class ViewModel::ActiveRecord
       REMOVE_ACTION            = JsonSchema.parse!(fupdate_owned.deep_merge(remove_mixin))
       REFERENCED_REMOVE_ACTION = JsonSchema.parse!(fupdate_shared.deep_merge(remove_mixin))
 
-
       collection_update = ->(base_schema) do
         {
           'type'                 => 'object',
@@ -503,7 +507,7 @@ class ViewModel::ActiveRecord
       when :_type
         viewmodel_class.view_name
       else
-        attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) }}
+        attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) } }
       end
     end
 
@@ -729,7 +733,6 @@ class ViewModel::ActiveRecord
         end
       end
     end
-
 
     def blame_reference
       ViewModel::Reference.new(self.viewmodel_class, self.id)

@@ -88,6 +88,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
       self.owner_viewmodel = owner
       raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
+
       self.association_name = as
     end
   end

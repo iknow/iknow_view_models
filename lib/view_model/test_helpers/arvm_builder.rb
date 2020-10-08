@@ -87,6 +87,7 @@ class ViewModel::TestHelpers::ARVMBuilder
     _namespace = namespace
     @model = Class.new(@model_base) do |c|
       raise "Model already defined: #{model_name}" if _namespace.const_defined?(model_name, false)
+
       _namespace.const_set(model_name, self)
       class_eval(&block)
       reset_column_information
@@ -99,10 +100,12 @@ class ViewModel::TestHelpers::ARVMBuilder
     _namespace = namespace
     @viewmodel = Class.new(@viewmodel_base) do |c|
       raise "Viewmodel alreay defined: #{vm_name}" if _namespace.const_defined?(vm_name, false)
+
       _namespace.const_set(vm_name, self)
       class_eval(&block)
     end
     raise 'help help' if @viewmodel.name.nil?
+
     @viewmodel
   end
 

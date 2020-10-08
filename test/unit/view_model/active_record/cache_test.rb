@@ -190,6 +190,7 @@ class ViewModel::ActiveRecord
             # (SharedView in this test), make sure that data is correctly
             # cached.
             next unless view_name == 'Shared'
+
             value(id).must_equal(shared.id)
             cached_shared = read_cache(shared_viewmodel_class, id)
             value(cached_shared).must_be(:present?)

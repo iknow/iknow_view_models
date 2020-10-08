@@ -10,6 +10,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     def initialize(allow, veto, allow_error, veto_error)
       raise ArgumentError.new('Non-vetoing result may not have a veto error') if veto_error  && !veto
       raise ArgumentError.new('Allowing result may not have a allow error')   if allow_error && allow
+
       super
     end
 
@@ -152,6 +153,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       @included_checkers.each do |ancestor|
         next unless visited.add?(ancestor)
         next if include_ancestor && !include_ancestor.call(ancestor)
+
         ancestor.each_check(check_name) { |x| yield x }
       end
     end
@@ -174,7 +176,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       checks << "edit_valid_unless: #{@edit_valid_unlesses.map(&:reason)}" if @edit_valid_unlesses.present?
       checks
     end
-
   end
 
   # final

@@ -1,11 +1,11 @@
 # coding: utf-8
+
 require_relative '../../../helpers/arvm_test_utilities.rb'
 require_relative '../../../helpers/arvm_test_models.rb'
 
 require 'minitest/autorun'
 
 require 'view_model/active_record'
-
 
 require 'renum'
 
@@ -30,6 +30,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
 
         def self.pre_parse_translations(viewmodel_reference, metadata, hash, translations)
           raise 'type check' unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
+
           hash['translations'] = translations.map { |lang, text| { '_type' => 'Translation', 'language' => lang, 'translation' => text } }
         end
 
@@ -94,7 +95,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
   end
 
   def test_create
-    create_view = @text1_view.dup.tap {|v| v.delete('id')}
+    create_view = @text1_view.dup.tap { |v| v.delete('id') }
     new_text_view = TextView.deserialize_from_view(create_view)
     new_text_model = new_text_view.model
 
@@ -164,6 +165,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
         case self
         when SectionType::Simple
           raise 'nopes' if members.present?
+
           nil
         else
           members.merge('_type' => viewmodel.view_name)
@@ -242,7 +244,6 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
         end
       end
     end
-
   end
 
   def setup
@@ -296,7 +297,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
   end
 
   def test_create
-    assert_section = ->(model, name, &check_section){
+    assert_section = ->(model, name, &check_section) {
       assert(!model.changed?)
       assert(!model.new_record?)
       assert_equal(name, model.name)

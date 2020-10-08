@@ -15,6 +15,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
   class TestDeserializeContext < ViewModel::DeserializeContext
     class SharedContext < ViewModel::DeserializeContext::SharedContext
       attr_reader :targets
+
       def initialize(targets: [], **rest)
         super(**rest)
         @targets = targets
@@ -383,13 +384,15 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       let(:default_nested_model) { Nested.new('member') }
       let(:default_nested_view)  { view_base.merge('_type' => 'Nested', 'member' => 'member') }
 
-      let(:attributes) {{ simple: {}, nested: { using: NestedView } }}
+      let(:attributes) { { simple: {}, nested: { using: NestedView } } }
 
       let(:default_view_values)  { { nested: default_nested_view } }
       let(:default_model_values) { { nested: default_nested_model } }
 
-      let(:update_context) { TestDeserializeContext.new(targets: [default_model, default_nested_model],
-                                                        access_control: access_control) }
+      let(:update_context) do
+        TestDeserializeContext.new(targets: [default_model, default_nested_model],
+                                   access_control: access_control)
+      end
 
       include CanSerialize
       include CanDeserializeToNew
@@ -433,7 +436,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       let(:default_nested_model_2) { Nested.new('member2') }
       let(:default_nested_view_2)  { view_base.merge('_type' => 'Nested', 'member' => 'member2') }
 
-      let(:attributes) {{ simple: {}, nested: { using: NestedView, array: true } }}
+      let(:attributes) { { simple: {}, nested: { using: NestedView, array: true } } }
 
       let(:default_view_values)  { { nested: [default_nested_view_1, default_nested_view_2] } }
       let(:default_model_values) { { nested: [default_nested_model_1, default_nested_model_2] } }
@@ -480,7 +483,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         assert(default_nested_model_2.equal?(vm.model.nested[1]))
 
         vm.model.nested.each_with_index do |nvm, i|
-          assert_equal("member#{i+1}", nvm.member)
+          assert_equal("member#{i + 1}", nvm.member)
         end
 
         assert_edited(vm, changed_attributes: [:nested])
@@ -488,5 +491,4 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
     end
   end
-
 end

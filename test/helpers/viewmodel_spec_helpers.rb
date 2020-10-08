@@ -336,11 +336,10 @@ module ViewModelSpecHelpers
         table = model.table_name
         model.connection.execute <<-SQL
             ALTER TABLE #{table} ADD CONSTRAINT #{table}_unique_on_model_and_position UNIQUE(model_id, position) DEFERRABLE INITIALLY DEFERRED
-          SQL
+        SQL
       end
     end
   end
-
 
   module ParentAndExternalSharedChild
     extend ActiveSupport::Concern

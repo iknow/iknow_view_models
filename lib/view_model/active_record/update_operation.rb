@@ -14,7 +14,7 @@ class ViewModel::ActiveRecord
                   :update_data,
                   :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
                   :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
-                  :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
+                  :reparent_to, # If node needs to update its pointer to a new parent, ParentData for the parent
                   :reposition_to, # if this node participates in a list under its parent, what should its position be?
                   :released_children # Set of children that have been released
 
@@ -767,6 +767,7 @@ class ViewModel::ActiveRecord
         member.ref_string = ref_string if ref_string
         member
       end
+
       def remove_from_members(removed_members)
         s = removed_members.to_set
         members.reject! { |m| s.include?(m) }

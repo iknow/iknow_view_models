@@ -105,6 +105,7 @@ module ViewModel::Callbacks
     define_singleton_method(:class_callbacks) { base_callbacks }
     define_singleton_method(:all_callbacks) do |&block|
       return to_enum(__method__) unless block
+
       block.call(base_callbacks)
     end
   end
@@ -115,6 +116,7 @@ module ViewModel::Callbacks
       subclass.define_singleton_method(:class_callbacks) { subclass_callbacks }
       subclass.define_singleton_method(:all_callbacks) do |&block|
         return to_enum(__method__) unless block
+
         super(&block)
         block.call(subclass_callbacks)
       end

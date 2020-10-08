@@ -264,6 +264,7 @@ class ViewModel::ActiveRecord::Cache
     def add_refs_to_worklist(cacheable_references)
       cacheable_references.each do |ref_name, (type, id)|
         next if resolved_references.has_key?(ref_name)
+
         (@worklist[type] ||= {})[id] = WorklistEntry.new(ref_name, nil)
       end
     end
@@ -271,6 +272,7 @@ class ViewModel::ActiveRecord::Cache
     def add_viewmodels_to_worklist(referenced_viewmodels)
       referenced_viewmodels.each do |ref_name, viewmodel|
         next if resolved_references.has_key?(ref_name)
+
         (@worklist[viewmodel.class.view_name] ||= {})[viewmodel.id] = WorklistEntry.new(ref_name, viewmodel)
       end
     end

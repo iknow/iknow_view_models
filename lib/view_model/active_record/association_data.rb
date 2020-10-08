@@ -42,7 +42,7 @@ class ViewModel::ActiveRecord::AssociationData
         @indirect_reflection = load_indirect_reflection(intermediate_model, @indirect_association_name)
         target_reflection    = @indirect_reflection
       else
-        target_reflection    = @direct_reflection
+        target_reflection = @direct_reflection
       end
 
       @viewmodel_classes =
@@ -202,6 +202,7 @@ class ViewModel::ActiveRecord::AssociationData
 
   def direct_viewmodel
     raise ArgumentError.new('not a through association') unless through?
+
     lazy_initialize! unless @initialized
     @direct_viewmodel
   end

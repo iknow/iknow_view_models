@@ -40,7 +40,6 @@ class ViewModel::ActiveRecord::CounterTest < ActiveSupport::TestCase
         attribute :name
       end
     end
-
   end
 
   def setup
@@ -51,7 +50,7 @@ class ViewModel::ActiveRecord::CounterTest < ActiveSupport::TestCase
 
   def test_counter_cache_create
     alter_by_view!(CategoryView, @category1) do |view, refs|
-      view['products'] << {'_type' => 'Product'}
+      view['products'] << { '_type' => 'Product' }
     end
     assert_equal(2, @category1.products_count)
   end

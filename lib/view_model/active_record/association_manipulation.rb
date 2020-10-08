@@ -12,6 +12,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
 
     if association_data.through?
       raise ArgumentError.new('Polymorphic through relationships not supported yet') if association_data.polymorphic?
+
       associated_viewmodel = association_data.viewmodel_class
       direct_viewmodel     = association_data.direct_viewmodel
     else
@@ -44,6 +45,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
       if vms.size > 1
         raise ViewModel::DeserializationError::Internal.new("Internal error: encountered multiple records for single association #{association_name}", self.blame_reference)
       end
+
       vms.first
     end
   end
@@ -340,7 +342,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
       ViewModel::ActiveRecord::UpdateData.new(
         direct_viewmodel_class,
         metadata,
-        { indirect_reflection.name.to_s => { ViewModel::REFERENCE_ATTRIBUTE => ref_name }},
+        { indirect_reflection.name.to_s => { ViewModel::REFERENCE_ATTRIBUTE => ref_name } },
         [ref_name])
     end
 

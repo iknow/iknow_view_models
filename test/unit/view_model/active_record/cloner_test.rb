@@ -175,21 +175,22 @@ class ViewModel::ActiveRecord
       describe 'as belongs_to shared child' do
         include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
         include BehavesLikeConstructingAChild
+
         it 'can clone the model but not the child' do
-            clone_model = Cloner.new.clone(viewmodel)
+          clone_model = Cloner.new.clone(viewmodel)
 
-            assert(clone_model.new_record?)
-            assert_nil(clone_model.id)
-            assert_equal(model.name, clone_model.name)
+          assert(clone_model.new_record?)
+          assert_nil(clone_model.id)
+          assert_equal(model.name, clone_model.name)
 
-            clone_child = clone_model.child
-            refute(clone_child.new_record?)
-            assert_equal(model.child, clone_child)
+          clone_child = clone_model.child
+          refute(clone_child.new_record?)
+          assert_equal(model.child, clone_child)
 
-            clone_model.save!
-            refute_equal(model, clone_model)
-            assert_equal(model.child, clone_model.child)
-          end
+          clone_model.save!
+          refute_equal(model, clone_model)
+          assert_equal(model.child, clone_model.child)
+        end
       end
     end
 
@@ -213,7 +214,7 @@ class ViewModel::ActiveRecord
         assert(viewmodel.model.persisted?)
         refute(viewmodel.model.new_record?)
         assert_equal(2, viewmodel.model.children.size)
-        viewmodel.model.children.each do | child|
+        viewmodel.model.children.each do |child|
           assert(child.persisted?)
           refute(child.new_record?)
         end
@@ -285,7 +286,7 @@ class ViewModel::ActiveRecord
       end
 
       def new_model
-        model_class.new( name: 'a', model_children: new_model_children)
+        model_class.new(name: 'a', model_children: new_model_children)
       end
 
       it 'persists the test setup' do

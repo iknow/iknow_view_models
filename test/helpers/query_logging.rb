@@ -9,7 +9,6 @@
 require 'active_support/subscriber'
 
 module QueryLogging
-
   # ActiveRecord integration
   class QueryLogger < ActiveSupport::Subscriber
     @log              = false

@@ -51,6 +51,7 @@ module ViewModel::TestHelpers
 
   def assert_consistent_record(viewmodel, been_there: Set.new)
     return if been_there.include?(viewmodel.model)
+
     been_there << viewmodel.model
 
     if viewmodel.is_a?(ViewModel::ActiveRecord)
@@ -66,6 +67,7 @@ module ViewModel::TestHelpers
 
   def assert_model_represents_database(model, been_there: Set.new)
     return if been_there.include?(model)
+
     been_there << model
 
     refute(model.new_record?, 'model represents database entity')

@@ -69,7 +69,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
                      'id'       => @parent_with_a.child.id,
                      '_version' => 10,
                    },
-                   'target'   => { '_ref' => target_ref } },
+                   'target' => { '_ref' => target_ref } },
                  data)
 
     assert_equal({ target_ref =>

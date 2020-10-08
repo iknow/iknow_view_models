@@ -386,6 +386,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       class ViewSpecificCallback
         include ViewModel::Callbacks
         attr_reader :models, :children
+
         def initialize
           @models = []
           @children = []
@@ -422,6 +423,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         include ViewModel::Callbacks
 
         attr_reader :events
+
         def initialize
           @events = []
         end
@@ -443,6 +445,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         include ViewModel::Callbacks
 
         attr_reader :a
+
         def initialize
           @a = 0
         end
@@ -456,6 +459,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
       class ChildCallback < ParentCallback
         attr_reader :b
+
         def initialize
           super
           @b = 0

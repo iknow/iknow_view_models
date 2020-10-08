@@ -9,11 +9,12 @@ require 'acts_as_manual_list'
 db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
 db_config = YAML.load(File.open(db_config_path))
 raise 'Test database configuration missing' unless db_config['test']
+
 ActiveRecord::Base.establish_connection(db_config['test'])
 
 # Remove test tables if any exist
 %w[labels parents children targets poly_ones poly_twos owners
-     grand_parents categories tags parents_tags].each do |t|
+   grand_parents categories tags parents_tags].each do |t|
   ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{t} CASCADE")
 end
 

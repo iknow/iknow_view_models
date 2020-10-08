@@ -82,10 +82,10 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
     view = {
       '_type'    => 'Parent',
       'name'     => 'p',
-      'category'   => { '_ref' => 'r1' },
+      'category' => { '_ref' => 'r1' },
     }
     refs = {
-      'r1' => { '_type' => 'Category', 'name' => 'newcat'}
+      'r1' => { '_type' => 'Category', 'name' => 'newcat' }
     }
 
     pv = ParentView.deserialize_from_view(view, references: refs)
@@ -104,10 +104,10 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
     view, refs = serialize_with_references(ParentView.new(@parent1))
     cat1_ref = refs.detect { |_, v| v['_type'] == 'Category' }.first
 
-    assert_equal({cat1_ref => { '_type'    => 'Category',
+    assert_equal({ cat1_ref => { '_type' => 'Category',
                                 '_version' => 1,
                                 'id'       => @parent1.category.id,
-                                'name'     => @parent1.category.name }},
+                                'name'     => @parent1.category.name } },
                  refs)
 
     assert_equal({ '_type'    => 'Parent',

@@ -31,9 +31,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_default_serialize_array
-    s = DefaultViewModel.new('a', [1,2])
+    s = DefaultViewModel.new('a', [1, 2])
     assert_equal(TestViewModel.serialize_to_hash(s),
-                 { 'foo' => 'a', 'bar' => [1,2] })
+                 { 'foo' => 'a', 'bar' => [1, 2] })
   end
 
   def test_default_serialize_hash
@@ -57,6 +57,6 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   def test_default_serialize_array_of_viewmodel
     s = DefaultViewModel.new('a', [TestViewModel.new('x'), TestViewModel.new('y')])
     assert_equal(DefaultViewModel.serialize_to_hash(s),
-                 { 'foo' => 'a', 'bar' => [{'name' => 'x'}, {'name' => 'y'}] })
+                 { 'foo' => 'a', 'bar' => [{ 'name' => 'x' }, { 'name' => 'y' }] })
   end
 end
