@@ -102,6 +102,18 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       assert_equal(expected_result, subject)
     end
 
+    describe 'with version unspecified' do
+      let(:subject) do
+        v2_serialization
+          .except(ViewModel::VERSION_ATTRIBUTE)
+      end
+
+      it 'treats it as the requested version' do
+        migrate!
+        assert_equal(expected_result, subject)
+      end
+    end
+
     describe 'with a version not in the specification' do
       let(:subject) do
         v2_serialization
@@ -109,11 +121,10 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           .deep_merge(ViewModel::VERSION_ATTRIBUTE => 3, 'mid_field' => 1)
       end
 
-      it 'leaves it alone' do
-        migrate!
-
-        refute(subject.has_key?([ViewModel::MIGRATED_ATTRIBUTE]))
-        assert_equal(3, subject[ViewModel::VERSION_ATTRIBUTE])
+      it 'rejects it' do
+        assert_raises(ViewModel::Migration::UnspecifiedVersionError) do
+          migrate!
+        end
       end
     end
 

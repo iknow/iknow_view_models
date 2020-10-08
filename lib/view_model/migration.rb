@@ -3,6 +3,7 @@
 class ViewModel::Migration
   require 'view_model/migration/no_path_error'
   require 'view_model/migration/one_way_error'
+  require 'view_model/migration/unspecified_version_error'
 
   def up(view, _references)
     raise ViewModel::Migration::OneWayError.new(view[ViewModel::TYPE_ATTRIBUTE], :up)

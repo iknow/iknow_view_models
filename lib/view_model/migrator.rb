@@ -70,7 +70,10 @@ class ViewModel
       # We assume that an unspecified source version is the same as the required
       # version.
       required_version, current_version = @versions[view_name]
-      return false unless source_version.nil? || source_version == required_version
+
+      unless source_version.nil? || source_version == required_version
+        raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
+      end
 
       path.each do |migration|
         migration.up(view_hash, references)
