@@ -33,7 +33,7 @@ module ViewModel::ActiveRecord::ControllerBase
         if (match = /(.*)Controller$/.match(self.name))
           self.viewmodel_name = match[1].singularize
         else
-          raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'") if match.nil?
+          raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'")
         end
       end
       @viewmodel_class
@@ -43,6 +43,7 @@ module ViewModel::ActiveRecord::ControllerBase
       unless instance_variable_defined?(:@access_control)
         raise ArgumentError.new("AccessControl instance not set for Controller '#{self.name}'")
       end
+
       @access_control
     end
 
@@ -64,6 +65,7 @@ module ViewModel::ActiveRecord::ControllerBase
       unless type < ViewModel
         raise ArgumentError.new("'#{type.inspect}' is not a valid ViewModel")
       end
+
       @viewmodel_class = type
     end
 
@@ -75,6 +77,7 @@ module ViewModel::ActiveRecord::ControllerBase
       unless access_control.is_a?(Class) && access_control < ViewModel::AccessControl
         raise ArgumentError.new("'#{access_control.inspect}' is not a valid AccessControl")
       end
+
       @access_control = access_control
     end
   end

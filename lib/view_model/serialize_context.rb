@@ -38,10 +38,10 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
 
     while references.present?
       extract_referenced_views!.each do |ref, value|
-        unless serialized_refs.has_key?(ref)
-          serialized_refs[ref] = Jbuilder.new do |j|
-            ViewModel.serialize(value, j, serialize_context: reference_context)
-          end
+        next if serialized_refs.has_key?(ref)
+
+        serialized_refs[ref] = Jbuilder.new do |j|
+          ViewModel.serialize(value, j, serialize_context: reference_context)
         end
       end
     end

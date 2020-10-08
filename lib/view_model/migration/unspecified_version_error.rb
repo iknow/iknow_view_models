@@ -8,6 +8,7 @@ class ViewModel::Migration::UnspecifiedVersionError < ViewModel::AbstractError
   def initialize(vm_name, version)
     @vm_name = vm_name
     @version = version
+    super()
   end
 
   def detail

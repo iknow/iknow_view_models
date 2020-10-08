@@ -21,6 +21,7 @@ class ViewModel::TraversalContext
   end
 
   attr_reader :shared_context
+
   delegate :access_control, :callbacks, to: :shared_context
 
   def self.new_child(*args)
@@ -118,7 +119,7 @@ class ViewModel::TraversalContext
 
   def nearest_root_viewmodel
     if root?
-      raise RuntimeError.new("Attempted to find nearest root from a root context. This is probably not what you wanted.")
+      raise RuntimeError.new('Attempted to find nearest root from a root context. This is probably not what you wanted.')
     elsif parent_context.root?
       parent_viewmodel
     else

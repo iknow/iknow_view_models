@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require "minitest/autorun"
-require "minitest/unit"
-require "minitest/hooks"
+require 'minitest/autorun'
+require 'minitest/unit'
+require 'minitest/hooks'
 
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/viewmodel_spec_helpers.rb"
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
-require "view_model"
-require "view_model/active_record"
+require 'view_model'
+require 'view_model/active_record'
 
 # IknowCache uses Rails.cache: create a dummy cache.
 
@@ -91,8 +91,8 @@ class ViewModel::ActiveRecord
       end
 
       included do
-        let(:shared)     { shared_model_class.create!(name: "shared1") }
-        let(:root)       { model_class.create!(name: "root1", child: Child.new(name: "owned1"), shared: shared) }
+        let(:shared)     { shared_model_class.create!(name: 'shared1') }
+        let(:root)       { model_class.create!(name: 'root1', child: Child.new(name: 'owned1'), shared: shared) }
         let(:root_view)  { viewmodel_class.new(root) }
       end
     end
@@ -183,13 +183,14 @@ class ViewModel::ActiveRecord
 
             # The cached reference must correspond to the returned data.
             parsed_data = JSON.parse(ref_data)
-            value(parsed_data["id"]).must_equal(id)
-            value(parsed_data["_type"]).must_equal(view_name)
+            value(parsed_data['id']).must_equal(id)
+            value(parsed_data['_type']).must_equal(view_name)
 
             # When the cached reference is to independently cached data
             # (SharedView in this test), make sure that data is correctly
             # cached.
-            next unless view_name == "Shared"
+            next unless view_name == 'Shared'
+
             value(id).must_equal(shared.id)
             cached_shared = read_cache(shared_viewmodel_class, id)
             value(cached_shared).must_be(:present?)
@@ -224,8 +225,8 @@ class ViewModel::ActiveRecord
         end
 
         def change_in_database
-          root.update_attribute(:name, "CHANGEDROOT")
-          shared.update_attribute(:name, "CHANGEDSHARED")
+          root.update_attribute(:name, 'CHANGEDROOT')
+          shared.update_attribute(:name, 'CHANGEDSHARED')
         end
 
         it 'resolves from the cache' do
@@ -243,7 +244,7 @@ class ViewModel::ActiveRecord
           viewmodel_class.viewmodel_cache.clear
 
           cache_data, cache_refs = serialize_with_cache
-          value(cache_data[0]["name"]).must_equal("CHANGEDROOT") # Root view invalidated
+          value(cache_data[0]['name']).must_equal('CHANGEDROOT') # Root view invalidated
           value(cache_refs).must_equal(before_refs) # Shared view not invalidated
         end
 
@@ -301,7 +302,7 @@ class ViewModel::ActiveRecord
           viewmodel_class.viewmodel_cache.delete(root.id)
 
           cache_data, cache_refs = serialize_with_cache
-          value(cache_data[0]["name"]).must_equal("CHANGEDROOT")
+          value(cache_data[0]['name']).must_equal('CHANGEDROOT')
           value(cache_refs).must_equal(before_refs)
         end
 
@@ -311,8 +312,8 @@ class ViewModel::ActiveRecord
 
           # Shared view invalidated, but root view not
           cache_data, cache_hrefs = serialize_with_cache
-          value(cache_data[0]["name"]).must_equal("root1")
-          value(cache_hrefs.values[0]["name"]).must_equal("CHANGEDSHARED")
+          value(cache_data[0]['name']).must_equal('root1')
+          value(cache_hrefs.values[0]['name']).must_equal('CHANGEDSHARED')
         end
 
         it 'can clear a cache via its external cache group' do
@@ -321,12 +322,12 @@ class ViewModel::ActiveRecord
 
           # Shared view invalidated, but root view not
           cache_data, cache_hrefs = serialize_with_cache
-          value(cache_data[0]["name"]).must_equal("root1")
-          value(cache_hrefs.values[0]["name"]).must_equal("CHANGEDSHARED")
+          value(cache_data[0]['name']).must_equal('root1')
+          value(cache_hrefs.values[0]['name']).must_equal('CHANGEDSHARED')
         end
 
         describe 'and a record not in the cache' do
-          let(:root2) { model_class.create!(name: "root2", child: Child.new(name: "owned2"), shared: shared) }
+          let(:root2) { model_class.create!(name: 'root2', child: Child.new(name: 'owned2'), shared: shared) }
 
           def serialize_from_database
             views   = model_class.find(root.id, root2.id).map { |r| viewmodel_class.new(r) }
@@ -354,21 +355,21 @@ class ViewModel::ActiveRecord
             change_in_database
 
             cache_data, cache_refs = serialize_with_cache
-            value(cache_data[0]["name"]).must_equal("root1")
-            value(cache_data[1]["name"]).must_equal("root2")
+            value(cache_data[0]['name']).must_equal('root1')
+            value(cache_data[1]['name']).must_equal('root2')
             value(cache_refs).must_equal(refs)
           end
         end
       end
     end
 
-    describe "with a non-cacheable shared child" do
+    describe 'with a non-cacheable shared child' do
       include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
       def model_attributes
         super.merge(viewmodel: ->(_) { cacheable! })
       end
 
-      let(:root)       { model_class.create!(name: "root1", child: Child.new(name: "owned1")) }
+      let(:root)       { model_class.create!(name: 'root1', child: Child.new(name: 'owned1')) }
       let(:root_view)  { viewmodel_class.new(root) }
 
       include BehavesLikeACache

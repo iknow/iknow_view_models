@@ -8,8 +8,9 @@
 class ViewModel::AccessControl::Composed < ViewModel::AccessControl
   ComposedResult = Struct.new(:allow, :veto, :allow_error, :veto_error) do
     def initialize(allow, veto, allow_error, veto_error)
-      raise ArgumentError.new("Non-vetoing result may not have a veto error") if veto_error  && !veto
-      raise ArgumentError.new("Allowing result may not have a allow error")   if allow_error && allow
+      raise ArgumentError.new('Non-vetoing result may not have a veto error') if veto_error  && !veto
+      raise ArgumentError.new('Allowing result may not have a allow error')   if allow_error && allow
+
       super
     end
 
@@ -64,7 +65,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     attr_reader :reasons
 
     def initialize(nodes, reasons)
-      super("Action not permitted because none of the possible conditions were met.", nodes)
+      super('Action not permitted because none of the possible conditions were met.', nodes)
       @reasons = reasons
     end
 
@@ -92,7 +93,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     end
 
     def initialize_as_composed_access_control
-      @included_checkers   = []
+      @included_checkers = []
 
       @edit_valid_ifs      = []
       @edit_valid_unlesses = []
@@ -152,15 +153,16 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       @included_checkers.each do |ancestor|
         next unless visited.add?(ancestor)
         next if include_ancestor && !include_ancestor.call(ancestor)
+
         ancestor.each_check(check_name) { |x| yield x }
       end
     end
 
     def inspect
-      s = super + "("
-      s += inspect_checks.join(", ")
+      s = super + '('
+      s += inspect_checks.join(', ')
       s += " includes checkers: #{@included_checkers.inspect}" if @included_checkers.present?
-      s += ")"
+      s += ')'
       s
     end
 
@@ -174,7 +176,6 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
       checks << "edit_valid_unless: #{@edit_valid_unlesses.map(&:reason)}" if @edit_valid_unlesses.present?
       checks
     end
-
   end
 
   # final
@@ -199,7 +200,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
 
     veto = vetoed_checker.present?
     if veto
-      veto_error = vetoed_checker.error_type.new("Action not permitted because: " +
+      veto_error = vetoed_checker.error_type.new('Action not permitted because: ' +
                                                  vetoed_checker.reason,
                                                  env.view.blame_reference)
     end

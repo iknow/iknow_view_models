@@ -6,19 +6,19 @@ require 'jbuilder'
 require 'deep_preloader'
 
 class ViewModel
-  REFERENCE_ATTRIBUTE = "_ref"
-  ID_ATTRIBUTE        = "id"
-  TYPE_ATTRIBUTE      = "_type"
-  VERSION_ATTRIBUTE   = "_version"
-  NEW_ATTRIBUTE       = "_new"
+  REFERENCE_ATTRIBUTE = '_ref'
+  ID_ATTRIBUTE        = 'id'
+  TYPE_ATTRIBUTE      = '_type'
+  VERSION_ATTRIBUTE   = '_version'
+  NEW_ATTRIBUTE       = '_new'
 
   # Migrations leave a metadata attribute _migrated on any views that they
   # alter. This attribute is accessible as metadata when deserializing migrated
   # input, and is included in the output serialization sent to clients.
-  MIGRATED_ATTRIBUTE  = "_migrated"
+  MIGRATED_ATTRIBUTE  = '_migrated'
 
   Metadata = Struct.new(:id, :view_name, :schema_version, :new, :migrated) do
-    alias :new? :new
+    alias_method :new?, :new
   end
 
   class << self
@@ -28,6 +28,7 @@ class ViewModel
     attr_writer   :view_name
 
     def inherited(subclass)
+      super
       subclass.initialize_as_viewmodel
     end
 
@@ -43,6 +44,7 @@ class ViewModel
           # try to auto-detect based on class name
           match = /(.*)View$/.match(self.name)
           raise ArgumentError.new("Could not auto-determine ViewModel name from class name '#{self.name}'") if match.nil?
+
           ViewModel::Registry.default_view_name(match[1])
         end
     end
@@ -77,6 +79,7 @@ class ViewModel
       end
 
       attr_accessor attr
+
       define_method("deserialize_#{attr}") do |value, references: {}, deserialize_context: self.class.new_deserialize_context|
         self.public_send("#{attr}=", value)
       end
@@ -122,7 +125,7 @@ class ViewModel
       hash.delete(ViewModel::REFERENCE_ATTRIBUTE)
     end
 
-    def is_update_hash?(hash)
+    def is_update_hash?(hash) # rubocop:disable Naming/PredicateName
       ViewModel::Schemas.verify_schema!(ViewModel::Schemas::VIEWMODEL_UPDATE, hash)
       hash.has_key?(ViewModel::ID_ATTRIBUTE) &&
         !hash.fetch(ViewModel::ActiveRecord::NEW_ATTRIBUTE, false)
@@ -198,12 +201,12 @@ class ViewModel
         end
 
         member_names.each do |attr|
-          if view_hash.has_key?(attr)
-            viewmodel.public_send("deserialize_#{attr}",
-                                  view_hash[attr],
-                                  references: references,
-                                  deserialize_context: deserialize_context)
-          end
+          next unless view_hash.has_key?(attr)
+
+          viewmodel.public_send("deserialize_#{attr}",
+                                view_hash[attr],
+                                references: references,
+                                deserialize_context: deserialize_context)
         end
 
         deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)

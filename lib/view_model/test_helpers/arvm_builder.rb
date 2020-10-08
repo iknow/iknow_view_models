@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::TestHelpers::ARVMBuilder
   attr_reader :name, :model, :viewmodel, :namespace
 
@@ -46,16 +48,16 @@ class ViewModel::TestHelpers::ARVMBuilder
       instance_eval(&block)
     end
 
-    raise "Model not created in ARVMBuilder"     unless model
-    raise "Schema not created in ARVMBuilder"    unless model.table_exists?
-    raise "ViewModel not created in ARVMBuilder" unless (viewmodel || @no_viewmodel)
+    raise 'Model not created in ARVMBuilder'     unless model
+    raise 'Schema not created in ARVMBuilder'    unless model.table_exists?
+    raise 'ViewModel not created in ARVMBuilder' unless viewmodel || @no_viewmodel
 
     # Force the realization of the view model into the library's lookup
     # table. If this doesn't happen the library may have conflicting entries in
     # the deferred table, and will allow viewmodels to leak between tests.
     unless @no_viewmodel || !(@viewmodel < ViewModel::Record)
       resolved = ViewModel::Registry.for_view_name(viewmodel.view_name)
-      raise "Failed to register expected new class!" unless resolved == @viewmodel
+      raise 'Failed to register expected new class!' unless resolved == @viewmodel
     end
   end
 
@@ -70,7 +72,7 @@ class ViewModel::TestHelpers::ARVMBuilder
   private
 
   def viewmodel_name
-    self.name + "View"
+    self.name + 'View'
   end
 
   def define_schema(&block)
@@ -84,10 +86,11 @@ class ViewModel::TestHelpers::ARVMBuilder
 
   def define_model(&block)
     model_name = name
-    _namespace = namespace
-    @model = Class.new(@model_base) do |c|
-      raise "Model already defined: #{model_name}" if _namespace.const_defined?(model_name, false)
-      _namespace.const_set(model_name, self)
+    model_namespace = namespace
+    @model = Class.new(@model_base) do |_c|
+      raise "Model already defined: #{model_name}" if model_namespace.const_defined?(model_name, false)
+
+      model_namespace.const_set(model_name, self)
       class_eval(&block)
       reset_column_information
     end
@@ -96,13 +99,15 @@ class ViewModel::TestHelpers::ARVMBuilder
 
   def define_viewmodel(&block)
     vm_name = viewmodel_name
-    _namespace = namespace
-    @viewmodel = Class.new(@viewmodel_base) do |c|
-      raise "Viewmodel alreay defined: #{vm_name}" if _namespace.const_defined?(vm_name, false)
-      _namespace.const_set(vm_name, self)
+    vm_namespace = namespace
+    @viewmodel = Class.new(@viewmodel_base) do |_c|
+      raise "Viewmodel alreay defined: #{vm_name}" if vm_namespace.const_defined?(vm_name, false)
+
+      vm_namespace.const_set(vm_name, self)
       class_eval(&block)
     end
-    raise "help help" if @viewmodel.name.nil?
+    raise 'help help' if @viewmodel.name.nil?
+
     @viewmodel
   end
 

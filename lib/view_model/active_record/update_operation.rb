@@ -1,4 +1,6 @@
-require "renum"
+# frozen_string_literal: true
+
+require 'renum'
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ViewModel::ActiveRecord
@@ -14,7 +16,7 @@ class ViewModel::ActiveRecord
                   :update_data,
                   :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
                   :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
-                  :reparent_to,  # If node needs to update its pointer to a new parent, ParentData for the parent
+                  :reparent_to, # If node needs to update its pointer to a new parent, ParentData for the parent
                   :reposition_to, # if this node participates in a list under its parent, what should its position be?
                   :released_children # Set of children that have been released
 
@@ -46,11 +48,11 @@ class ViewModel::ActiveRecord
 
     # Evaluate a built update tree, applying and saving changes to the models.
     def run!(deserialize_context:)
-      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation run before build") unless built?
+      raise ViewModel::DeserializationError::Internal.new('Internal error: UpdateOperation run before build') unless built?
 
       case @run_state
       when RunState::Running
-        raise ViewModel::DeserializationError::Internal.new("Internal error: Cycle found in running UpdateOperation")
+        raise ViewModel::DeserializationError::Internal.new('Internal error: Cycle found in running UpdateOperation')
       when RunState::Run
         return viewmodel
       end
@@ -217,7 +219,7 @@ class ViewModel::ActiveRecord
 
     # Recursively builds UpdateOperations for the associations in our UpdateData
     def build!(update_context)
-      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation cannot build a deferred update") if viewmodel.nil?
+      raise ViewModel::DeserializationError::Internal.new('Internal error: UpdateOperation cannot build a deferred update') if viewmodel.nil?
       return self if built?
 
       update_data.associations.each do |association_name, association_update_data|
@@ -254,8 +256,8 @@ class ViewModel::ActiveRecord
     def add_update(association_data, update)
       target =
         case association_data.pointer_location
-        when :remote; pointed_to
-        when :local;  points_to
+        when :remote then pointed_to
+        when :local then  points_to
         end
 
       target[association_data] = update
@@ -658,7 +660,7 @@ class ViewModel::ActiveRecord
           other.indirect_viewmodel_reference == self.indirect_viewmodel_reference
       end
 
-      alias :eql? :==
+      alias eql? ==
     end
 
     # Helper class to wrap the previous members of a referenced collection and
@@ -767,6 +769,7 @@ class ViewModel::ActiveRecord
         member.ref_string = ref_string if ref_string
         member
       end
+
       def remove_from_members(removed_members)
         s = removed_members.to_set
         members.reject! { |m| s.include?(m) }
@@ -900,11 +903,12 @@ class ViewModel::ActiveRecord
 
     def clear_association_cache(model, reflection)
       association = model.association(reflection.name)
-      if reflection.collection?
-        association.target = []
-      else
-        association.target = nil
-      end
+      association.target =
+        if reflection.collection?
+          []
+        else
+          nil
+        end
     end
 
     def blame_reference

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Assembles an update operation tree from user input. Handles the interlinking
 # and model of update operations, but does not handle the actual user data nor
 # the mechanism by which it is applied to models.
@@ -66,7 +68,7 @@ class ViewModel::ActiveRecord
         .assemble_update_tree
     end
 
-    # TODO an unfortunate abstraction violation. The `append` case constructs an
+    # TODO: an unfortunate abstraction violation. The `append` case constructs an
     # update tree and later injects the context of parent and position.
     def root_updates
       @root_update_operations
@@ -143,7 +145,7 @@ class ViewModel::ActiveRecord
           if ref.nil?
             @root_update_operations << update_op
           else
-            # TODO make sure that referenced subtree hashes are unique and provide a decent error message
+            # TODO: make sure that referenced subtree hashes are unique and provide a decent error message
             # not strictly necessary, but will save confusion
             @referenced_update_operations[ref] = update_op
           end
@@ -200,9 +202,9 @@ class ViewModel::ActiveRecord
         deferred_update.build!(self)
       end
 
-      dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| upd.viewmodel.to_reference }
+      dangling_references = @referenced_update_operations.reject { |_ref, upd| upd.built? }.map { |_ref, upd| upd.viewmodel.to_reference }
       if dangling_references.present?
-        raise ViewModel::DeserializationError::InvalidStructure.new("References not referred to from roots", dangling_references)
+        raise ViewModel::DeserializationError::InvalidStructure.new('References not referred to from roots', dangling_references)
       end
 
       self
@@ -265,8 +267,8 @@ class ViewModel::ActiveRecord
     # individual node that caused it, without attempting to parse Postgres'
     # human-readable error details.
     def check_deferred_constraints!(model_class)
-      if model_class.connection.adapter_name == "PostgreSQL"
-        model_class.connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
+      if model_class.connection.adapter_name == 'PostgreSQL'
+        model_class.connection.execute('SET CONSTRAINTS ALL IMMEDIATE')
       end
     rescue ::ActiveRecord::StatementInvalid => ex
       raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex)

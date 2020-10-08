@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
-require_relative '../../helpers/arvm_test_utilities.rb'
-require_relative '../../helpers/arvm_test_models.rb'
-require_relative '../../helpers/callback_tracer.rb'
-require_relative '../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../helpers/arvm_test_utilities'
+require_relative '../../helpers/arvm_test_models'
+require_relative '../../helpers/callback_tracer'
+require_relative '../../helpers/viewmodel_spec_helpers'
 
 require 'minitest/autorun'
 
@@ -62,7 +62,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           [visit(ViewModel::Callbacks::Hook::BeforeVisit, vm),
            visit(ViewModel::Callbacks::Hook::BeforeVisit, vm.child),
            visit(ViewModel::Callbacks::Hook::AfterVisit,  vm.child),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,  vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,  vm),])
       end
 
       it 'visits in correct order when deserializing' do
@@ -79,7 +79,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
            visit(ViewModel::Callbacks::Hook::BeforeValidate,    vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls edit hook when updating' do
@@ -99,7 +99,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            visit(ViewModel::Callbacks::Hook::BeforeValidate,    vm),
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls edit hook when deleting' do
@@ -122,7 +122,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
 
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls hooks on old and new when replacing' do
@@ -153,7 +153,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
 
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls hooks on old and new when moving' do
@@ -184,7 +184,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            visit(ViewModel::Callbacks::Hook::BeforeValidate,    vm2),
            visit(ViewModel::Callbacks::Hook::OnChange,          vm2),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm2),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm2)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm2),])
       end
 
       it 'calls hooks on delete' do
@@ -195,7 +195,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
            visit(ViewModel::Callbacks::Hook::BeforeDeserialize, vm),
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
         ## At present, children aren't visited on delete.
         # visit(ViewModel::Callbacks::Hook::BeforeVisit,       old_child),
         # visit(ViewModel::Callbacks::Hook::BeforeDeserialize, old_child),
@@ -283,7 +283,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls hooks on append_associated' do
@@ -306,7 +306,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
 
       it 'calls hooks on delete_associated' do
@@ -330,7 +330,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
            visit(ViewModel::Callbacks::Hook::OnChange,          vm),
            visit(ViewModel::Callbacks::Hook::AfterDeserialize,  vm),
-           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm)])
+           visit(ViewModel::Callbacks::Hook::AfterVisit,        vm),])
       end
     end
 
@@ -386,6 +386,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       class ViewSpecificCallback
         include ViewModel::Callbacks
         attr_reader :models, :children
+
         def initialize
           @models = []
           @children = []
@@ -422,6 +423,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         include ViewModel::Callbacks
 
         attr_reader :events
+
         def initialize
           @events = []
         end
@@ -443,6 +445,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         include ViewModel::Callbacks
 
         attr_reader :a
+
         def initialize
           @a = 0
         end
@@ -456,6 +459,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
 
       class ChildCallback < ParentCallback
         attr_reader :b
+
         def initialize
           super
           @b = 0
@@ -541,7 +545,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         [RecordingCallback.new(events, :a),
          UpdatingCallback.new(events, :b),
          RecordingCallback.new(events, :c),
-         UpdatingCallback.new(events, :d)]
+         UpdatingCallback.new(events, :d),]
       end
 
       it 'calls callbacks in order specified partitioned by update' do

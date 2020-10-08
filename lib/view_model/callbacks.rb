@@ -79,7 +79,7 @@ module ViewModel::Callbacks
             end
           SRC
         else
-          def self.create(callbacks, view, context)
+          def self.create(callbacks, view, context) # rubocop:disable Lint/NestedMethodDefinition
             self.new(callbacks, view, context)
           end
         end
@@ -105,6 +105,7 @@ module ViewModel::Callbacks
     define_singleton_method(:class_callbacks) { base_callbacks }
     define_singleton_method(:all_callbacks) do |&block|
       return to_enum(__method__) unless block
+
       block.call(base_callbacks)
     end
   end
@@ -115,6 +116,7 @@ module ViewModel::Callbacks
       subclass.define_singleton_method(:class_callbacks) { subclass_callbacks }
       subclass.define_singleton_method(:all_callbacks) do |&block|
         return to_enum(__method__) unless block
+
         super(&block)
         block.call(subclass_callbacks)
       end

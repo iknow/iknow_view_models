@@ -116,7 +116,7 @@ class ViewModel::Record < ViewModel
       end
     end
 
-    def resolve_viewmodel(metadata, view_hash, deserialize_context:)
+    def resolve_viewmodel(_metadata, _view_hash, deserialize_context:)
       self.for_new_model
     end
 
@@ -181,6 +181,8 @@ class ViewModel::Record < ViewModel
     @changed_attributes            = []
     @changed_nested_children       = false
     @changed_referenced_children   = false
+
+    super()
   end
 
   # VM::Record identity matches the identity of its model. If the model has a
@@ -309,12 +311,10 @@ class ViewModel::Record < ViewModel
       # viewmodel), it's only desired for converting the value to and from wire
       # format, so conversion is deferred to serialization time.
       value = attr_data.map_value(value) do |v|
-        begin
-          attr_data.attribute_serializer.dump(v, json: true)
-        rescue IknowParams::Serializer::DumpError => ex
-          raise ViewModel::SerializationError.new(
-                  "Could not serialize invalid value '#{vm_attr_name}': #{ex.message}")
-        end
+        attr_data.attribute_serializer.dump(v, json: true)
+      rescue IknowParams::Serializer::DumpError => ex
+        raise ViewModel::SerializationError.new(
+                "Could not serialize invalid value '#{vm_attr_name}': #{ex.message}")
       end
     end
 
@@ -342,12 +342,10 @@ class ViewModel::Record < ViewModel
         end
       when attr_data.using_serializer?
         attr_data.map_value(serialized_value) do |sv|
-          begin
-            attr_data.attribute_serializer.load(sv)
-          rescue IknowParams::Serializer::LoadError => ex
-            reason = "could not be deserialized because #{ex.message}"
-            raise ViewModel::DeserializationError::Validation.new(vm_attr_name, reason, {}, blame_reference)
-          end
+          attr_data.attribute_serializer.load(sv)
+        rescue IknowParams::Serializer::LoadError => ex
+          reason = "could not be deserialized because #{ex.message}"
+          raise ViewModel::DeserializationError::Validation.new(vm_attr_name, reason, {}, blame_reference)
         end
       else
         serialized_value

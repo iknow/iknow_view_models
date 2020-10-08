@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ##
 # Helpers useful for writing tests for viewmodel implementations
 module ViewModel::TestHelpers
@@ -51,11 +53,13 @@ module ViewModel::TestHelpers
 
   def assert_consistent_record(viewmodel, been_there: Set.new)
     return if been_there.include?(viewmodel.model)
+
     been_there << viewmodel.model
 
-    if viewmodel.is_a?(ViewModel::ActiveRecord)
+    case viewmodel
+    when ViewModel::ActiveRecord
       assert_model_represents_database(viewmodel.model, been_there: been_there)
-    elsif viewmodel.is_a?(ViewModel::Record)
+    when ViewModel::Record
       viewmodel.class._members.each do |name, attribute_data|
         if attribute_data.attribute_viewmodel
           assert_consistent_record(viewmodel.send(name), been_there: been_there)
@@ -66,6 +70,7 @@ module ViewModel::TestHelpers
 
   def assert_model_represents_database(model, been_there: Set.new)
     return if been_there.include?(model)
+
     been_there << model
 
     refute(model.new_record?, 'model represents database entity')
@@ -83,7 +88,7 @@ module ViewModel::TestHelpers
       next unless association.loaded?
 
       case
-      when association.target == nil
+      when association.target.nil?
         assert_nil(database_model.association(reflection.name).target,
                    'in memory nil association matches database')
       when reflection.collection?

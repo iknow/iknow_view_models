@@ -24,6 +24,7 @@ class ViewModel::ActiveRecord
       NAME = 'append'
       attr_accessor :before, :after
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -32,6 +33,7 @@ class ViewModel::ActiveRecord
     class Update
       NAME = 'update'
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -56,6 +58,7 @@ class ViewModel::ActiveRecord
     # associations or reference strings for root.
     class Replace
       attr_reader :contents
+
       def initialize(contents)
         @contents = contents
       end
@@ -66,6 +69,7 @@ class ViewModel::ActiveRecord
     # associations.
     class Functional
       attr_reader :actions
+
       def initialize(actions)
         @actions = actions
       end
@@ -215,23 +219,23 @@ class ViewModel::ActiveRecord
       # The contents of the actions are determined by the subclasses
 
       def functional_update_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def append_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def remove_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def update_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
-      def parse_contents(values) # abstract
-        raise "abstract"
+      def parse_contents(_values) # abstract
+        raise 'abstract'
       end
 
       # Remove values are always anchors
@@ -255,11 +259,11 @@ class ViewModel::ActiveRecord
       # behaviour, so we parameterise the result type as well.
 
       def replace_update_type # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def functional_update_type # abstract
-        raise "abstract"
+        raise 'abstract'
       end
     end
   end
@@ -390,6 +394,7 @@ class ViewModel::ActiveRecord
 
   class UpdateData
     attr_accessor :viewmodel_class, :metadata, :attributes, :associations, :referenced_associations
+
     delegate :id, :view_name, :schema_version, to: :metadata
 
     module Schemas
@@ -400,7 +405,7 @@ class ViewModel::ActiveRecord
           'properties'           => { ViewModel::TYPE_ATTRIBUTE => { 'type' => 'string' },
                                       ViewModel::ID_ATTRIBUTE   => ViewModel::Schemas::ID_SCHEMA },
           'additionalProperties' => false,
-          'required'             => [ViewModel::TYPE_ATTRIBUTE, ViewModel::ID_ATTRIBUTE]
+          'required'             => [ViewModel::TYPE_ATTRIBUTE, ViewModel::ID_ATTRIBUTE],
         }
 
       VIEWMODEL_REFERENCE_ONLY = JsonSchema.parse!(viewmodel_reference_only)
@@ -409,14 +414,14 @@ class ViewModel::ActiveRecord
         {
           'description' => 'functional update',
           'type'        => 'object',
+          'required'    => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE],
           'properties'  => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME,
                                                       FunctionalUpdate::Update::NAME,
-                                                      FunctionalUpdate::Remove::NAME] },
+                                                      FunctionalUpdate::Remove::NAME,] },
             VALUES_ATTRIBUTE => { 'type'  => 'array',
-                                  'items' => value_schema }
+                                  'items' => value_schema },
           },
-          'required' => [ViewModel::TYPE_ATTRIBUTE, VALUES_ATTRIBUTE]
         }
       end
 
@@ -426,7 +431,7 @@ class ViewModel::ActiveRecord
         'properties'           => {
           ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Append::NAME] },
           BEFORE_ATTRIBUTE          => viewmodel_reference_only,
-          AFTER_ATTRIBUTE           => viewmodel_reference_only
+          AFTER_ATTRIBUTE           => viewmodel_reference_only,
         },
       }
 
@@ -435,7 +440,7 @@ class ViewModel::ActiveRecord
 
       fupdate_shared =
         fupdate_base.({ 'oneOf' => [ViewModel::Schemas::VIEWMODEL_REFERENCE_SCHEMA,
-                                    viewmodel_reference_only] })
+                                    viewmodel_reference_only,] })
 
       # Referenced updates are special:
       #  - Append requires `_ref` hashes
@@ -450,7 +455,7 @@ class ViewModel::ActiveRecord
         'description'          => 'collection update',
         'additionalProperties' => false,
         'properties'           => {
-          ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Update::NAME] }
+          ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FunctionalUpdate::Update::NAME] },
         },
       }
 
@@ -471,7 +476,6 @@ class ViewModel::ActiveRecord
       REMOVE_ACTION            = JsonSchema.parse!(fupdate_owned.deep_merge(remove_mixin))
       REFERENCED_REMOVE_ACTION = JsonSchema.parse!(fupdate_shared.deep_merge(remove_mixin))
 
-
       collection_update = ->(base_schema) do
         {
           'type'                 => 'object',
@@ -480,7 +484,7 @@ class ViewModel::ActiveRecord
           'required'             => [ViewModel::TYPE_ATTRIBUTE, ACTIONS_ATTRIBUTE],
           'properties'           => {
             ViewModel::TYPE_ATTRIBUTE => { 'enum' => [FUNCTIONAL_UPDATE_TYPE] },
-            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_schema }
+            ACTIONS_ATTRIBUTE => { 'type' => 'array', 'items' => base_schema },
             # The ACTIONS_ATTRIBUTE could be accurately expressed as
             #
             #   { 'oneOf' => [append, update, remove] }
@@ -488,7 +492,7 @@ class ViewModel::ActiveRecord
             # but this produces completely unusable error messages.  Instead we
             # specify it must be an array, and defer checking to the code that
             # can determine the schema by inspecting the type field.
-          }
+          },
         }
       end
 
@@ -503,7 +507,7 @@ class ViewModel::ActiveRecord
       when :_type
         viewmodel_class.view_name
       else
-        attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) }}
+        attributes.fetch(name) { associations.fetch(name) { referenced_associations.fetch(name) } }
       end
     end
 
@@ -538,7 +542,7 @@ class ViewModel::ActiveRecord
       end
 
       # Ensure that no root is referred to more than once
-      check_duplicate_updates(root_updates, type: "root")
+      check_duplicate_updates(root_updates, type: 'root')
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
@@ -549,7 +553,7 @@ class ViewModel::ActiveRecord
         UpdateData.new(viewmodel_class, metadata, subtree_hash, valid_reference_keys)
       end
 
-      check_duplicate_updates(referenced_updates.values, type: "reference")
+      check_duplicate_updates(referenced_updates.values, type: 'reference')
 
       return root_updates, referenced_updates
     end
@@ -614,7 +618,7 @@ class ViewModel::ActiveRecord
     def preload_dependencies
       deps = {}
 
-      (associations.merge(referenced_associations)).each do |assoc_name, reference|
+      associations.merge(referenced_associations).each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
         preload_specs = build_preload_specs(association_data,
@@ -665,7 +669,7 @@ class ViewModel::ActiveRecord
 
       # handle view pre-parsing if defined
       self.viewmodel_class.pre_parse(viewmodel_reference, metadata, hash_data) if self.viewmodel_class.respond_to?(:pre_parse)
-      hash_data.keys.each do |key|
+      hash_data.keys.each do |key| # rubocop:disable Style/HashEachMethods
         if self.viewmodel_class.respond_to?(:"pre_parse_#{key}")
           self.viewmodel_class.public_send("pre_parse_#{key}", viewmodel_reference, metadata, hash_data, hash_data.delete(key))
         end
@@ -710,26 +714,24 @@ class ViewModel::ActiveRecord
               referenced_associations[name] = ref
             end
           else
-            if association_data.collection?
-              associations[name] =
+            associations[name] =
+              if association_data.collection?
                 OwnedCollectionUpdate::Parser
                   .new(association_data, blame_reference, valid_reference_keys)
                   .parse(value)
-            else # not a collection
-              associations[name] =
-                if value.nil?
+              else # not a collection
+                if value.nil? # rubocop:disable Style/IfInsideElse
                   nil
                 else
                   self.class.parse_associated(association_data, blame_reference, valid_reference_keys, value)
                 end
-            end
+              end
           end
         else
           raise ViewModel::DeserializationError::UnknownAttribute.new(name, blame_reference)
         end
       end
     end
-
 
     def blame_reference
       ViewModel::Reference.new(self.viewmodel_class, self.id)

@@ -1,11 +1,13 @@
-require "iknow_view_models"
-require "view_model/active_record"
-require "view_model/active_record/controller"
+# frozen_string_literal: true
 
-require_relative "../helpers/arvm_test_utilities.rb"
-require_relative "../helpers/arvm_test_models.rb"
+require 'iknow_view_models'
+require 'view_model/active_record'
+require 'view_model/active_record/controller'
 
-require "acts_as_manual_list"
+require_relative '../helpers/arvm_test_utilities'
+require_relative '../helpers/arvm_test_models'
+
+require 'acts_as_manual_list'
 
 # models for ARVM controller test
 module ControllerTestModels
@@ -94,7 +96,7 @@ module ControllerTestModels
             end
           end
 
-          down do |view, refs|
+          down do |view, _refs|
             view['old_name'] = view.delete('name')
           end
         end
@@ -152,18 +154,16 @@ class DummyController
   end
 
   def invoke(method)
-    begin
-      self.public_send(method)
-    rescue Exception => ex
-      handler = self.class.rescue_block(ex.class)
-      case handler
-      when nil
-        raise
-      when Symbol
-        self.send(handler, ex)
-      when Proc
-        self.instance_exec(ex, &handler)
-      end
+    self.public_send(method)
+  rescue StandardError => ex
+    handler = self.class.rescue_block(ex.class)
+    case handler
+    when nil
+      raise
+    when Symbol
+      self.send(handler, ex)
+    when Proc
+      self.instance_exec(ex, &handler)
     end
   end
 
@@ -183,7 +183,8 @@ class DummyController
   end
 
   def json_response
-    raise "Not a JSON response" unless @content_type == 'application/json'
+    raise 'Not a JSON response' unless @content_type == 'application/json'
+
     @response_body
   end
 
@@ -194,6 +195,7 @@ class DummyController
   class << self
     def inherited(subclass)
       subclass.initialize_rescue_blocks
+      super
     end
 
     def initialize_rescue_blocks
@@ -205,11 +207,10 @@ class DummyController
     end
 
     def rescue_block(type)
-      @rescue_blocks.to_a.reverse.detect { |btype, h| type <= btype }.try(&:last)
+      @rescue_blocks.to_a.reverse.detect { |btype, _h| type <= btype }.try(&:last)
     end
 
-    def etag(*)
-    end
+    def etag(*); end
   end
 end
 
@@ -230,14 +231,15 @@ end
 
 module CallbackTracing
   attr_reader :callback_tracer
+
   delegate :hook_trace, to: :callback_tracer
 
-  def new_deserialize_context(**args)
+  def new_deserialize_context(**_args)
     @callback_tracer ||= CallbackTracer.new
     super(callbacks: [@callback_tracer])
   end
 
-  def new_serialize_context(**args)
+  def new_serialize_context(**_args)
     @callback_tracer ||= CallbackTracer.new
     super(callbacks: [@callback_tracer])
   end
@@ -247,14 +249,14 @@ module ControllerTestControllers
   def before_all
     super
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:ParentController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:ChildController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
@@ -262,7 +264,7 @@ module ControllerTestControllers
       nested_in :parent, as: :children
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:LabelController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
@@ -270,7 +272,7 @@ module ControllerTestControllers
       nested_in :parent, as: :label
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:TargetController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing

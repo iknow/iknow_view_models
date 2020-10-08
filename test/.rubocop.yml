@@ -1,0 +1,14 @@
+inherit_from: ../.rubocop.yml
+
+Lint/NestedMethodDefinition:
+  Enabled: false
+Lint/ConstantDefinitionInBlock:
+  Enabled: false
+Layout/MultilineBlockLayout:
+  Enabled: false
+Layout/HashAlignment:
+  Enabled: false
+Layout/BlockEndNewline:
+  Enabled: false
+Style/Semicolon:
+  Enabled: false

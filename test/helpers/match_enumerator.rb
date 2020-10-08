@@ -14,6 +14,7 @@ module MiniTest::Assertions
 
     def result
       return false unless @actual.respond_to? :to_a
+
       @extra_items = difference_between_enumerators(@actual, @expected)
       @missing_items = difference_between_enumerators(@expected, @actual)
       @extra_items.empty? & @missing_items.empty?

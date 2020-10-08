@@ -1,5 +1,18 @@
 AllCops:
   TargetRubyVersion: 2.7
+  Exclude:
+    - Appraisals
+    - Gemfile
+    - Rakefile
+    - 'gemfiles/*'
+    - 'nix/gem/**/*'
 
 inherit_gem:
   rubocop-iknow: rubocop.yml
+
+Metrics/BlockNesting:
+  Enabled: false
+Lint/IneffectiveAccessModifier:
+  Enabled: false
+Lint/UselessAccessModifier:
+  Enabled: false

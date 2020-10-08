@@ -88,6 +88,7 @@ module ViewModel::Controller
       if data.blank?
         raise ViewModel::Error.new(status: 400, detail: "No data submitted: #{data.inspect}")
       end
+
       data.map { |el| _extract_param_hash(el) }
     else
       _extract_param_hash(data)
@@ -129,9 +130,18 @@ module ViewModel::Controller
   # untouched. Requires a MultiJson adapter other than ActiveSupport's
   # (modified) JsonGem.
   class CompiledJson
-    def initialize(s);  @s = s; end
-    def to_json(*args); @s;     end
-    def to_s;           @s;     end
+    def initialize(s)
+      @s = s
+    end
+
+    def to_json(*_args)
+      @s
+    end
+
+    def to_s
+      @s
+    end
+
     undef_method :as_json
   end
 

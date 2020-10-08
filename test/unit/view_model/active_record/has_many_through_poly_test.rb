@@ -1,9 +1,11 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -99,7 +101,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                              parents_tags: [ParentsTag.new(tag: @tag_a1, position: 1.0),
                                             ParentsTag.new(tag: @tag_a2, position: 2.0),
                                             ParentsTag.new(tag: @tag_b1, position: 3.0),
-                                            ParentsTag.new(tag: @tag_b2, position: 4.0)])
+                                            ParentsTag.new(tag: @tag_b2, position: 4.0),])
 
     enable_logging!
   end
@@ -135,7 +137,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_preload_dependencies
-    # TODO not part of ARVM; but depends on the particular context from #before_all
+    # TODO: not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
     root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])
@@ -145,7 +147,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
 
     root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent',
                                                                                   'tags' => [{ '_ref' => 'r1' }] }],
-                                                                               { 'r1' => { '_type' => 'TagB' } })
+                                                                                  { 'r1' => { '_type' => 'TagB' } })
 
     assert_equal(DeepPreloader::Spec.new(
                   'parents_tags' => DeepPreloader::Spec.new(
@@ -154,7 +156,6 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
                  'mentioning tags causes through association loading, excluding shared')
   end
 
-
   def test_serialize
     view, refs = serialize_with_references(ParentView.new(@parent1))
 
@@ -162,7 +163,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     assert_equal([{ 'id' => @tag_a1.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A1' },
                   { 'id' => @tag_a2.id, '_type' => 'TagA', '_version' => 1, 'name' => 'tag A2' },
                   { 'id' => @tag_b1.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B1' },
-                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' }],
+                  { 'id' => @tag_b2.id, '_type' => 'TagB', '_version' => 1, 'name' => 'tag B2' },],
                  tag_data)
   end
 
@@ -186,7 +187,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_reordering_swap_type
-    alter_by_view!(ParentView, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, _refs|
       t1, t2, t3, t4 = view['tags']
       view['tags'] = [t3, t2, t1, t4]
     end
@@ -248,16 +249,16 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
     def test_renamed_roundtrip
       context = ParentView.new_serialize_context
       alter_by_view!(ParentView, @parent, serialize_context: context) do |view, refs|
-        assert_equal({refs.keys.first => { 'id'       => @parent.parents_tags.first.tag.id,
+        assert_equal({ refs.keys.first => { 'id' => @parent.parents_tags.first.tag.id,
                                            '_type'    => 'TagA',
                                            '_version' => 1,
-                                           'name'     => 'tag A name' }}, refs)
+                                           'name'     => 'tag A name' } }, refs)
         assert_equal([{ '_ref' => refs.keys.first }],
                      view['something_else'])
 
         refs.clear
-        refs['new'] = {'_type' => 'TagB', 'name' => 'tag B name'}
-        view['something_else'] = [{'_ref' => 'new'}]
+        refs['new'] = { '_type' => 'TagB', 'name' => 'tag B name' }
+        view['something_else'] = [{ '_ref' => 'new' }]
       end
 
       assert_equal('tag B name', @parent.parents_tags.first.tag.name)

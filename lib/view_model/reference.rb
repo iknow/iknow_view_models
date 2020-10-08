@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel
   # Key to identify a viewmodel with some kind of inherent ID (e.g. an ViewModel::ActiveRecord)
   class Reference
@@ -22,7 +24,7 @@ class ViewModel
         other.model_id        == model_id
     end
 
-    alias :eql? :==
+    alias eql? ==
 
     def hash
       [viewmodel_class, model_id].hash

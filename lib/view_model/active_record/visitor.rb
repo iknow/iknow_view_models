@@ -91,5 +91,4 @@ class ViewModel::ActiveRecord::Visitor
   def reset_state!
     @ignored_associations = Set.new
   end
-
 end

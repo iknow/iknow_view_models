@@ -1,13 +1,15 @@
-require "minitest/autorun"
-require "minitest/unit"
-require "minitest/hooks"
+# frozen_string_literal: true
 
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative "../../../helpers/viewmodel_spec_helpers.rb"
+require 'minitest/autorun'
+require 'minitest/unit'
+require 'minitest/hooks'
 
-require "view_model"
-require "view_model/active_record"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
+
+require 'view_model'
+require 'view_model/active_record'
 
 module NSTest
 end
@@ -27,23 +29,23 @@ class ViewModel::ActiveRecord::NamespacingTest < ActiveSupport::TestCase
       schema:    parent_attrs.schema,
       viewmodel: parent_attrs.viewmodel,
       model:     ->(_) {
-        has_one :child, inverse_of: :model, class_name: "NSTest::Child", dependent: :destroy
+        has_one :child, inverse_of: :model, class_name: 'NSTest::Child', dependent: :destroy
       })
   end
 
   describe 'inference' do
-    it "assigns a transformed view name from a namespaced class" do
-      assert_equal("NSTest.Model", viewmodel_class.view_name)
+    it 'assigns a transformed view name from a namespaced class' do
+      assert_equal('NSTest.Model', viewmodel_class.view_name)
     end
 
-    it "can look up a viewmodel by inference from an association to a namespaced model" do
+    it 'can look up a viewmodel by inference from an association to a namespaced model' do
       child_viewmodel_class # test depends on child_viewmodel_class
 
       assert_equal(viewmodel_class._association_data('child').viewmodel_class,
                    child_viewmodel_class)
     end
 
-    it "can infer the model class from a namespaced view class name" do
+    it 'can infer the model class from a namespaced view class name' do
       assert_equal(viewmodel_class.model_class, model_class)
     end
   end
@@ -52,12 +54,12 @@ class ViewModel::ActiveRecord::NamespacingTest < ActiveSupport::TestCase
     include ARVMTestUtilities
 
     it 'can apply access control policy for namespaced classes' do
-      _viewmodel_class = viewmodel_class
+      p_viewmodel_class = viewmodel_class
 
       access_control_class =
         Class.new(ViewModel::AccessControl::Tree) do
-          view(_viewmodel_class.view_name) do
-            visible_unless!("VETO-ERROR-MESSAGE") { true }
+          view(p_viewmodel_class.view_name) do
+            visible_unless!('VETO-ERROR-MESSAGE') { true }
           end
         end
 
@@ -68,7 +70,7 @@ class ViewModel::ActiveRecord::NamespacingTest < ActiveSupport::TestCase
 
       refute_serializes(viewmodel_class,
                         model_class.create!,
-                        "VETO-ERROR-MESSAGE",
+                        'VETO-ERROR-MESSAGE',
                         serialize_context: serialize_context)
     end
   end

@@ -1,14 +1,16 @@
-require "minitest/autorun"
-require "minitest/unit"
-require "minitest/hooks"
+# frozen_string_literal: true
 
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative "../../../helpers/viewmodel_spec_helpers.rb"
+require 'minitest/autorun'
+require 'minitest/unit'
+require 'minitest/hooks'
+
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 # MiniTest::Spec.register_spec_type(/./, Minitest::HooksSpec)
 
-require "view_model"
-require "view_model/active_record"
+require 'view_model'
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord
   class ClonerTest < ActiveSupport::TestCase
@@ -18,7 +20,7 @@ class ViewModel::ActiveRecord
     let(:viewmodel) { create_viewmodel! }
     let(:model)     { viewmodel.model }
 
-    describe "with single model" do
+    describe 'with single model' do
       include ViewModelSpecHelpers::Single
 
       def model_attributes
@@ -26,15 +28,15 @@ class ViewModel::ActiveRecord
       end
 
       def new_model
-        model_class.new(name: "a", nonview: "b")
+        model_class.new(name: 'a', nonview: 'b')
       end
 
-      it "persists the test setup" do
+      it 'persists the test setup' do
         assert(viewmodel.model.persisted?)
         refute(viewmodel.model.new_record?)
       end
 
-      it "can clone the model" do
+      it 'can clone the model' do
         clone_model = Cloner.new.clone(viewmodel)
         assert(clone_model.new_record?)
         assert_nil(clone_model.id)
@@ -45,75 +47,75 @@ class ViewModel::ActiveRecord
       end
 
       class IgnoreParentCloner < Cloner
-        def visit_model_view(node, model)
+        def visit_model_view(_node, _model)
           ignore!
         end
       end
 
-      it "can ignore a model" do
+      it 'can ignore a model' do
         clone_model = IgnoreParentCloner.new.clone(viewmodel)
         assert_nil(clone_model)
       end
 
       class IgnoreAllCloner < Cloner
-        def pre_visit(node, model)
+        def pre_visit(_node, _model)
           ignore!
         end
       end
 
-      it "can ignore a model in pre-visit" do
+      it 'can ignore a model in pre-visit' do
         clone_model = IgnoreAllCloner.new.clone(viewmodel)
         assert_nil(clone_model)
       end
 
       class AlterAttributeCloner < Cloner
-        def visit_model_view(node, model)
-          model.name = "changed"
+        def visit_model_view(_node, model)
+          model.name = 'changed'
         end
       end
 
-      it "can alter a model attribute" do
+      it 'can alter a model attribute' do
         clone_model = AlterAttributeCloner.new.clone(viewmodel)
         assert(clone_model.new_record?)
         assert_nil(clone_model.id)
-        assert_equal("changed", clone_model.name)
-        refute_equal("changed", model.name)
+        assert_equal('changed', clone_model.name)
+        refute_equal('changed', model.name)
         assert_equal(model.nonview, clone_model.nonview)
         clone_model.save!
         refute_equal(model, clone_model)
       end
 
       class PostAlterAttributeCloner < Cloner
-        def end_visit_model_view(node, model)
-          model.name = "changed"
+        def end_visit_model_view(_node, model)
+          model.name = 'changed'
         end
       end
 
-      it "can alter a model attribute post-visit" do
+      it 'can alter a model attribute post-visit' do
         clone_model = PostAlterAttributeCloner.new.clone(viewmodel)
         assert(clone_model.new_record?)
         assert_nil(clone_model.id)
-        assert_equal("changed", clone_model.name)
-        refute_equal("changed", model.name)
+        assert_equal('changed', clone_model.name)
+        refute_equal('changed', model.name)
         assert_equal(model.nonview, clone_model.nonview)
         clone_model.save!
         refute_equal(model, clone_model)
       end
     end
 
-    describe "with a child" do
+    describe 'with a child' do
       def new_child_model
-        child_model_class.new(name: "b")
+        child_model_class.new(name: 'b')
       end
 
       def new_model
-        model_class.new(name: "a", child: new_child_model)
+        model_class.new(name: 'a', child: new_child_model)
       end
 
       module BehavesLikeConstructingAChild
         extend ActiveSupport::Concern
         included do
-          it "persists the test setup" do
+          it 'persists the test setup' do
             assert(viewmodel.model.persisted?)
             refute(viewmodel.model.new_record?)
             assert(viewmodel.model.child.persisted?)
@@ -123,7 +125,7 @@ class ViewModel::ActiveRecord
       end
 
       class IgnoreChildAssociationCloner < Cloner
-        def visit_model_view(node, model)
+        def visit_model_view(_node, _model)
           ignore_association!(:child)
         end
       end
@@ -131,7 +133,7 @@ class ViewModel::ActiveRecord
       module BehavesLikeCloningAChild
         extend ActiveSupport::Concern
         included do
-          it "can clone the model and child" do
+          it 'can clone the model and child' do
             clone_model = Cloner.new.clone(viewmodel)
 
             assert(clone_model.new_record?)
@@ -148,7 +150,7 @@ class ViewModel::ActiveRecord
             refute_equal(model.child, clone_model.child)
           end
 
-          it "can ignore the child association" do
+          it 'can ignore the child association' do
             clone_model = IgnoreChildAssociationCloner.new.clone(viewmodel)
 
             assert(clone_model.new_record?)
@@ -160,66 +162,67 @@ class ViewModel::ActiveRecord
         end
       end
 
-      describe "as belongs_to" do
+      describe 'as belongs_to' do
         include ViewModelSpecHelpers::ParentAndBelongsToChild
         include BehavesLikeConstructingAChild
         include BehavesLikeCloningAChild
       end
 
-      describe "as has_one" do
+      describe 'as has_one' do
         include ViewModelSpecHelpers::ParentAndHasOneChild
         include BehavesLikeConstructingAChild
         include BehavesLikeCloningAChild
       end
 
-      describe "as belongs_to shared child" do
+      describe 'as belongs_to shared child' do
         include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
         include BehavesLikeConstructingAChild
-        it "can clone the model but not the child" do
-            clone_model = Cloner.new.clone(viewmodel)
 
-            assert(clone_model.new_record?)
-            assert_nil(clone_model.id)
-            assert_equal(model.name, clone_model.name)
+        it 'can clone the model but not the child' do
+          clone_model = Cloner.new.clone(viewmodel)
 
-            clone_child = clone_model.child
-            refute(clone_child.new_record?)
-            assert_equal(model.child, clone_child)
+          assert(clone_model.new_record?)
+          assert_nil(clone_model.id)
+          assert_equal(model.name, clone_model.name)
 
-            clone_model.save!
-            refute_equal(model, clone_model)
-            assert_equal(model.child, clone_model.child)
-          end
+          clone_child = clone_model.child
+          refute(clone_child.new_record?)
+          assert_equal(model.child, clone_child)
+
+          clone_model.save!
+          refute_equal(model, clone_model)
+          assert_equal(model.child, clone_model.child)
+        end
       end
     end
 
     class IgnoreChildrenAssociationCloner < Cloner
-      def visit_model_view(node, model)
+      def visit_model_view(_node, _model)
         ignore_association!(:children)
       end
     end
 
-    describe "with has_many children" do
+    describe 'with has_many children' do
       include ViewModelSpecHelpers::ParentAndHasManyChildren
       def new_child_models
-        ["b", "c"].map { |n| child_model_class.new(name: n) }
+        ['b', 'c'].map { |n| child_model_class.new(name: n) }
       end
 
       def new_model
-        model_class.new(name: "a", children: new_child_models)
+        model_class.new(name: 'a', children: new_child_models)
       end
 
-      it "persists the test setup" do
+      it 'persists the test setup' do
         assert(viewmodel.model.persisted?)
         refute(viewmodel.model.new_record?)
         assert_equal(2, viewmodel.model.children.size)
-        viewmodel.model.children.each do | child|
+        viewmodel.model.children.each do |child|
           assert(child.persisted?)
           refute(child.new_record?)
         end
       end
 
-      it "can clone the model" do
+      it 'can clone the model' do
         clone_model = Cloner.new.clone(viewmodel)
 
         assert(clone_model.new_record?)
@@ -244,9 +247,10 @@ class ViewModel::ActiveRecord
       class IgnoreFirstChildCloner < Cloner
         def initialize
           @ignored_first = false
+          super
         end
 
-        def visit_child_view(node, model)
+        def visit_child_view(_node, _model)
           unless @ignored_first
             @ignored_first = true
             ignore!
@@ -254,7 +258,7 @@ class ViewModel::ActiveRecord
         end
       end
 
-      it "can ignore subset of children" do
+      it 'can ignore subset of children' do
         clone_model = IgnoreFirstChildCloner.new.clone(viewmodel)
 
         assert(clone_model.new_record?)
@@ -265,7 +269,7 @@ class ViewModel::ActiveRecord
         assert_equal(model.children[1].name, clone_model.children[0].name)
       end
 
-      it "can ignore the children association" do
+      it 'can ignore the children association' do
         clone_model = IgnoreChildrenAssociationCloner.new.clone(viewmodel)
 
         assert(clone_model.new_record?)
@@ -276,19 +280,19 @@ class ViewModel::ActiveRecord
       end
     end
 
-    describe "with has_many_through shared children" do
+    describe 'with has_many_through shared children' do
       include ViewModelSpecHelpers::ParentAndHasManyThroughChildren
       def new_model_children
-        ["b", "c"].map.with_index do |n, i|
+        ['b', 'c'].map.with_index do |n, i|
           join_model_class.new(child: child_model_class.new(name: n), position: i)
         end
       end
 
       def new_model
-        model_class.new( name: "a", model_children: new_model_children)
+        model_class.new(name: 'a', model_children: new_model_children)
       end
 
-      it "persists the test setup" do
+      it 'persists the test setup' do
         assert(viewmodel.model.persisted?)
         refute(viewmodel.model.new_record?)
         assert_equal(2, viewmodel.model.model_children.size)
@@ -301,7 +305,7 @@ class ViewModel::ActiveRecord
         end
       end
 
-      it "can clone the model and join model but not the child" do
+      it 'can clone the model and join model but not the child' do
         clone_model = Cloner.new.clone(viewmodel)
 
         assert(clone_model.new_record?)
@@ -325,7 +329,7 @@ class ViewModel::ActiveRecord
         end
       end
 
-      it "can ignore the children association" do
+      it 'can ignore the children association' do
         clone_model = IgnoreChildrenAssociationCloner.new.clone(viewmodel)
 
         assert(clone_model.new_record?)

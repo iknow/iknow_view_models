@@ -1,10 +1,12 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative "../../../helpers/viewmodel_spec_helpers.rb"
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -33,7 +35,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
         'name' => viewmodel.child.name,
         'former_field' => 'former_value',
-      }
+      },
     }
   end
 
@@ -46,7 +48,6 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     migrator.migrate!(subject, references: {})
   end
 
-
   describe 'downwards' do
     let(:migrator) { down_migrator }
     let(:subject) { current_serialization.deep_dup }
@@ -58,9 +59,9 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           'old_field' => -1,
           'child' => {
             ViewModel::MIGRATED_ATTRIBUTE => true,
-            'former_field' => 'reconstructed'
-          }
-        }
+            'former_field' => 'reconstructed',
+          },
+        },
       )
     end
 
@@ -69,7 +70,6 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       assert_equal(expected_result, subject)
     end
-
 
     describe 'to an unreachable version' do
       let(:migration_versions) { { viewmodel_class => 2, child_viewmodel_class => 1 } }
@@ -92,7 +92,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         'new_field' => 3,
         'child' => {
           ViewModel::MIGRATED_ATTRIBUTE => true,
-        }
+        },
       )
     end
 
@@ -133,7 +133,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       let(:subject) do
         v2_serialization.deep_merge(
-          'child' => { ViewModel::VERSION_ATTRIBUTE => 1 }
+          'child' => { ViewModel::VERSION_ATTRIBUTE => 1 },
         )
       end
 

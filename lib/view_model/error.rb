@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Abstract base for renderable errors in ViewModel-based APIs. Errors of this
 # type will be caught by ViewModel controllers and rendered in a standard format
 # by ViewModel::ErrorView, which loosely follows errors in JSON-API.
@@ -6,7 +8,7 @@ class ViewModel::AbstractError < StandardError
     # Brief DSL for quickly defining constant attribute values in subclasses
     [:detail, :status, :title, :code].each do |attribute|
       define_method(attribute) do |x|
-        define_method(attribute){ x }
+        define_method(attribute) { x }
       end
     end
   end
@@ -25,7 +27,7 @@ class ViewModel::AbstractError < StandardError
 
   # Human-readable reason for use displaying this error.
   def detail
-    "ViewModel::AbstractError"
+    'ViewModel::AbstractError'
   end
 
   # HTTP status code most appropriate for this error
@@ -40,7 +42,7 @@ class ViewModel::AbstractError < StandardError
 
   # Unique symbol identifying this error type
   def code
-    "ViewModel.AbstractError"
+    'ViewModel.AbstractError'
   end
 
   # Additional information specific to this error type.
@@ -74,8 +76,6 @@ class ViewModel::AbstractError < StandardError
 
   protected
 
-
-
   def format_references(viewmodel_refs)
     viewmodel_refs.map do |viewmodel_ref|
       format_reference(viewmodel_ref)
@@ -85,7 +85,7 @@ class ViewModel::AbstractError < StandardError
   def format_reference(viewmodel_ref)
     {
       ViewModel::TYPE_ATTRIBUTE => viewmodel_ref.viewmodel_class.view_name,
-      ViewModel::ID_ATTRIBUTE   => viewmodel_ref.model_id
+      ViewModel::ID_ATTRIBUTE   => viewmodel_ref.model_id,
     }
   end
 end
@@ -100,12 +100,13 @@ class ViewModel::AbstractErrorWithBlame < ViewModel::AbstractError
     unless @nodes.all? { |n| n.is_a?(ViewModel::Reference) }
       raise ArgumentError.new("#{self.class.name}: 'blame_nodes' must all be of type ViewModel::Reference")
     end
+
     super()
   end
 
   def meta
     {
-      nodes: format_references(nodes)
+      nodes: format_references(nodes),
     }
   end
 end
@@ -117,8 +118,9 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
   def initialize(causes)
     @causes = Array.wrap(causes)
     unless @causes.present?
-      raise ArgumentError.new("A collection must have at least one cause")
+      raise ArgumentError.new('A collection must have at least one cause')
     end
+
     super()
   end
 
@@ -151,7 +153,7 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
   protected
 
   def cause_details
-    causes.map(&:detail).join("; ")
+    causes.map(&:detail).join('; ')
   end
 end
 
@@ -180,7 +182,7 @@ end
 class ViewModel::Error < ViewModel::AbstractError
   attr_reader :detail, :status, :title, :code, :meta
 
-  def initialize(status: 400, detail: "ViewModel Error", title: nil, code: nil, meta: {})
+  def initialize(status: 400, detail: 'ViewModel Error', title: nil, code: nil, meta: {})
     @detail = detail
     @status = status
     @title  = title

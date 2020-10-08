@@ -1,7 +1,10 @@
+# frozen_string_literal: true
+
 class ViewModel::SerializationError < ViewModel::AbstractError
   attr_reader :detail
+
   status 400
-  code "SerializationError"
+  code 'SerializationError'
 
   def initialize(detail)
     @detail = detail

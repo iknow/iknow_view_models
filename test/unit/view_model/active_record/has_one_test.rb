@@ -1,10 +1,12 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -15,13 +17,13 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   def setup
     super
 
-    # TODO make a `has_list?` that allows a model to set all children as an array
-    @model1 = model_class.new(name: "p1",
-                          child: child_model_class.new(name: "p1t"))
+    # TODO: make a `has_list?` that allows a model to set all children as an array
+    @model1 = model_class.new(name: 'p1',
+                          child: child_model_class.new(name: 'p1t'))
     @model1.save!
 
-    @model2 = model_class.new(name: "p2",
-                          child: child_model_class.new(name: "p2t"))
+    @model2 = model_class.new(name: 'p2',
+                          child: child_model_class.new(name: 'p2t'))
 
     @model2.save!
 
@@ -38,9 +40,9 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Model",
-      "name"     => "p",
-      "child"   => { "_type" => "Child", "name" => "t" },
+      '_type'    => 'Model',
+      'name'     => 'p',
+      'child' => { '_type' => 'Child', 'name' => 't' },
     }
 
     pv = ModelView.deserialize_from_view(view)
@@ -49,23 +51,22 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
-
+    assert_equal('p', p.name)
 
     assert(p.child.present?)
-    assert_equal("t", p.child.name)
+    assert_equal('t', p.child.name)
   end
 
   def test_serialize_view
     view, _refs = serialize_with_references(ModelView.new(@model1))
-    assert_equal({ "_type"    => "Model",
-                   "_version" => 1,
-                   "id"       => @model1.id,
-                   "name"     => @model1.name,
-                   "child"   => { "_type"    => "Child",
-                                   "_version" => 1,
-                                   "id"       => @model1.child.id,
-                                   "name"     => @model1.child.name } },
+    assert_equal({ '_type'    => 'Model',
+                   '_version' => 1,
+                   'id'       => @model1.id,
+                   'name'     => @model1.name,
+                   'child' => { '_type' => 'Child',
+                                   '_version' => 1,
+                                   'id'       => @model1.child.id,
+                                   'name'     => @model1.child.name } },
                  view)
   end
 
@@ -77,11 +78,11 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
     ModelView.deserialize_from_view(
       [update_hash_for(ModelView, @model1) { |p| p['child'] = update_hash_for(ChildView, t2) },
-       update_hash_for(ModelView, @model2) { |p| p['child'] = update_hash_for(ChildView, t1) }],
+       update_hash_for(ModelView, @model2) { |p| p['child'] = update_hash_for(ChildView, t1) },],
       deserialize_context: deserialize_context)
 
     assert_equal(Set.new([ViewModel::Reference.new(ModelView, @model1.id),
-                          ViewModel::Reference.new(ModelView, @model2.id)]),
+                          ViewModel::Reference.new(ModelView, @model2.id),]),
                  deserialize_context.valid_edit_refs.to_set)
 
     @model1.reload
@@ -100,7 +101,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   def test_has_one_create
     @model1.update(child: nil)
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 't' }
     end
 
@@ -108,8 +109,8 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   end
 
   def test_has_one_update
-    alter_by_view!(ModelView, @model1) do |view, refs|
-      view['child']['name'] = "hello"
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child']['name'] = 'hello'
     end
 
     assert_equal('hello', @model1.child.name)
@@ -117,7 +118,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_has_one_destroy
     old_child = @model1.child
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = nil
     end
     assert(Child.where(id: old_child.id).blank?)
@@ -127,7 +128,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     old_model1_child = @model1.child
     old_model2_child = @model2.child
 
-    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p2['child'] = p1['child']
       p1['child'] = nil
     end
@@ -179,8 +180,8 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_bad_single_association
     view = {
-      "_type" => "Model",
-      "child" => []
+      '_type' => 'Model',
+      'child' => [],
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ModelView.deserialize_from_view(view)
@@ -190,7 +191,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   describe 'owned reference child' do
     def child_attributes
-      super.merge(viewmodel: ->(v) { root! })
+      super.merge(viewmodel: ->(_v) { root! })
     end
 
     def new_model
@@ -419,7 +420,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ModelView, @model) do |view, refs|
+      alter_by_view!(ModelView, @model) do |view, _refs|
         assert_equal({ 'id'       => @model.child.id,
                        '_type'    => 'Child',
                        '_version' => 1,
@@ -428,7 +429,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
         view['something_else']['name'] = 'child new name'
       end
 
-      assert_equal('child new name',  @model.child.name)
+      assert_equal('child new name', @model.child.name)
     end
   end
 

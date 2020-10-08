@@ -1,10 +1,12 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative "../../../helpers/viewmodel_spec_helpers.rb"
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::Alias < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -14,18 +16,18 @@ class ViewModel::ActiveRecord::Alias < ActiveSupport::TestCase
 
   def child_attributes
     super.merge(
-      viewmodel: ->(v) do
-        add_view_alias "ChildA"
-        add_view_alias "ChildB"
-      end
+      viewmodel: ->(_v) do
+        add_view_alias 'ChildA'
+        add_view_alias 'ChildB'
+      end,
     )
   end
 
-  it "permits association types to be aliased" do
-    %w(Child ChildA ChildB).each do |view_alias|
+  it 'permits association types to be aliased' do
+    %w[Child ChildA ChildB].each do |view_alias|
       view = {
-        "_type" => viewmodel_class.view_name,
-        "child" => { "_type" => view_alias },
+        '_type' => viewmodel_class.view_name,
+        'child' => { '_type' => view_alias },
       }
 
       parent = viewmodel_class.deserialize_from_view(view).model

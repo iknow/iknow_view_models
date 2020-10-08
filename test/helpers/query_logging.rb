@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Test mixin that allows queries executed in a block to be introspected.
 #
 # Code run within a `log_queries` block will collect data. Collected data is
@@ -9,7 +11,6 @@
 require 'active_support/subscriber'
 
 module QueryLogging
-
   # ActiveRecord integration
   class QueryLogger < ActiveSupport::Subscriber
     @log              = false

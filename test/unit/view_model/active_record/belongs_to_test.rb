@@ -1,10 +1,12 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -14,13 +16,13 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def setup
     super
 
-    # TODO make a `has_list?` that allows a parent to set all children as an array
-    @model1 = model_class.new(name: "p1",
-                              child: child_model_class.new(name: "p1l"))
+    # TODO: make a `has_list?` that allows a parent to set all children as an array
+    @model1 = model_class.new(name: 'p1',
+                              child: child_model_class.new(name: 'p1l'))
     @model1.save!
 
-    @model2 = model_class.new(name: "p2",
-                              child: child_model_class.new(name: "p2l"))
+    @model2 = model_class.new(name: 'p2',
+                              child: child_model_class.new(name: 'p2l'))
 
     @model2.save!
 
@@ -30,14 +32,14 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_serialize_view
     view, _refs = serialize_with_references(ModelView.new(@model1))
 
-    assert_equal({ "_type"    => "Model",
-                   "_version" => 1,
-                   "id"       => @model1.id,
-                   "name"     => @model1.name,
-                   "child"    => { "_type"    => "Child",
-                                   "_version" => 1,
-                                   "id"       => @model1.child.id,
-                                   "name"     => @model1.child.name },
+    assert_equal({ '_type'    => 'Model',
+                   '_version' => 1,
+                   'id'       => @model1.id,
+                   'name'     => @model1.name,
+                   'child'    => { '_type'    => 'Child',
+                                   '_version' => 1,
+                                   'id'       => @model1.child.id,
+                                   'name'     => @model1.child.name },
                  },
                  view)
   end
@@ -53,9 +55,9 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Model",
-      "name"     => "p",
-      "child"    => { "_type" => "Child", "name" => "l" },
+      '_type'    => 'Model',
+      'name'     => 'p',
+      'child'    => { '_type' => 'Child', 'name' => 'l' },
     }
 
     pv = ModelView.deserialize_from_view(view)
@@ -64,10 +66,10 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
+    assert_equal('p', p.name)
 
     assert(p.child.present?)
-    assert_equal("l", p.child.name)
+    assert_equal('l', p.child.name)
   end
 
   def test_create_belongs_to_nil
@@ -86,7 +88,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_create
     @model1.update(child: nil)
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
@@ -96,7 +98,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_replace
     old_child = @model1.child
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
@@ -108,7 +110,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     old_p1_child = @model1.child
     old_p2_child = @model2.child
 
-    set_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    set_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p1['child'] = nil
       p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
@@ -122,7 +124,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     old_p1_child = @model1.child
     old_p2_child = @model2.child
 
-    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p1['child'] = update_hash_for(ChildView, old_p2_child)
       p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
@@ -136,22 +138,22 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     d_context = ModelView.new_deserialize_context
 
     target_child = Child.create
-    from_model  = Model.create(name: 'from', child: target_child)
-    to_model    = Model.create(name: 'p3')
+    from_model = Model.create(name: 'from', child: target_child)
+    to_model = Model.create(name: 'p3')
 
     alter_by_view!(
       ModelView, [from_model, to_model],
       deserialize_context: d_context
-    ) do |(from, to), refs|
+    ) do |(from, to), _refs|
       from['child'] = nil
       to['child']   = update_hash_for(ChildView, target_child)
     end
 
     assert_equal(target_child, to_model.child, 'target child moved')
     assert_equal([ViewModel::Reference.new(ModelView, from_model.id),
-                  ViewModel::Reference.new(ModelView, to_model.id)],
+                  ViewModel::Reference.new(ModelView, to_model.id),],
                  d_context.valid_edit_refs,
-                 "only models are checked for change; child was not")
+                 'only models are checked for change; child was not')
   end
 
   def test_implicit_release_invalid_belongs_to
@@ -174,11 +176,11 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
           t.integer :deleted_child_id
           t.integer :ignored_child_id
         end,
-        model: ->(m) do
+        model: ->(_m) do
           belongs_to :deleted_child, class_name: Child.name, dependent: :delete
           belongs_to :ignored_child, class_name: Child.name
         end,
-        viewmodel: ->(v) do
+        viewmodel: ->(_v) do
           associations :deleted_child, :ignored_child
         end)
     end
@@ -198,7 +200,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_no_gc_dependent_ignore
-      model = model_class.create(ignored_child: Child.new(name: "one"))
+      model = model_class.create(ignored_child: Child.new(name: 'one'))
       old_child = model.ignored_child
 
       alter_by_view!(ModelView, model) do |ov, _refs|
@@ -232,7 +234,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ModelView, @model) do |view, refs|
+      alter_by_view!(ModelView, @model) do |view, _refs|
         assert_equal({ 'id'       => @model.child.id,
                        '_type'    => 'Child',
                        '_version' => 1,
@@ -284,7 +286,6 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
       end
     end
 
-
     # Do we support replacing a node in the tree and remodeling its children
     # back to it? In theory we want to, but currently we don't: the child node
     # is unresolvable.
@@ -299,8 +300,8 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     def test_move
       model = Aye.create(bee: Bee.new(cee: Cee.new))
       assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-        alter_by_view!(AyeView, model) do |view, refs|
-          view['bee'].delete("id")
+        alter_by_view!(AyeView, model) do |view, _refs|
+          view['bee'].delete('id')
         end
       end
     end

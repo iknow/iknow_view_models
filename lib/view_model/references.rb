@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel
   # A bucket for configuration, used for serializing and deserializing.
   class References
@@ -17,14 +19,15 @@ class ViewModel
     # under which the data is stored. If the data is not present, will compute
     # it by calling the given block.
     def add_reference(value)
-      if (ref = @ref_by_value[value]).present?
-        ref
-      else
+      ref = @ref_by_value[value]
+
+      unless ref.present?
         ref = new_ref!(value)
         @ref_by_value[value] = ref
         @value_by_ref[ref] = value
-        ref
       end
+
+      ref
     end
 
     def clear!
@@ -41,7 +44,7 @@ class ViewModel
         hash = Digest::SHA256.base64digest("#{vm_ref.viewmodel_class.name}.#{vm_ref.model_id}")
         "ref:h:#{hash}"
       else
-        'ref:i:%06d' % (@last_ref += 1)
+        format('ref:i:%06<count>d', count: (@last_ref += 1))
       end
     end
   end

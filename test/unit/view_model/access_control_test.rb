@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
-require_relative '../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../helpers/arvm_test_utilities'
+require_relative '../../helpers/arvm_test_models'
+require_relative '../../helpers/viewmodel_spec_helpers'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 require 'minitest/unit'
 
 require 'rspec/expectations/minitest_integration'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::AccessControlTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -55,103 +55,103 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     end
 
     def test_visible_if
-      TestAccessControl.visible_if!("car is visible1") do
-        view.car == "visible1"
+      TestAccessControl.visible_if!('car is visible1') do
+        view.car == 'visible1'
       end
 
-      TestAccessControl.visible_if!("car is visible2") do
-        view.car == "visible2"
+      TestAccessControl.visible_if!('car is visible2') do
+        view.car == 'visible2'
       end
 
-      assert_serializes(ListView, List.create!(car: "visible1"))
-      assert_serializes(ListView, List.create!(car: "visible2"))
-      ex = refute_serializes(ListView, List.create!(car: "bad"), /none of the possible/)
+      assert_serializes(ListView, List.create!(car: 'visible1'))
+      assert_serializes(ListView, List.create!(car: 'visible2'))
+      ex = refute_serializes(ListView, List.create!(car: 'bad'), /none of the possible/)
       assert_equal(2, ex.reasons.count)
     end
 
     def test_visible_unless
-      TestAccessControl.visible_if!("always") { true }
+      TestAccessControl.visible_if!('always') { true }
 
-      TestAccessControl.visible_unless!("car is invisible") do
-        view.car == "invisible"
+      TestAccessControl.visible_unless!('car is invisible') do
+        view.car == 'invisible'
       end
 
-      assert_serializes(ListView, List.create!(car: "ok"))
-      refute_serializes(ListView, List.create!(car: "invisible"), /not permitted.*car is invisible/)
+      assert_serializes(ListView, List.create!(car: 'ok'))
+      refute_serializes(ListView, List.create!(car: 'invisible'), /not permitted.*car is invisible/)
     end
 
     def test_editable_if
-      TestAccessControl.visible_if!("always") { true }
+      TestAccessControl.visible_if!('always') { true }
 
-      TestAccessControl.editable_if!("car is editable1") do
-        view.car == "editable1"
+      TestAccessControl.editable_if!('car is editable1') do
+        view.car == 'editable1'
       end
 
-      TestAccessControl.editable_if!("car is editable2") do
-        view.car == "editable2"
+      TestAccessControl.editable_if!('car is editable2') do
+        view.car == 'editable2'
       end
 
-      assert_deserializes(ListView, List.create!(car: "editable1")) { |v, _| v["car"] = "unchecked" }
-      assert_deserializes(ListView, List.create!(car: "editable2")) { |v, _| v["car"] = "unchecked" }
-      assert_deserializes(ListView, List.create!(car: "forbidden")) { |v, _| v["car"] = "forbidden" } # no change so permitted
-      refute_deserializes(ListView, List.create!(car: "forbidden"), /none of the possible/) { |v, _| v["car"] = "unchecked" }
+      assert_deserializes(ListView, List.create!(car: 'editable1')) { |v, _| v['car'] = 'unchecked' }
+      assert_deserializes(ListView, List.create!(car: 'editable2')) { |v, _| v['car'] = 'unchecked' }
+      assert_deserializes(ListView, List.create!(car: 'forbidden')) { |v, _| v['car'] = 'forbidden' } # no change so permitted
+      refute_deserializes(ListView, List.create!(car: 'forbidden'), /none of the possible/) { |v, _| v['car'] = 'unchecked' }
     end
 
     def test_editable_unless
-      TestAccessControl.visible_if!("always") { true }
-      TestAccessControl.editable_if!("always") { true }
+      TestAccessControl.visible_if!('always') { true }
+      TestAccessControl.editable_if!('always') { true }
 
-      TestAccessControl.editable_unless!("car is uneditable") do
-        view.car == "uneditable"
+      TestAccessControl.editable_unless!('car is uneditable') do
+        view.car == 'uneditable'
       end
 
-      assert_deserializes(ListView, List.create!(car: "ok")) { |v, _| v["car"] = "unchecked" }
-      assert_deserializes(ListView, List.create!(car: "uneditable")) { |v, _| v["car"] = "uneditable" } # no change so permitted
-      refute_deserializes(ListView, List.create!(car: "uneditable"), /car is uneditable/) { |v, _| v["car"] = "unchecked" }
+      assert_deserializes(ListView, List.create!(car: 'ok')) { |v, _| v['car'] = 'unchecked' }
+      assert_deserializes(ListView, List.create!(car: 'uneditable')) { |v, _| v['car'] = 'uneditable' } # no change so permitted
+      refute_deserializes(ListView, List.create!(car: 'uneditable'), /car is uneditable/) { |v, _| v['car'] = 'unchecked' }
     end
 
     def test_edit_valid_if
-      TestAccessControl.visible_if!("always") { true }
+      TestAccessControl.visible_if!('always') { true }
 
-      TestAccessControl.edit_valid_if!("car is validedit") do
-        view.car == "validedit"
+      TestAccessControl.edit_valid_if!('car is validedit') do
+        view.car == 'validedit'
       end
 
-      assert_deserializes(ListView, List.create!(car: "unchecked"))  { |v, _| v["car"] = "validedit" }
-      assert_deserializes(ListView, List.create!(car: "unmodified")) { |v, _| v["car"] = "unmodified" } # no change so permitted
-      refute_deserializes(ListView, List.create!(car: "unchecked"), /none of the possible/) { |v, _| v["car"] = "bad" }
+      assert_deserializes(ListView, List.create!(car: 'unchecked'))  { |v, _| v['car'] = 'validedit' }
+      assert_deserializes(ListView, List.create!(car: 'unmodified')) { |v, _| v['car'] = 'unmodified' } # no change so permitted
+      refute_deserializes(ListView, List.create!(car: 'unchecked'), /none of the possible/) { |v, _| v['car'] = 'bad' }
     end
 
     def test_edit_valid_unless
-      TestAccessControl.visible_if!("always") { true }
-      TestAccessControl.edit_valid_if!("always") { true }
-      TestAccessControl.edit_valid_unless!("car is invalidedit") do
-        view.car == "invalidedit"
+      TestAccessControl.visible_if!('always') { true }
+      TestAccessControl.edit_valid_if!('always') { true }
+      TestAccessControl.edit_valid_unless!('car is invalidedit') do
+        view.car == 'invalidedit'
       end
 
-      assert_deserializes(ListView, List.create!(car: "unchecked"))   { |v, _| v["car"] = "ok" }
-      assert_deserializes(ListView, List.create!(car: "invalidedit")) { |v, _| v["car"] = "invalidedit" }
-      refute_deserializes(ListView, List.create!(car: "unchecked"), /car is invalidedit/) { |v, _| v["car"] = "invalidedit" }
+      assert_deserializes(ListView, List.create!(car: 'unchecked'))   { |v, _| v['car'] = 'ok' }
+      assert_deserializes(ListView, List.create!(car: 'invalidedit')) { |v, _| v['car'] = 'invalidedit' }
+      refute_deserializes(ListView, List.create!(car: 'unchecked'), /car is invalidedit/) { |v, _| v['car'] = 'invalidedit' }
     end
 
     def test_editable_and_edit_valid
-      TestAccessControl.visible_if!("always") { true }
+      TestAccessControl.visible_if!('always') { true }
 
-      TestAccessControl.editable_if!("original car permits") do
-        view.car == "permitoriginal"
+      TestAccessControl.editable_if!('original car permits') do
+        view.car == 'permitoriginal'
       end
 
-      TestAccessControl.edit_valid_if!("resulting car permits") do
-        view.car == "permitresult"
+      TestAccessControl.edit_valid_if!('resulting car permits') do
+        view.car == 'permitresult'
       end
 
       # at least one valid
-      assert_deserializes(ListView, List.create!(car: "permitoriginal")) { |v, _| v["car"] = "permitresult" }
-      assert_deserializes(ListView, List.create!(car: "badoriginal"))    { |v, _| v["car"] = "permitresult" }
-      assert_deserializes(ListView, List.create!(car: "permitoriginal")) { |v, _| v["car"] = "badresult" }
+      assert_deserializes(ListView, List.create!(car: 'permitoriginal')) { |v, _| v['car'] = 'permitresult' }
+      assert_deserializes(ListView, List.create!(car: 'badoriginal'))    { |v, _| v['car'] = 'permitresult' }
+      assert_deserializes(ListView, List.create!(car: 'permitoriginal')) { |v, _| v['car'] = 'badresult' }
 
       # no valid
-      ex = refute_deserializes(ListView, List.create!(car: "badoriginal"), /none of the possible/) { |v, _| v["car"] = "badresult" }
+      ex = refute_deserializes(ListView, List.create!(car: 'badoriginal'), /none of the possible/) { |v, _| v['car'] = 'badresult' }
 
       assert_equal(2, ex.reasons.count)
     end
@@ -160,14 +160,14 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       child_access_control = Class.new(ViewModel::AccessControl::Composed)
       child_access_control.include_from(TestAccessControl)
 
-      TestAccessControl.visible_if!("car is ancestor") { view.car == "ancestor" }
-      child_access_control.visible_if!("car is descendent") { view.car == "descendent" }
+      TestAccessControl.visible_if!('car is ancestor') { view.car == 'ancestor' }
+      child_access_control.visible_if!('car is descendent') { view.car == 'descendent' }
 
       s_ctx = ListView.new_serialize_context(access_control: child_access_control.new)
 
-      assert_serializes(ListView, List.create!(car: "ancestor"), serialize_context: s_ctx)
-      assert_serializes(ListView, List.create!(car: "descendent"), serialize_context: s_ctx)
-      ex = refute_serializes(ListView, List.create!(car: "foreigner"), serialize_context: s_ctx)
+      assert_serializes(ListView, List.create!(car: 'ancestor'), serialize_context: s_ctx)
+      assert_serializes(ListView, List.create!(car: 'descendent'), serialize_context: s_ctx)
+      ex = refute_serializes(ListView, List.create!(car: 'foreigner'), serialize_context: s_ctx)
       assert_equal(2, ex.reasons.count)
     end
   end
@@ -243,7 +243,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
       child = root[attr]
 
-      if (child_ref = child["_ref"])
+      if (child_ref = child['_ref'])
         child = refs[child_ref]
       end
 
@@ -255,189 +255,189 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
     end
 
     def test_visibility_from_root
-      TestAccessControl.view "Tree1" do
-        visible_if!("true") { true }
+      TestAccessControl.view 'Tree1' do
+        visible_if!('true') { true }
 
-        root_children_visible_if!("root children visible") do
-          view.val == "rule:visible_children"
+        root_children_visible_if!('root children visible') do
+          view.val == 'rule:visible_children'
         end
       end
 
-      refute_serializes(Tree1View, make_tree("arbitrary parent",      "invisible child"))
-      assert_serializes(Tree1View, make_tree("rule:visible_children", "visible child"))
+      refute_serializes(Tree1View, make_tree('arbitrary parent',      'invisible child'))
+      assert_serializes(Tree1View, make_tree('rule:visible_children', 'visible child'))
 
       # nested root
-      refute_serializes(Tree1View, make_tree("rule:visible_children", "visible child", "arbitrary parent",      "invisible child"))
-      assert_serializes(Tree1View, make_tree("rule:visible_children", "visible child", "rule:visible_children", "visible child"))
+      refute_serializes(Tree1View, make_tree('rule:visible_children', 'visible child', 'arbitrary parent',      'invisible child'))
+      assert_serializes(Tree1View, make_tree('rule:visible_children', 'visible child', 'rule:visible_children', 'visible child'))
     end
 
     def test_visibility_veto_from_root
-      TestAccessControl.view "Tree1" do
-        root_children_visible_unless!("root children invisible") do
-          view.val == "rule:invisible_children"
+      TestAccessControl.view 'Tree1' do
+        root_children_visible_unless!('root children invisible') do
+          view.val == 'rule:invisible_children'
         end
       end
 
       TestAccessControl.always do
-        visible_if!("true") { true }
+        visible_if!('true') { true }
       end
 
-      assert_serializes(Tree1View, make_tree("arbitrary parent",        "visible child"))
-      refute_serializes(Tree1View, make_tree("rule:invisible_children", "invisible child"))
+      assert_serializes(Tree1View, make_tree('arbitrary parent',        'visible child'))
+      refute_serializes(Tree1View, make_tree('rule:invisible_children', 'invisible child'))
 
       # nested root
-      assert_serializes(Tree1View, make_tree("arbitrary parent", "visible child", "arbitrary nested parent", "visible child"))
-      refute_serializes(Tree1View, make_tree("arbitrary parent", "visible child", "rule:invisible_children", "invisible child"))
+      assert_serializes(Tree1View, make_tree('arbitrary parent', 'visible child', 'arbitrary nested parent', 'visible child'))
+      refute_serializes(Tree1View, make_tree('arbitrary parent', 'visible child', 'rule:invisible_children', 'invisible child'))
     end
 
     def test_editability_from_root
       TestAccessControl.always do
-        visible_if!("always") { true }
+        visible_if!('always') { true }
       end
 
-      TestAccessControl.view "Tree1" do
-        editable_if!("true") { true }
+      TestAccessControl.view 'Tree1' do
+        editable_if!('true') { true }
 
-        root_children_editable_if!("root children editable") do
-          view.val == "rule:editable_children"
+        root_children_editable_if!('root children editable') do
+          view.val == 'rule:editable_children'
         end
       end
 
-      refute_deserializes(Tree1View, make_tree("arbitrary parent", "uneditable child")) { |v, r|
-        dig_tree(v, r, "tree2")["val"] = "change"
+      refute_deserializes(Tree1View, make_tree('arbitrary parent', 'uneditable child')) { |v, r|
+        dig_tree(v, r, 'tree2')['val'] = 'change'
       }
 
-      assert_deserializes(Tree1View, make_tree("rule:editable_children", "editable child")) { |v, r|
-        dig_tree(v, r, "tree2")["val"] = "change"
+      assert_deserializes(Tree1View, make_tree('rule:editable_children', 'editable child')) { |v, r|
+        dig_tree(v, r, 'tree2')['val'] = 'change'
       }
 
       # nested root
-      refute_deserializes(Tree1View, make_tree("rule:editable_children", "editable child", "arbitrary parent", "uneditable child")) { |v, r|
-        dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
+      refute_deserializes(Tree1View, make_tree('rule:editable_children', 'editable child', 'arbitrary parent', 'uneditable child')) { |v, r|
+        dig_tree(v, r, 'tree2', 'tree1', 'tree2')['val'] = 'change'
       }
 
-      assert_deserializes(Tree1View, make_tree("arbitrary parent", "uneditable child", "rule:editable_children", "editable child")) { |v, r|
-        dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
+      assert_deserializes(Tree1View, make_tree('arbitrary parent', 'uneditable child', 'rule:editable_children', 'editable child')) { |v, r|
+        dig_tree(v, r, 'tree2', 'tree1', 'tree2')['val'] = 'change'
       }
     end
 
     def test_editability_veto_from_root
       TestAccessControl.always do
-        visible_if!("always") { true }
-        editable_if!("always") { true }
+        visible_if!('always') { true }
+        editable_if!('always') { true }
       end
 
-      TestAccessControl.view "Tree1" do
-        root_children_editable_unless!("root children uneditable") do
-          view.val == "rule:uneditable_children"
+      TestAccessControl.view 'Tree1' do
+        root_children_editable_unless!('root children uneditable') do
+          view.val == 'rule:uneditable_children'
         end
       end
 
-      refute_deserializes(Tree1View, make_tree("rule:uneditable_children", "uneditable child")) { |v, r|
-        dig_tree(v, r, "tree2")["val"] = "change"
+      refute_deserializes(Tree1View, make_tree('rule:uneditable_children', 'uneditable child')) { |v, r|
+        dig_tree(v, r, 'tree2')['val'] = 'change'
       }
 
-      assert_deserializes(Tree1View, make_tree("arbitrary parent", "editable child")) { |v, r|
-        dig_tree(v, r, "tree2")["val"] = "change"
+      assert_deserializes(Tree1View, make_tree('arbitrary parent', 'editable child')) { |v, r|
+        dig_tree(v, r, 'tree2')['val'] = 'change'
       }
 
       # nested root
-      refute_deserializes(Tree1View, make_tree("arbitrary parent", "editable child", "rule:uneditable_children", "uneditable child")) { |v, r|
-        dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
+      refute_deserializes(Tree1View, make_tree('arbitrary parent', 'editable child', 'rule:uneditable_children', 'uneditable child')) { |v, r|
+        dig_tree(v, r, 'tree2', 'tree1', 'tree2')['val'] = 'change'
       }
 
-      assert_deserializes(Tree1View, make_tree("rule:uneditable_children", "uneditable child", "arbitrary parent", "editable child")) { |v, r|
-        dig_tree(v, r, "tree2", "tree1", "tree2")["val"] = "change"
+      assert_deserializes(Tree1View, make_tree('rule:uneditable_children', 'uneditable child', 'arbitrary parent', 'editable child')) { |v, r|
+        dig_tree(v, r, 'tree2', 'tree1', 'tree2')['val'] = 'change'
       }
     end
 
     def test_type_independence
-      TestAccessControl.view "Tree1" do
-        visible_if!("tree1 visible") do
-          view.val == "tree1visible"
+      TestAccessControl.view 'Tree1' do
+        visible_if!('tree1 visible') do
+          view.val == 'tree1visible'
         end
       end
 
-      TestAccessControl.view "Tree2" do
-        visible_if!("tree2 visible") do
-          view.val == "tree2visible"
+      TestAccessControl.view 'Tree2' do
+        visible_if!('tree2 visible') do
+          view.val == 'tree2visible'
         end
       end
 
-      refute_serializes(Tree1View, make_tree("tree1invisible", "tree2visible"))
-      assert_serializes(Tree1View, make_tree("tree1visible", "tree2visible"))
-      refute_serializes(Tree1View, make_tree("tree1visible", "tree2invisible"))
+      refute_serializes(Tree1View, make_tree('tree1invisible', 'tree2visible'))
+      assert_serializes(Tree1View, make_tree('tree1visible', 'tree2visible'))
+      refute_serializes(Tree1View, make_tree('tree1visible', 'tree2invisible'))
     end
 
     def test_visibility_always_composition
-      TestAccessControl.view "Tree1" do
-        visible_if!("tree1 visible") do
-          view.val == "tree1visible"
+      TestAccessControl.view 'Tree1' do
+        visible_if!('tree1 visible') do
+          view.val == 'tree1visible'
         end
       end
 
       TestAccessControl.always do
-        visible_if!("tree2 visible") do
-          view.val == "alwaysvisible"
+        visible_if!('tree2 visible') do
+          view.val == 'alwaysvisible'
         end
       end
 
-      refute_serializes(Tree1View, Tree1.create(val: "bad"))
-      assert_serializes(Tree1View, Tree1.create(val: "tree1visible"))
-      assert_serializes(Tree1View, Tree1.create(val: "alwaysvisible"))
+      refute_serializes(Tree1View, Tree1.create(val: 'bad'))
+      assert_serializes(Tree1View, Tree1.create(val: 'tree1visible'))
+      assert_serializes(Tree1View, Tree1.create(val: 'alwaysvisible'))
     end
 
     def test_editability_always_composition
-      TestAccessControl.view "Tree1" do
-        editable_if!("editable1")    { view.val == "editable1" }
-        edit_valid_if!("editvalid1") { view.val == "editvalid1" }
+      TestAccessControl.view 'Tree1' do
+        editable_if!('editable1')    { view.val == 'editable1' }
+        edit_valid_if!('editvalid1') { view.val == 'editvalid1' }
       end
 
       TestAccessControl.always do
-        editable_if!("editable2")    { view.val == "editable2" }
-        edit_valid_if!("editvalid2") { view.val == "editvalid2" }
+        editable_if!('editable2')    { view.val == 'editable2' }
+        edit_valid_if!('editvalid2') { view.val == 'editvalid2' }
 
-        visible_if!("always") { true }
+        visible_if!('always') { true }
       end
 
-      refute_deserializes(Tree1View, Tree1.create!(val: "bad")) { |v, _| v["val"] = "alsobad" }
+      refute_deserializes(Tree1View, Tree1.create!(val: 'bad')) { |v, _| v['val'] = 'alsobad' }
 
-      assert_deserializes(Tree1View, Tree1.create!(val: "editable1")) { |v, _| v["val"] = "unchecked" }
-      assert_deserializes(Tree1View, Tree1.create!(val: "editable2")) { |v, _| v["val"] = "unchecked" }
+      assert_deserializes(Tree1View, Tree1.create!(val: 'editable1')) { |v, _| v['val'] = 'unchecked' }
+      assert_deserializes(Tree1View, Tree1.create!(val: 'editable2')) { |v, _| v['val'] = 'unchecked' }
 
-      assert_deserializes(Tree1View, Tree1.create!(val: "unchecked")) { |v, _| v["val"] = "editvalid1" }
-      assert_deserializes(Tree1View, Tree1.create!(val: "unchecked")) { |v, _| v["val"] = "editvalid2" }
+      assert_deserializes(Tree1View, Tree1.create!(val: 'unchecked')) { |v, _| v['val'] = 'editvalid1' }
+      assert_deserializes(Tree1View, Tree1.create!(val: 'unchecked')) { |v, _| v['val'] = 'editvalid2' }
     end
 
     def test_ancestry
-      TestAccessControl.view "Tree1" do
-        visible_if!("parent tree1") { view.val == "parenttree1" }
+      TestAccessControl.view 'Tree1' do
+        visible_if!('parent tree1') { view.val == 'parenttree1' }
       end
 
       TestAccessControl.always do
-        visible_if!("parent always") { view.val == "parentalways" }
+        visible_if!('parent always') { view.val == 'parentalways' }
       end
 
       # Child must be set up after parent is fully defined
       child_access_control = Class.new(ViewModel::AccessControl::Tree)
       child_access_control.include_from(TestAccessControl)
 
-      child_access_control.view "Tree1" do
-        visible_if!("child tree1") { view.val == "childtree1" }
+      child_access_control.view 'Tree1' do
+        visible_if!('child tree1') { view.val == 'childtree1' }
       end
 
       child_access_control.always do
-        visible_if!("child always") { view.val == "childalways" }
+        visible_if!('child always') { view.val == 'childalways' }
       end
 
       s_ctx = Tree1View.new_serialize_context(access_control: child_access_control.new)
 
-      refute_serializes(Tree1View, Tree1.create!(val: "bad"), serialize_context: s_ctx)
+      refute_serializes(Tree1View, Tree1.create!(val: 'bad'), serialize_context: s_ctx)
 
-      assert_serializes(Tree1View, Tree1.create!(val: "parenttree1"), serialize_context: s_ctx)
-      assert_serializes(Tree1View, Tree1.create!(val: "parentalways"), serialize_context: s_ctx)
-      assert_serializes(Tree1View, Tree1.create!(val: "childtree1"), serialize_context: s_ctx)
-      assert_serializes(Tree1View, Tree1.create!(val: "childalways"), serialize_context: s_ctx)
+      assert_serializes(Tree1View, Tree1.create!(val: 'parenttree1'), serialize_context: s_ctx)
+      assert_serializes(Tree1View, Tree1.create!(val: 'parentalways'), serialize_context: s_ctx)
+      assert_serializes(Tree1View, Tree1.create!(val: 'childtree1'), serialize_context: s_ctx)
+      assert_serializes(Tree1View, Tree1.create!(val: 'childalways'), serialize_context: s_ctx)
     end
   end
 
@@ -574,7 +574,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
         model_class.new(
           name: 'a',
           children: [child_model_class.new(name: 'x', position: 1),
-                     child_model_class.new(name: 'y', position: 2)])
+                     child_model_class.new(name: 'y', position: 2),])
       end
 
       it 'records new children' do
@@ -619,7 +619,7 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
 
         new_child = vm.children.detect { |c| c.name == 'b' }
         c_changes = ctx.valid_edit_changes(new_child.to_reference)
-        assert_changes_match(c_changes, n:true, att: ['name'])
+        assert_changes_match(c_changes, n: true, att: ['name'])
 
         oc_changes = ctx.valid_edit_changes(
           ViewModel::Reference.new(child_viewmodel_class, replaced_child.id))

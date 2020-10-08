@@ -1,9 +1,11 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+# frozen_string_literal: true
 
-require "minitest/autorun"
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
 
-require "view_model/active_record"
+require 'minitest/autorun'
+
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -69,14 +71,14 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
                      'id'       => @parent_with_a.child.id,
                      '_version' => 10,
                    },
-                   'target'   => { '_ref' => target_ref } },
+                   'target' => { '_ref' => target_ref } },
                  data)
 
     assert_equal({ target_ref =>
                      {
                        '_type'    => 'Target',
                        'id'       => @parent_with_a.target.id,
-                       '_version' => 20
+                       '_version' => 20,
                      } },
                  refs)
   end
@@ -86,7 +88,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(
         { '_type'    => 'Parent',
           '_new'     => true,
-          '_version' => 99 },)
+          '_version' => 99 })
     end
     assert_match(/schema version/, ex.message)
   end
