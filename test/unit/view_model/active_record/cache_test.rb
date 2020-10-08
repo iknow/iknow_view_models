@@ -34,7 +34,7 @@ class ViewModel::ActiveRecord
     # Defines a cacheable parent Model with a owned Child and a cachable shared Shared.
     module CacheableParentAndChildren
       extend ActiveSupport::Concern
-      include ViewModelSpecHelpers::ParentAndBelongsToChild
+      include ViewModelSpecHelpers::ParentAndBelongsToChildWithMigration
 
       def model_attributes
         super.merge(
@@ -43,7 +43,7 @@ class ViewModel::ActiveRecord
           viewmodel: ->(_) {
             association :shared
             cacheable!
-          }
+          },
         )
       end
 
@@ -64,8 +64,18 @@ class ViewModel::ActiveRecord
 
           define_viewmodel do
             root!
+            self.schema_version = 2
             attributes :name
             cacheable!(cache_group: shared_cache_group)
+            migrates from: 1, to: 2 do
+              up do |view, _references|
+                view['name'] = view.delete('old_name')
+              end
+
+              down do |view, _references|
+                view['old_name'] = view.delete('name')
+              end
+            end
           end
         end
       end
@@ -91,10 +101,17 @@ class ViewModel::ActiveRecord
       DUMMY_RAILS_CACHE.clear
     end
 
+    # Request serializations to be migrated to the specified versions
+    let(:migration_versions) { {} }
+
     # Extract the iKnowCaches to verify their contents
     def read_cache(viewmodel_class, id)
       vm_cache = viewmodel_class.viewmodel_cache
-      vm_cache.send(:cache).read(vm_cache.key_for(id))
+      cache_migration_version = vm_cache.migrated_cache_version(migration_versions)
+
+      key = vm_cache.key_for(id, cache_migration_version)
+      iknow_cache = vm_cache.cache_for(cache_migration_version)
+      iknow_cache.read(key)
     end
 
     def serialize_from_database
@@ -102,6 +119,12 @@ class ViewModel::ActiveRecord
       context = viewmodel_class.new_serialize_context
       data    = ViewModel.serialize_to_hash([view], serialize_context: context)
       refs    = context.serialize_references_to_hash
+
+      if migration_versions.present?
+        migrator = ViewModel::DownMigrator.new(migration_versions)
+        migrator.migrate!([data, refs], references: refs)
+      end
+
       [data, refs]
     end
 
@@ -113,7 +136,7 @@ class ViewModel::ActiveRecord
     end
 
     def fetch_with_cache
-      viewmodel_class.viewmodel_cache.fetch([root.id])
+      viewmodel_class.viewmodel_cache.fetch([root.id], migration_versions: migration_versions)
     end
 
     def serialize_with_cache
@@ -179,7 +202,20 @@ class ViewModel::ActiveRecord
 
     describe 'with owned and shared children' do
       include CacheableParentAndChildren
-      include BehavesLikeACache
+
+      describe 'without migrations' do
+        include BehavesLikeACache
+      end
+
+      describe 'with migrations' do
+        let(:migration_versions) { { viewmodel_class => 1, child_viewmodel_class => 2 } }
+        include BehavesLikeACache
+      end
+
+      describe 'with shared migrations' do
+        let(:migration_versions) { { shared_viewmodel_class => 1 } }
+        include BehavesLikeACache
+      end
 
       describe 'with a record in the cache' do
         # Fetch the root record to ensure it's in the cache

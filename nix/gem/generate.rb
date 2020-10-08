@@ -21,7 +21,7 @@ require 'bundler'
 
 lockfile = Bundler::LockfileParser.new(File.read('Gemfile.lock'))
 gems = lockfile.specs.select { |spec| spec.source.is_a?(Bundler::Source::Rubygems) }
-sources = [URI('https://rubygems.org/')] | gems.map(&:source).flat_map(&:remotes)
+sources = gems.map(&:source).flat_map(&:remotes).uniq
 
 FileUtils.mkdir_p 'nix/gem'
 Dir.chdir 'nix/gem' do

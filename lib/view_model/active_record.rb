@@ -245,7 +245,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         begin
           dependent_viewmodels(include_referenced: include_referenced).each_with_object({}) do |view, h|
             h[view.view_name] = view.schema_version
-          end
+          end.freeze
         end
     end
 

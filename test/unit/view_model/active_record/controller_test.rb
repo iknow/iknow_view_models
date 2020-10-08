@@ -109,6 +109,24 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
+  def test_migrated_show
+    parentcontroller = ParentController.new(id: @parent.id, versions: { ParentView.view_name => 1 })
+    parentcontroller.invoke(:show)
+
+    expected_view = @parent_view.to_hash
+                      .except('name')
+                      .merge('old_name' => @parent.name,
+                             ViewModel::VERSION_ATTRIBUTE => 1,
+                             ViewModel::MIGRATED_ATTRIBUTE => true)
+
+    assert_equal({ 'data' => expected_view },
+                 parentcontroller.hash_response)
+
+    assert_equal(200, parentcontroller.status)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
+  end
+
   def test_index
     p2      = Parent.create(name: "p2")
     p2_view = ParentView.new(p2)
@@ -146,6 +164,22 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal({ 'data' => p2_view.to_hash }, parentcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
+  end
+
+  def test_migrated_create
+    data = {
+      '_type'    => 'Parent',
+      '_version' => 1,
+      'old_name' => 'p2',
+    }
+
+    parentcontroller = ParentController.new(data: data, versions: { ParentView.view_name => 1 })
+    parentcontroller.invoke(:create)
+
+    assert_equal(200, parentcontroller.status)
+
+    p2 = Parent.where(name: 'p2').first
+    assert(p2.present?, 'p2 created')
   end
 
   def test_create_empty

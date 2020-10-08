@@ -12,7 +12,12 @@ class ViewModel
   VERSION_ATTRIBUTE   = "_version"
   NEW_ATTRIBUTE       = "_new"
 
-  Metadata = Struct.new(:id, :view_name, :schema_version, :new) do
+  # Migrations leave a metadata attribute _migrated on any views that they
+  # alter. This attribute is accessible as metadata when deserializing migrated
+  # input, and is included in the output serialization sent to clients.
+  MIGRATED_ATTRIBUTE  = "_migrated"
+
+  Metadata = Struct.new(:id, :view_name, :schema_version, :new, :migrated) do
     alias :new? :new
   end
 
@@ -99,8 +104,9 @@ class ViewModel
       type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
       schema_version = hash.delete(ViewModel::VERSION_ATTRIBUTE)
       new            = hash.delete(ViewModel::NEW_ATTRIBUTE) { false }
+      migrated       = hash.delete(ViewModel::MIGRATED_ATTRIBUTE) { false }
 
-      Metadata.new(id, type_name, schema_version, new)
+      Metadata.new(id, type_name, schema_version, new, migrated)
     end
 
     def extract_reference_only_metadata(hash)
@@ -108,7 +114,7 @@ class ViewModel
       id             = hash.delete(ViewModel::ID_ATTRIBUTE)
       type_name      = hash.delete(ViewModel::TYPE_ATTRIBUTE)
 
-      Metadata.new(id, type_name, nil, false)
+      Metadata.new(id, type_name, nil, false, false)
     end
 
     def extract_reference_metadata(hash)
@@ -232,6 +238,11 @@ class ViewModel
 
     def accepts_schema_version?(schema_version)
       schema_version == self.schema_version
+    end
+
+    def schema_hash(schema_versions)
+      version_string = schema_versions.to_a.sort.join(',')
+      Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
     end
 
     def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_referenced: true, lock: nil)

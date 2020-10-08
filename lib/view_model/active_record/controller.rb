@@ -62,12 +62,64 @@ module ViewModel::ActiveRecord::Controller
   end
 
   included do
-    etag { self.viewmodel_class.deep_schema_version }
+    etag { migrated_deep_schema_version }
+  end
+
+  def parse_viewmodel_updates
+    super.tap do |update_hash, refs|
+      if migration_versions.present?
+        migrator = ViewModel::UpMigrator.new(migration_versions)
+        migrator.migrate!([update_hash, refs], references: refs)
+      end
+    end
+  end
+
+  def prerender_viewmodel(*)
+    super do |jbuilder|
+      yield(jbuilder) if block_given?
+
+      # migrate the resulting structure before it's serialized to a json string
+      if migration_versions.present?
+        tree = jbuilder.attributes!
+        migrator = ViewModel::DownMigrator.new(migration_versions)
+        migrator.migrate!(tree, references: tree['references'])
+      end
+    end
   end
 
   private
 
   def viewmodel_id
     parse_param(:id)
+  end
+
+  def migration_versions
+    @migration_versions ||=
+      begin
+        versions = parse_param(
+          :versions,
+          default: {},
+          with: IknowParams::Serializer::HashOf.new(
+            IknowParams::Serializer::String, IknowParams::Serializer::Integer))
+
+        migration_versions = {}
+
+        versions.each do |view_name, required_version|
+          viewmodel_class = ViewModel::Registry.for_view_name(view_name)
+
+          if viewmodel_class.schema_version != required_version
+            migration_versions[viewmodel_class] = required_version
+          end
+        rescue ViewModel::DeserializationError::UnknownView
+          # Ignore requests to migrate types that no longer exist
+          next
+        end
+
+        migration_versions.freeze
+      end
+  end
+
+  def migrated_deep_schema_version
+    ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true)
   end
 end
