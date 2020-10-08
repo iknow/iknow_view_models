@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
-require_relative "../../helpers/arvm_test_utilities.rb"
-require_relative "../../helpers/arvm_test_models.rb"
+require_relative '../../helpers/arvm_test_utilities.rb'
+require_relative '../../helpers/arvm_test_models.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 require 'minitest/unit'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -43,8 +43,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def setup
-    @parent1 = Parent.create(name: "p1")
-    @parent2 = Parent.create(name: "p2")
+    @parent1 = Parent.create(name: 'p1')
+    @parent2 = Parent.create(name: 'p2')
 
     super
   end
@@ -80,8 +80,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Parent",
-      "name"     => "p",
+      '_type'    => 'Parent',
+      'name'     => 'p',
     }
 
     pv = ParentView.deserialize_from_view(view)
@@ -90,7 +90,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
+    assert_equal('p', p.name)
   end
 
   def test_create_from_empty_view
@@ -101,10 +101,10 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_from_view_with_explicit_id
     view = {
-      "_type" => "Parent",
-      "id"    => 9999,
-      "name"  => "p",
-      "_new"  => true
+      '_type' => 'Parent',
+      'id'    => 9999,
+      'name'  => 'p',
+      '_new'  => true
     }
     pv = ParentView.deserialize_from_view(view)
     p = pv.model
@@ -116,9 +116,9 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_create_explicit_id_raises_with_id
     view = {
-      "_type" => "Parent",
-      "id"    => 9999,
-      "_new"  => true
+      '_type' => 'Parent',
+      'id'    => 9999,
+      '_new'  => true
     }
     ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
       ParentView.deserialize_from_view(view)
@@ -129,15 +129,15 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_read_only_raises_with_id
     view = {
-      "_type" => "Parent",
-      "one"   => 2,
-      "id"    => 9999,
-      "_new"  => true
+      '_type' => 'Parent',
+      'one'   => 2,
+      'id'    => 9999,
+      '_new'  => true
     }
     ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
       ParentView.deserialize_from_view(view)
     end
-    assert_match("one", ex.attribute)
+    assert_match('one', ex.attribute)
     assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
   end
 
@@ -185,13 +185,13 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # create
-      ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
+      ParentView.deserialize_from_view({ '_type' => 'Parent', 'name' => 'p' }, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # edit
-      v = ParentView.new(@parent1).to_hash.merge("name" => "p2")
+      v = ParentView.new(@parent1).to_hash.merge('name' => 'p2')
       ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)
@@ -208,13 +208,13 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # create
-      ParentView.deserialize_from_view({ "_type" => "Parent", "name" => "p" }, deserialize_context: no_edit_context)
+      ParentView.deserialize_from_view({ '_type' => 'Parent', 'name' => 'p' }, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # edit
-      v = ParentView.new(@parent1).to_hash.merge("name" => "p2")
+      v = ParentView.new(@parent1).to_hash.merge('name' => 'p2')
       ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)
@@ -255,16 +255,16 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
 
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
-      ParentView.deserialize_from_view({ "target" => [] })
+      ParentView.deserialize_from_view({ 'target' => [] })
     end
     assert_match(/"_type" wasn't supplied/, ex.message)
 
     ex = assert_raises(ViewModel::DeserializationError::InvalidViewType) do
-      ParentView.deserialize_from_view({ "_type" => "Invalid" })
+      ParentView.deserialize_from_view({ '_type' => 'Invalid' })
     end
 
     ex = assert_raises(ViewModel::DeserializationError::UnknownView) do
-      ParentView.deserialize_from_view({ "_type" => "NotAViewmodelType" })
+      ParentView.deserialize_from_view({ '_type' => 'NotAViewmodelType' })
     end
   end
 
@@ -283,8 +283,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       end
     end
     assert_equal(old_name, @parent1.name, 'validation failure causes rollback')
-    assert_equal(ex.attribute, "name")
-    assert_equal(ex.reason, "invalid due to matching test sentinel")
+    assert_equal(ex.attribute, 'name')
+    assert_equal(ex.reason, 'invalid due to matching test sentinel')
   end
 
   def test_edit_readonly_attribute
@@ -292,14 +292,14 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       ex = alter_by_view!(ParentView, @parent1) do |view, refs|
         view['one'] = 2
       end
-      assert_equal("one", ex.attribute)
+      assert_equal('one', ex.attribute)
     end
   end
 
   def test_edit_missing_root
     view = {
-      "_type" => "Parent",
-      "id"    => 9999
+      '_type' => 'Parent',
+      'id'    => 9999
     }
 
     ex = assert_raises(ViewModel::DeserializationError::NotFound) do
@@ -310,7 +310,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_optimistic_locking
-    @parent1.name = "changed"
+    @parent1.name = 'changed'
     @parent1.save!
 
     assert_raises(ViewModel::DeserializationError::LockFailure) do
@@ -334,7 +334,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       end
 
       def self.deserialize_from_view(hash_data, references: {}, deserialize_context:)
-        array = [hash_data["a"], hash_data["b"]]
+        array = [hash_data['a'], hash_data['b']]
         self.new(array)
       end
     end
@@ -343,7 +343,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       super
       build_viewmodel(:Pair) do
         define_schema do |t|
-          t.column :pair, "integer[]"
+          t.column :pair, 'integer[]'
         end
 
         define_model do
@@ -363,15 +363,15 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     def test_serialize_view
       view, _refs = serialize_with_references(PairView.new(@pair))
 
-      assert_equal({ "_type"    => "Pair",
-                     "_version" => 1,
-                     "id"       => @pair.id,
-                     "pair"     => { "a" => 1, "b" => 2 } },
+      assert_equal({ '_type'    => 'Pair',
+                     '_version' => 1,
+                     'id'       => @pair.id,
+                     'pair'     => { 'a' => 1, 'b' => 2 } },
                    view)
     end
 
     def test_create
-      view = { "_type" => "Pair", "pair" => { "a" => 3, "b" => 4 } }
+      view = { '_type' => 'Pair', 'pair' => { 'a' => 3, 'b' => 4 } }
       pv = PairView.deserialize_from_view(view)
       assert_equal([3,4], pv.model.pair)
     end
@@ -384,7 +384,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     class RefError < RuntimeError
       attr_reader :ref
       def initialize(ref)
-        super("Boom")
+        super('Boom')
         @ref = ref
       end
     end
@@ -418,22 +418,22 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     def test_deserialize_context
       view = {
-        "_type" => "List",
-        "id"    => 1000,
-        "_new"  => true,
-        "child" => {
-          "_type" => "List",
+        '_type' => 'List',
+        'id'    => 1000,
+        '_new'  => true,
+        'child' => {
+          '_type' => 'List',
         }}
 
       ref_error = assert_raises(RefError) do
-        ListView.deserialize_from_view(view.deep_merge("child" => { "explode" => true }))
+        ListView.deserialize_from_view(view.deep_merge('child' => { 'explode' => true }))
       end
 
       assert_equal(ListView, ref_error.ref.viewmodel_class)
       assert_equal(1000, ref_error.ref.model_id)
 
       ref_error = assert_raises(RefError) do
-        ListView.deserialize_from_view(view.deep_merge("explode" => true))
+        ListView.deserialize_from_view(view.deep_merge('explode' => true))
       end
 
       assert_nil(ref_error.ref)
@@ -461,7 +461,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
           association :child
         end
       end
-      List.connection.execute("ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED")
+      List.connection.execute('ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED')
     end
 
     def test_deferred_constraint_violation
@@ -470,8 +470,8 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
       ex = assert_raises(ViewModel::DeserializationError::UniqueViolation) do
         alter_by_view!(ListView, l2) do |view, refs|
-          view['child'] = { "_ref" => "r1" }
-          refs["r1"] = { "_type" => "List", "id" => l1.child.id }
+          view['child'] = { '_ref' => 'r1' }
+          refs['r1'] = { '_type' => 'List', 'id' => l1.child.id }
         end
       end
 

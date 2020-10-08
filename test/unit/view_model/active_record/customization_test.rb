@@ -1,10 +1,10 @@
 # coding: utf-8
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 
 require 'renum'
@@ -29,14 +29,14 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
         association :translations
 
         def self.pre_parse_translations(viewmodel_reference, metadata, hash, translations)
-          raise "type check" unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
-          hash["translations"] = translations.map { |lang, text| { "_type" => "Translation", "language" => lang, "translation" => text } }
+          raise 'type check' unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
+          hash['translations'] = translations.map { |lang, text| { '_type' => 'Translation', 'language' => lang, 'translation' => text } }
         end
 
         def resolve_translations(update_datas, previous_translation_views)
           existing = previous_translation_views.index_by { |x| [x.model.language, x.model.translation] }
           update_datas.map do |update_data|
-            existing.fetch([update_data["language"], update_data["translation"]]) { TranslationView.for_new_model }
+            existing.fetch([update_data['language'], update_data['translation']]) { TranslationView.for_new_model }
           end
         end
 
@@ -71,18 +71,18 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
   def setup
     super
 
-    @text1 = Text.create(text: "dog",
-                    translations: [Translation.new(language: "ja", translation: "犬"),
-                                   Translation.new(language: "fr", translation: "chien")])
+    @text1 = Text.create(text: 'dog',
+                    translations: [Translation.new(language: 'ja', translation: '犬'),
+                                   Translation.new(language: 'fr', translation: 'chien')])
 
     @text1_view = {
-      "id"           => @text1.id,
-      "_type"        => "Text",
-      "_version"     => 1,
-      "text"         => "dog",
-      "translations" => {
-        "ja" => "犬",
-        "fr" => "chien"
+      'id'           => @text1.id,
+      '_type'        => 'Text',
+      '_version'     => 1,
+      'text'         => 'dog',
+      'translations' => {
+        'ja' => '犬',
+        'fr' => 'chien'
       }
     }
 
@@ -163,10 +163,10 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
       def construct_hash(members)
         case self
         when SectionType::Simple
-          raise "nopes" if members.present?
+          raise 'nopes' if members.present?
           nil
         else
-          members.merge("_type" => viewmodel.view_name)
+          members.merge('_type' => viewmodel.view_name)
         end
       end
 
@@ -219,7 +219,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
           section_type = SectionType.with_name(section_type_name)
           raise "Invalid section type: #{section_type_name.inspect}" unless section_type
 
-          user_data["section_data"] = section_type.construct_hash(user_data.slice!(*self._members.keys))
+          user_data['section_data'] = section_type.construct_hash(user_data.slice!(*self._members.keys))
         end
 
         def resolve_section_data(update_data, previous_translation_view)
@@ -248,33 +248,33 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
   def setup
     super
 
-    @simplesection = Section.create(name: "simple1")
+    @simplesection = Section.create(name: 'simple1')
     @simplesection_view = {
-      "id"           => @simplesection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
-      "section_type" => "Simple",
-      "name"         => "simple1"
+      'id'           => @simplesection.id,
+      '_type'        => 'Section',
+      '_version'     => 1,
+      'section_type' => 'Simple',
+      'name'         => 'simple1'
     }
 
-    @quizsection = Section.create(name: "quiz1", section_data: QuizSection.new(quiz_name: "qq"))
+    @quizsection = Section.create(name: 'quiz1', section_data: QuizSection.new(quiz_name: 'qq'))
     @quizsection_view = {
-      "id"           => @quizsection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
-      "section_type" => "Quiz",
-      "name"         => "quiz1",
-      "quiz_name"    => "qq"
+      'id'           => @quizsection.id,
+      '_type'        => 'Section',
+      '_version'     => 1,
+      'section_type' => 'Quiz',
+      'name'         => 'quiz1',
+      'quiz_name'    => 'qq'
     }
 
-    @vocabsection = Section.create(name: "vocab1", section_data: VocabSection.new(vocab_word: "dog"))
+    @vocabsection = Section.create(name: 'vocab1', section_data: VocabSection.new(vocab_word: 'dog'))
     @vocabsection_view = {
-      "id"           => @vocabsection.id,
-      "_type"        => "Section",
-      "_version"     => 1,
-      "section_type" => "Vocab",
-      "name"         => "vocab1",
-      "vocab_word"   => "dog"
+      'id'           => @vocabsection.id,
+      '_type'        => 'Section',
+      '_version'     => 1,
+      'section_type' => 'Vocab',
+      'name'         => 'vocab1',
+      'vocab_word'   => 'dog'
     }
 
     enable_logging!
@@ -313,18 +313,18 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     }
 
     v = SectionView.deserialize_from_view(new_view_like(@simplesection_view))
-    assert_section.call(v.model, "simple1")
+    assert_section.call(v.model, 'simple1')
 
     v = SectionView.deserialize_from_view(new_view_like(@quizsection_view))
-    assert_section.call(v.model, "quiz1") do |m|
+    assert_section.call(v.model, 'quiz1') do |m|
       assert(m.is_a?(QuizSection))
-      assert_equal("qq", m.quiz_name)
+      assert_equal('qq', m.quiz_name)
     end
 
     v = SectionView.deserialize_from_view(new_view_like(@vocabsection_view))
-    assert_section.call(v.model, "vocab1") do |m|
+    assert_section.call(v.model, 'vocab1') do |m|
       assert(m.is_a?(VocabSection))
-      assert_equal("dog", m.vocab_word)
+      assert_equal('dog', m.vocab_word)
     end
   end
 
@@ -363,9 +363,9 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     def setup
       super
       sections = [
-        Section.new(name: "simple1"),
-        Section.new(name: "quiz1", section_data: QuizSection.new(quiz_name: "qq")),
-        Section.new(name: "vocab1", section_data: VocabSection.new(vocab_word: "dog")),
+        Section.new(name: 'simple1'),
+        Section.new(name: 'quiz1', section_data: QuizSection.new(quiz_name: 'qq')),
+        Section.new(name: 'vocab1', section_data: VocabSection.new(vocab_word: 'dog')),
       ]
       @exercise1 = Exercise.create(sections: sections)
     end

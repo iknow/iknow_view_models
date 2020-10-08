@@ -1,9 +1,9 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
   include ARVMTestUtilities

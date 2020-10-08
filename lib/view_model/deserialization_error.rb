@@ -20,8 +20,8 @@ class ViewModel
 
     # A collection of DeserializationErrors
     class Collection < ViewModel::AbstractErrorCollection
-      title "Error(s) occurred during deserialization"
-      code  "DeserializationError.Collection"
+      title 'Error(s) occurred during deserialization'
+      code  'DeserializationError.Collection'
 
       def detail
         "Error(s) occurred during deserialization: #{cause_details}"
@@ -33,7 +33,7 @@ class ViewModel
     class InvalidRequest < DeserializationError
       # Abstract
       status 400
-      title "Invalid request"
+      title 'Invalid request'
     end
 
     # There has been an unexpected internal failure of the ViewModel library.
@@ -198,7 +198,7 @@ class ViewModel
       end
 
       def detail
-        errors = missing_nodes.map(&:to_s).join(", ")
+        errors = missing_nodes.map(&:to_s).join(', ')
         "Couldn't find requested member node(s) in association '#{association}': "\
         "#{errors}"
       end
@@ -218,7 +218,7 @@ class ViewModel
       end
 
       def detail
-        "Duplicate views for the same '#{type}' specified: "+ nodes.map(&:to_s).join(", ")
+        "Duplicate views for the same '#{type}' specified: "+ nodes.map(&:to_s).join(', ')
       end
 
       def meta
@@ -235,14 +235,14 @@ class ViewModel
       end
 
       def detail
-        "Multiple parents attempted to claim the same owned '#{association_name}' reference: " + nodes.map(&:to_s).join(", ")
+        "Multiple parents attempted to claim the same owned '#{association_name}' reference: " + nodes.map(&:to_s).join(', ')
       end
     end
 
     class ParentNotFound < NotFound
       def detail
-        "Could not resolve release from previous parent for the following owned viewmodel(s): " +
-          nodes.map(&:to_s).join(", ")
+        'Could not resolve release from previous parent for the following owned viewmodel(s): ' +
+          nodes.map(&:to_s).join(', ')
       end
     end
 
@@ -284,7 +284,7 @@ class ViewModel
 
     class ReadOnlyType < DeserializationError
       status 400
-      detail "Deserialization not defined for view type"
+      detail 'Deserialization not defined for view type'
     end
 
     class InvalidAttributeType < InvalidRequest
@@ -326,7 +326,7 @@ class ViewModel
       status 400
 
       def detail
-        errors = nodes.map(&:to_s).join(", ")
+        errors = nodes.map(&:to_s).join(', ')
         "Optimistic lock failure updating nodes: #{errors}"
       end
     end

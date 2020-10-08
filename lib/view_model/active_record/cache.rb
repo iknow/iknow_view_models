@@ -243,14 +243,14 @@ class ViewModel::ActiveRecord::Cache
       if ids.present?
         found = viewmodel_class.find(ids,
                                      eager_include: false,
-                                     lock: "FOR SHARE",
+                                     lock: 'FOR SHARE',
                                      serialize_context: serialize_context)
         viewmodels.concat(found)
       end
 
       ViewModel.preload_for_serialization(viewmodels,
                                           include_referenced: false,
-                                          lock: "FOR SHARE",
+                                          lock: 'FOR SHARE',
                                           serialize_context: serialize_context)
 
       viewmodels

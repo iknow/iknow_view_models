@@ -1,9 +1,9 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -197,7 +197,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   def test_child_edit_doesnt_editcheck_parent
     # editing child doesn't edit check parent
     pv, d_context = alter_by_view!(ParentView, @parent1) do |view, refs|
-      refs[view['tags'][0]["_ref"]]["name"] = "changed"
+      refs[view['tags'][0]['_ref']]['name'] = 'changed'
     end
 
     nc = pv.tags.detect { |t| t.name == 'changed' }
@@ -410,7 +410,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
         }
       end
     end
-    assert_equal("tags", ex.association)
+    assert_equal('tags', ex.association)
     assert_equal([ViewModel::Reference.new(TagView, c2.id)], ex.missing_nodes)
   end
 

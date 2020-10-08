@@ -1,10 +1,10 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 require_relative '../../../helpers/viewmodel_spec_helpers.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -15,12 +15,12 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     super
 
     # TODO make a `has_list?` that allows a parent to set all children as an array
-    @model1 = model_class.new(name: "p1",
-                              child: child_model_class.new(name: "p1l"))
+    @model1 = model_class.new(name: 'p1',
+                              child: child_model_class.new(name: 'p1l'))
     @model1.save!
 
-    @model2 = model_class.new(name: "p2",
-                              child: child_model_class.new(name: "p2l"))
+    @model2 = model_class.new(name: 'p2',
+                              child: child_model_class.new(name: 'p2l'))
 
     @model2.save!
 
@@ -30,14 +30,14 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_serialize_view
     view, _refs = serialize_with_references(ModelView.new(@model1))
 
-    assert_equal({ "_type"    => "Model",
-                   "_version" => 1,
-                   "id"       => @model1.id,
-                   "name"     => @model1.name,
-                   "child"    => { "_type"    => "Child",
-                                   "_version" => 1,
-                                   "id"       => @model1.child.id,
-                                   "name"     => @model1.child.name },
+    assert_equal({ '_type'    => 'Model',
+                   '_version' => 1,
+                   'id'       => @model1.id,
+                   'name'     => @model1.name,
+                   'child'    => { '_type'    => 'Child',
+                                   '_version' => 1,
+                                   'id'       => @model1.child.id,
+                                   'name'     => @model1.child.name },
                  },
                  view)
   end
@@ -53,9 +53,9 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Model",
-      "name"     => "p",
-      "child"    => { "_type" => "Child", "name" => "l" },
+      '_type'    => 'Model',
+      'name'     => 'p',
+      'child'    => { '_type' => 'Child', 'name' => 'l' },
     }
 
     pv = ModelView.deserialize_from_view(view)
@@ -64,10 +64,10 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
+    assert_equal('p', p.name)
 
     assert(p.child.present?)
-    assert_equal("l", p.child.name)
+    assert_equal('l', p.child.name)
   end
 
   def test_create_belongs_to_nil
@@ -151,7 +151,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal([ViewModel::Reference.new(ModelView, from_model.id),
                   ViewModel::Reference.new(ModelView, to_model.id)],
                  d_context.valid_edit_refs,
-                 "only models are checked for change; child was not")
+                 'only models are checked for change; child was not')
   end
 
   def test_implicit_release_invalid_belongs_to
@@ -198,7 +198,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_no_gc_dependent_ignore
-      model = model_class.create(ignored_child: Child.new(name: "one"))
+      model = model_class.create(ignored_child: Child.new(name: 'one'))
       old_child = model.ignored_child
 
       alter_by_view!(ModelView, model) do |ov, _refs|
@@ -300,7 +300,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
       model = Aye.create(bee: Bee.new(cee: Cee.new))
       assert_raises(ViewModel::DeserializationError::ParentNotFound) do
         alter_by_view!(AyeView, model) do |view, refs|
-          view['bee'].delete("id")
+          view['bee'].delete('id')
         end
       end
     end

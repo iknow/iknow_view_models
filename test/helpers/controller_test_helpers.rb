@@ -1,11 +1,11 @@
-require "iknow_view_models"
-require "view_model/active_record"
-require "view_model/active_record/controller"
+require 'iknow_view_models'
+require 'view_model/active_record'
+require 'view_model/active_record/controller'
 
-require_relative "../helpers/arvm_test_utilities.rb"
-require_relative "../helpers/arvm_test_models.rb"
+require_relative '../helpers/arvm_test_utilities.rb'
+require_relative '../helpers/arvm_test_models.rb'
 
-require "acts_as_manual_list"
+require 'acts_as_manual_list'
 
 # models for ARVM controller test
 module ControllerTestModels
@@ -183,7 +183,7 @@ class DummyController
   end
 
   def json_response
-    raise "Not a JSON response" unless @content_type == 'application/json'
+    raise 'Not a JSON response' unless @content_type == 'application/json'
     @response_body
   end
 

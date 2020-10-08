@@ -1,9 +1,9 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 module ViewModel::ActiveRecord::PolyTest
   ## Polymorphic pointer to parent in child (child may belong to different type parents)
@@ -70,17 +70,17 @@ module ViewModel::ActiveRecord::PolyTest
 
     def setup
       super
-      @parent1 = PolyParentOne.create(text: "p1", child: Child.new(text: "c1"))
-      @parent2 = PolyParentTwo.create(num: 2, children: [Child.new(text: "c2"), Child.new(text: "c3")])
+      @parent1 = PolyParentOne.create(text: 'p1', child: Child.new(text: 'c1'))
+      @parent2 = PolyParentTwo.create(num: 2, children: [Child.new(text: 'c2'), Child.new(text: 'c3')])
       @grandparent = Grandparent.create(poly_parent_one: @parent1, poly_parent_two: @parent2)
       enable_logging!
     end
 
     def test_create_has_one_from_view
       p1_view = {
-        "_type" => "PolyParentOne",
-        "text"  => "p",
-        "child" => { "_type" => "Child", "text" => "c" }
+        '_type' => 'PolyParentOne',
+        'text'  => 'p',
+        'child' => { '_type' => 'Child', 'text' => 'c' }
       }
       p1v = PolyParentOneView.deserialize_from_view(p1_view)
       p1 = p1v.model
@@ -92,9 +92,9 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_create_has_many_from_view
       p2_view = {
-        "_type" => "PolyParentTwo",
-        "num"   => "2",
-        "children" => [{ "_type" => "Child", "text" => "c1" }, { "_type" => "Child", "text" => "c2" }]
+        '_type' => 'PolyParentTwo',
+        'num'   => '2',
+        'children' => [{ '_type' => 'Child', 'text' => 'c1' }, { '_type' => 'Child', 'text' => 'c2' }]
       }
       p2v = PolyParentTwoView.deserialize_from_view(p2_view)
       p2 = p2v.model
@@ -109,14 +109,14 @@ module ViewModel::ActiveRecord::PolyTest
     def test_move
       # test that I can move a child from one type to another and the parent pointer/type is correctly updated.
       alter_by_view!(GrandparentView, @grandparent) do |view, refs|
-        c1 = view["poly_parent_one"]["child"]
-        c2 = view["poly_parent_two"]["children"].pop
-        view["poly_parent_one"]["child"] = c2
-        view["poly_parent_two"]["children"].push(c1)
+        c1 = view['poly_parent_one']['child']
+        c2 = view['poly_parent_two']['children'].pop
+        view['poly_parent_one']['child'] = c2
+        view['poly_parent_two']['children'].push(c1)
       end
       @grandparent.reload
-      assert_equal("c3", @grandparent.poly_parent_one.child.text)
-      assert_equal(["c1","c2"], @grandparent.poly_parent_two.children.map(&:text).sort)
+      assert_equal('c3', @grandparent.poly_parent_one.child.text)
+      assert_equal(['c1','c2'], @grandparent.poly_parent_two.children.map(&:text).sort)
     end
   end
 
@@ -182,17 +182,17 @@ module ViewModel::ActiveRecord::PolyTest
     def setup
       super
 
-      @parent1 = Parent.create(name: "p1",
+      @parent1 = Parent.create(name: 'p1',
                                poly: PolyOne.new(number: 1))
 
-      @parent2 = Parent.create(name: "p2")
+      @parent2 = Parent.create(name: 'p2')
 
       enable_logging!
     end
 
     def test_loading_batching
-      Parent.create(name: "with PolyOne", poly: PolyOne.new)
-      Parent.create(name: "with PolyTwo", poly: PolyTwo.new)
+      Parent.create(name: 'with PolyOne', poly: PolyOne.new)
+      Parent.create(name: 'with PolyTwo', poly: PolyTwo.new)
 
       log_queries do
         serialize(ParentView.load)
@@ -203,9 +203,9 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_create_from_view
       view = {
-        "_type"    => "Parent",
-        "name"     => "p",
-        "poly"     => { "_type" => "PolyTwo", "text" => "pol" }
+        '_type'    => 'Parent',
+        'name'     => 'p',
+        'poly'     => { '_type' => 'PolyTwo', 'text' => 'pol' }
       }
 
       pv = ParentView.deserialize_from_view(view)
@@ -214,25 +214,25 @@ module ViewModel::ActiveRecord::PolyTest
       assert(!p.changed?)
       assert(!p.new_record?)
 
-      assert_equal("p", p.name)
+      assert_equal('p', p.name)
 
       assert(p.poly.present?)
       assert(p.poly.is_a?(PolyTwo))
-      assert_equal("pol", p.poly.text)
+      assert_equal('pol', p.poly.text)
     end
 
 
     def test_serialize_view
       view, _refs = serialize_with_references(ParentView.new(@parent1))
 
-      assert_equal({ "_type"    => "Parent",
-                     "_version" => 1,
-                     "id"       => @parent1.id,
-                     "name"     => @parent1.name,
-                     "poly"     => { "_type"    => @parent1.poly_type,
-                                     "_version" => 1,
-                                     "id"       => @parent1.poly.id,
-                                     "number"   => @parent1.poly.number }
+      assert_equal({ '_type'    => 'Parent',
+                     '_version' => 1,
+                     'id'       => @parent1.id,
+                     'name'     => @parent1.name,
+                     'poly'     => { '_type'    => @parent1.poly_type,
+                                     '_version' => 1,
+                                     'id'       => @parent1.poly.id,
+                                     'number'   => @parent1.poly.number }
                    },
                    view)
     end

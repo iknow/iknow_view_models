@@ -1,4 +1,4 @@
-require "iknow_view_models"
+require 'iknow_view_models'
 
 
 class TestAccessControl < ViewModel::AccessControl

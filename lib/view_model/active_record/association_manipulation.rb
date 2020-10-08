@@ -11,7 +11,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     association_scope = association.scope
 
     if association_data.through?
-      raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
+      raise ArgumentError.new('Polymorphic through relationships not supported yet') if association_data.polymorphic?
       associated_viewmodel = association_data.viewmodel_class
       direct_viewmodel     = association_data.direct_viewmodel
     else
@@ -112,7 +112,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
           deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, self)
 
           if association_data.through?
-            raise ArgumentError.new("Polymorphic through relationships not supported yet") if association_data.polymorphic?
+            raise ArgumentError.new('Polymorphic through relationships not supported yet') if association_data.polymorphic?
 
             direct_viewmodel_class = association_data.direct_viewmodel
             root_update_data, referenced_update_data = construct_indirect_append_updates(association_data, subtree_hashes, references)
@@ -317,7 +317,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
     # TODO: this won't handle polymorphic associations! In the case of polymorphism,
     #       need to join on (type, id) pairs instead.
     if association_data.polymorphic?
-      raise ArgumentError.new("Internal error: append_association is not yet supported for polymorphic indirect associations")
+      raise ArgumentError.new('Internal error: append_association is not yet supported for polymorphic indirect associations')
     end
 
     existing_indirect_associates = indirect_update_data.map { |upd| upd.id unless upd.new? }.compact

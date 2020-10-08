@@ -1,23 +1,23 @@
 # frozen_string_literal: true
 
-require "active_support"
-require "active_record"
+require 'active_support'
+require 'active_record'
 
-require "view_model"
-require "view_model/record"
+require 'view_model'
+require 'view_model/record'
 
-require "lazily"
-require "concurrent"
+require 'lazily'
+require 'concurrent'
 
 class ViewModel::ActiveRecord < ViewModel::Record
   # Defined before requiring components so components can refer to them at parse time
 
   # for functional updates
-  FUNCTIONAL_UPDATE_TYPE = "_update"
-  ACTIONS_ATTRIBUTE      = "actions"
-  VALUES_ATTRIBUTE       = "values"
-  BEFORE_ATTRIBUTE       = "before"
-  AFTER_ATTRIBUTE        = "after"
+  FUNCTIONAL_UPDATE_TYPE = '_update'
+  ACTIONS_ATTRIBUTE      = 'actions'
+  VALUES_ATTRIBUTE       = 'values'
+  BEFORE_ATTRIBUTE       = 'before'
+  AFTER_ATTRIBUTE        = 'after'
 
   require 'view_model/utils/collections'
   require 'view_model/active_record/association_data'

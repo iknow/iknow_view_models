@@ -1,4 +1,4 @@
-require "renum"
+require 'renum'
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ViewModel::ActiveRecord
@@ -46,11 +46,11 @@ class ViewModel::ActiveRecord
 
     # Evaluate a built update tree, applying and saving changes to the models.
     def run!(deserialize_context:)
-      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation run before build") unless built?
+      raise ViewModel::DeserializationError::Internal.new('Internal error: UpdateOperation run before build') unless built?
 
       case @run_state
       when RunState::Running
-        raise ViewModel::DeserializationError::Internal.new("Internal error: Cycle found in running UpdateOperation")
+        raise ViewModel::DeserializationError::Internal.new('Internal error: Cycle found in running UpdateOperation')
       when RunState::Run
         return viewmodel
       end
@@ -217,7 +217,7 @@ class ViewModel::ActiveRecord
 
     # Recursively builds UpdateOperations for the associations in our UpdateData
     def build!(update_context)
-      raise ViewModel::DeserializationError::Internal.new("Internal error: UpdateOperation cannot build a deferred update") if viewmodel.nil?
+      raise ViewModel::DeserializationError::Internal.new('Internal error: UpdateOperation cannot build a deferred update') if viewmodel.nil?
       return self if built?
 
       update_data.associations.each do |association_name, association_update_data|

@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
-require "minitest/autorun"
+require 'minitest/autorun'
 require 'minitest/unit'
 require 'minitest/hooks'
 
-require "view_model"
-require "view_model/active_record"
+require 'view_model'
+require 'view_model/active_record'
 
-require_relative "../../../helpers/controller_test_helpers.rb"
-require_relative "../../../helpers/callback_tracer.rb"
+require_relative '../../../helpers/controller_test_helpers.rb'
+require_relative '../../../helpers/callback_tracer.rb'
 
 class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -128,7 +128,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_index
-    p2      = Parent.create(name: "p2")
+    p2      = Parent.create(name: 'p2')
     p2_view = ParentView.new(p2)
 
     parentcontroller = ParentController.new
@@ -137,7 +137,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, parentcontroller.status)
 
     assert_equal(parentcontroller.hash_response,
-                 { "data" => [@parent_view.to_hash, p2_view.to_hash] })
+                 { 'data' => [@parent_view.to_hash, p2_view.to_hash] })
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
@@ -240,8 +240,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 404,
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
-                     'code'   => "DeserializationError.NotFound",
-                     'meta' => { 'nodes' => [{ '_type' => "Parent", 'id' => 9999 }]},
+                     'code'   => 'DeserializationError.NotFound',
+                     'meta' => { 'nodes' => [{ '_type' => 'Parent', 'id' => 9999 }]},
                      'exception' => nil,
                      'causes' => nil }},
                  parentcontroller.hash_response)
@@ -261,8 +261,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 400,
                      'detail' => 'Validation failed: \'age\' must be less than 42',
                      'title' => nil,
-                     'code'   => "DeserializationError.Validation",
-                     'meta' => { 'nodes' => [{ '_type' => "Child", 'id' => nil }],
+                     'code'   => 'DeserializationError.Validation',
+                     'meta' => { 'nodes' => [{ '_type' => 'Child', 'id' => nil }],
                                  'attribute' => 'age',
                                  'message' => 'must be less than 42',
                                  'details' => { 'error' => 'less_than', 'value' => 42, 'count' => 42 }},
@@ -280,8 +280,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     assert_equal(400, parentcontroller.status)
     assert_match(%r{check constraint}i,
-                 parentcontroller.hash_response["error"]["detail"],
-                 "Database error propagated")
+                 parentcontroller.hash_response['error']['detail'],
+                 'Database error propagated')
   end
 
   def test_destroy_missing
@@ -294,8 +294,8 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                      'status' => 404,
                      'detail' => "Couldn't find Parent(s) with id(s)=[9999]",
                      'title' => nil,
-                     'code'   => "DeserializationError.NotFound",
-                     'meta' => { "nodes" => [{"_type" => "Parent", "id" => 9999 }] },
+                     'code'   => 'DeserializationError.NotFound',
+                     'meta' => { 'nodes' => [{'_type' => 'Parent', 'id' => 9999 }] },
                      'exception' => nil,
                      'causes' => nil } },
                  parentcontroller.hash_response)
@@ -390,7 +390,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_nested_collection_replace_bad_data
-    data = [{ "name" => "nc" }]
+    data = [{ 'name' => 'nc' }]
     childcontroller = ChildController.new(parent_id: @parent.id, data: data)
 
     childcontroller.invoke(:replace)

@@ -1,15 +1,15 @@
-require_relative "test_access_control.rb"
+require_relative 'test_access_control.rb'
 
-require "iknow_view_models"
-require "view_model/active_record"
-require "view_model/active_record/controller"
+require 'iknow_view_models'
+require 'view_model/active_record'
+require 'view_model/active_record/controller'
 
-require "acts_as_manual_list"
+require 'acts_as_manual_list'
 
 db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
 db_config = YAML.load(File.open(db_config_path))
-raise "Test database configuration missing" unless db_config["test"]
-ActiveRecord::Base.establish_connection(db_config["test"])
+raise 'Test database configuration missing' unless db_config['test']
+ActiveRecord::Base.establish_connection(db_config['test'])
 
 # Remove test tables if any exist
 %w[labels parents children targets poly_ones poly_twos owners

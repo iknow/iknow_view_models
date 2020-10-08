@@ -1,10 +1,10 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 require_relative '../../../helpers/viewmodel_spec_helpers.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -16,12 +16,12 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     super
 
     # TODO make a `has_list?` that allows a model to set all children as an array
-    @model1 = model_class.new(name: "p1",
-                          child: child_model_class.new(name: "p1t"))
+    @model1 = model_class.new(name: 'p1',
+                          child: child_model_class.new(name: 'p1t'))
     @model1.save!
 
-    @model2 = model_class.new(name: "p2",
-                          child: child_model_class.new(name: "p2t"))
+    @model2 = model_class.new(name: 'p2',
+                          child: child_model_class.new(name: 'p2t'))
 
     @model2.save!
 
@@ -38,9 +38,9 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Model",
-      "name"     => "p",
-      "child"   => { "_type" => "Child", "name" => "t" },
+      '_type'    => 'Model',
+      'name'     => 'p',
+      'child'   => { '_type' => 'Child', 'name' => 't' },
     }
 
     pv = ModelView.deserialize_from_view(view)
@@ -49,23 +49,23 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
+    assert_equal('p', p.name)
 
 
     assert(p.child.present?)
-    assert_equal("t", p.child.name)
+    assert_equal('t', p.child.name)
   end
 
   def test_serialize_view
     view, _refs = serialize_with_references(ModelView.new(@model1))
-    assert_equal({ "_type"    => "Model",
-                   "_version" => 1,
-                   "id"       => @model1.id,
-                   "name"     => @model1.name,
-                   "child"   => { "_type"    => "Child",
-                                   "_version" => 1,
-                                   "id"       => @model1.child.id,
-                                   "name"     => @model1.child.name } },
+    assert_equal({ '_type'    => 'Model',
+                   '_version' => 1,
+                   'id'       => @model1.id,
+                   'name'     => @model1.name,
+                   'child'   => { '_type'    => 'Child',
+                                   '_version' => 1,
+                                   'id'       => @model1.child.id,
+                                   'name'     => @model1.child.name } },
                  view)
   end
 
@@ -109,7 +109,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_has_one_update
     alter_by_view!(ModelView, @model1) do |view, refs|
-      view['child']['name'] = "hello"
+      view['child']['name'] = 'hello'
     end
 
     assert_equal('hello', @model1.child.name)
@@ -179,8 +179,8 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_bad_single_association
     view = {
-      "_type" => "Model",
-      "child" => []
+      '_type' => 'Model',
+      'child' => []
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       ModelView.deserialize_from_view(view)

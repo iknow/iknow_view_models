@@ -215,23 +215,23 @@ class ViewModel::ActiveRecord
       # The contents of the actions are determined by the subclasses
 
       def functional_update_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def append_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def remove_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def update_action_schema # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def parse_contents(values) # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       # Remove values are always anchors
@@ -255,11 +255,11 @@ class ViewModel::ActiveRecord
       # behaviour, so we parameterise the result type as well.
 
       def replace_update_type # abstract
-        raise "abstract"
+        raise 'abstract'
       end
 
       def functional_update_type # abstract
-        raise "abstract"
+        raise 'abstract'
       end
     end
   end
@@ -538,7 +538,7 @@ class ViewModel::ActiveRecord
       end
 
       # Ensure that no root is referred to more than once
-      check_duplicate_updates(root_updates, type: "root")
+      check_duplicate_updates(root_updates, type: 'root')
 
       # Construct reference UpdateData
       referenced_updates = referenced_subtree_hashes.transform_values do |subtree_hash|
@@ -549,7 +549,7 @@ class ViewModel::ActiveRecord
         UpdateData.new(viewmodel_class, metadata, subtree_hash, valid_reference_keys)
       end
 
-      check_duplicate_updates(referenced_updates.values, type: "reference")
+      check_duplicate_updates(referenced_updates.values, type: 'reference')
 
       return root_updates, referenced_updates
     end

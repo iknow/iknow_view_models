@@ -46,16 +46,16 @@ class ViewModel::TestHelpers::ARVMBuilder
       instance_eval(&block)
     end
 
-    raise "Model not created in ARVMBuilder"     unless model
-    raise "Schema not created in ARVMBuilder"    unless model.table_exists?
-    raise "ViewModel not created in ARVMBuilder" unless (viewmodel || @no_viewmodel)
+    raise 'Model not created in ARVMBuilder'     unless model
+    raise 'Schema not created in ARVMBuilder'    unless model.table_exists?
+    raise 'ViewModel not created in ARVMBuilder' unless (viewmodel || @no_viewmodel)
 
     # Force the realization of the view model into the library's lookup
     # table. If this doesn't happen the library may have conflicting entries in
     # the deferred table, and will allow viewmodels to leak between tests.
     unless @no_viewmodel || !(@viewmodel < ViewModel::Record)
       resolved = ViewModel::Registry.for_view_name(viewmodel.view_name)
-      raise "Failed to register expected new class!" unless resolved == @viewmodel
+      raise 'Failed to register expected new class!' unless resolved == @viewmodel
     end
   end
 
@@ -70,7 +70,7 @@ class ViewModel::TestHelpers::ARVMBuilder
   private
 
   def viewmodel_name
-    self.name + "View"
+    self.name + 'View'
   end
 
   def define_schema(&block)
@@ -102,7 +102,7 @@ class ViewModel::TestHelpers::ARVMBuilder
       _namespace.const_set(vm_name, self)
       class_eval(&block)
     end
-    raise "help help" if @viewmodel.name.nil?
+    raise 'help help' if @viewmodel.name.nil?
     @viewmodel
   end
 

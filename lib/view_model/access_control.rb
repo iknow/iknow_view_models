@@ -13,7 +13,7 @@ require 'view_model/access_control_error'
 class ViewModel::AccessControl
   Result = Struct.new(:permit, :error) do
     def initialize(permit, error: nil)
-      raise ArgumentError.new("Successful AccessControl::Result may not have an error") if permit && error
+      raise ArgumentError.new('Successful AccessControl::Result may not have an error') if permit && error
       super(permit, error)
     end
 

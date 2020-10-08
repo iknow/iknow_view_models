@@ -1,10 +1,10 @@
-require_relative "../../../helpers/arvm_test_utilities.rb"
-require_relative "../../../helpers/arvm_test_models.rb"
+require_relative '../../../helpers/arvm_test_utilities.rb'
+require_relative '../../../helpers/arvm_test_models.rb'
 require_relative '../../../helpers/viewmodel_spec_helpers.rb'
 
-require "minitest/autorun"
+require 'minitest/autorun'
 
-require "view_model/active_record"
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -15,15 +15,15 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def setup
     super
 
-    @model1 = model_class.new(name: "p1",
-                          children: [child_model_class.new(name: "p1c1", position: 1),
-                                     child_model_class.new(name: "p1c2", position: 2),
-                                     child_model_class.new(name: "p1c3", position: 3)])
+    @model1 = model_class.new(name: 'p1',
+                          children: [child_model_class.new(name: 'p1c1', position: 1),
+                                     child_model_class.new(name: 'p1c2', position: 2),
+                                     child_model_class.new(name: 'p1c3', position: 3)])
     @model1.save!
 
-    @model2 = model_class.new(name: "p2",
-                          children: [child_model_class.new(name: "p2c1").tap { |c| c.position = 1 },
-                                     child_model_class.new(name: "p2c2").tap { |c| c.position = 2 }])
+    @model2 = model_class.new(name: 'p2',
+                          children: [child_model_class.new(name: 'p2c1').tap { |c| c.position = 1 },
+                                     child_model_class.new(name: 'p2c2').tap { |c| c.position = 2 }])
 
     @model2.save!
 
@@ -35,7 +35,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     childviews = parentview.load_associated(:children)
     assert_equal(3, childviews.size)
-    assert_equal(["p1c1", "p1c2", "p1c3"],
+    assert_equal(['p1c1', 'p1c2', 'p1c3'],
                  childviews.map(&:name))
   end
 
@@ -43,14 +43,14 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     view, _refs = serialize_with_references(viewmodel_class.new(@model1))
 
 
-    assert_equal({ "_type"    => "Model",
-                   "_version" => 1,
-                   "id"       => @model1.id,
-                   "name"     => @model1.name,
-                   "children" => @model1.children.map { |child| { "_type"    => "Child",
-                                                                   "_version" => 1,
-                                                                   "id"       => child.id,
-                                                                   "name"     => child.name } } },
+    assert_equal({ '_type'    => 'Model',
+                   '_version' => 1,
+                   'id'       => @model1.id,
+                   'name'     => @model1.name,
+                   'children' => @model1.children.map { |child| { '_type'    => 'Child',
+                                                                   '_version' => 1,
+                                                                   'id'       => child.id,
+                                                                   'name'     => child.name } } },
                  view)
   end
 
@@ -64,10 +64,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_create_from_view
     view = {
-      "_type"    => "Model",
-      "name"     => "p",
-      "children" => [{ "_type" => "Child", "name" => "c1" },
-                     { "_type" => "Child", "name" => "c2" }]
+      '_type'    => 'Model',
+      'name'     => 'p',
+      'children' => [{ '_type' => 'Child', 'name' => 'c1' },
+                     { '_type' => 'Child', 'name' => 'c2' }]
     }
 
     pv = viewmodel_class.deserialize_from_view(view)
@@ -76,7 +76,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert(!p.changed?)
     assert(!p.new_record?)
 
-    assert_equal("p", p.name)
+    assert_equal('p', p.name)
 
     assert_equal(2, p.children.count)
     p.children.order(:id).each_with_index do |c, i|
@@ -91,7 +91,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::AccessControlError) do
       # append child
-      viewmodel_class.new(@model1).append_associated(:children, { "_type" => "Child", "name" => "hi" }, deserialize_context: no_edit_context)
+      viewmodel_class.new(@model1).append_associated(:children, { '_type' => 'Child', 'name' => 'hi' }, deserialize_context: no_edit_context)
     end
 
     assert_raises(ViewModel::AccessControlError) do
@@ -124,8 +124,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_nil_multiple_association
     view = {
-      "_type" => "Model",
-      "children" => nil
+      '_type' => 'Model',
+      'children' => nil
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       viewmodel_class.deserialize_from_view(view)
@@ -136,8 +136,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_non_array_multiple_association
     view = {
-      "_type" => "Model",
-      "children" => { '_type' => 'Child', 'name' => 'c1' }
+      '_type' => 'Model',
+      'children' => { '_type' => 'Child', 'name' => 'c1' }
     }
     ex = assert_raises(ViewModel::DeserializationError::InvalidSyntax) do
       viewmodel_class.deserialize_from_view(view)
@@ -388,10 +388,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_edit_missing_child
     view = {
-      "_type" => "Model",
-      "children" => [{
-                       "_type" => "Child",
-                       "id"    => 9999
+      '_type' => 'Model',
+      'children' => [{
+                       '_type' => 'Child',
+                       'id'    => 9999
                      }]
     }
 
@@ -487,20 +487,20 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   end
 
   def test_has_many_append_child
-    viewmodel_class.new(@model1).append_associated(:children, { "_type" => "Child", "name" => "new" })
+    viewmodel_class.new(@model1).append_associated(:children, { '_type' => 'Child', 'name' => 'new' })
 
     @model1.reload
 
     assert_equal(4, @model1.children.size)
     lc = @model1.children.order(:position).last
-    assert_equal("new", lc.name)
+    assert_equal('new', lc.name)
   end
 
   def test_has_many_append_and_update_existing_association
     child = @model1.children[1]
 
     cv = child_viewmodel_class.new(child).to_hash
-    cv["name"] = "newname"
+    cv['name'] = 'newname'
 
     viewmodel_class.new(@model1).append_associated(:children, cv)
 
@@ -509,28 +509,28 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # Child should have been moved to the end (and edited)
     assert_equal(3, @model1.children.size)
     c1, c2, c3 = @model1.children.order(:position)
-    assert_equal("p1c1", c1.name)
-    assert_equal("p1c3", c2.name)
+    assert_equal('p1c1', c1.name)
+    assert_equal('p1c3', c2.name)
     assert_equal(child, c3)
-    assert_equal("newname", c3.name)
+    assert_equal('newname', c3.name)
   end
 
   def test_has_many_move_existing_association
     p1c2 = @model1.children[1]
     assert_equal(2, p1c2.position)
 
-    viewmodel_class.new(@model2).append_associated("children", { "_type" => "Child", "id" => p1c2.id })
+    viewmodel_class.new(@model2).append_associated('children', { '_type' => 'Child', 'id' => p1c2.id })
 
     @model1.reload
     @model2.reload
 
     p1c = @model1.children.order(:position)
     assert_equal(2, p1c.size)
-    assert_equal(["p1c1", "p1c3"], p1c.map(&:name))
+    assert_equal(['p1c1', 'p1c3'], p1c.map(&:name))
 
     p2c = @model2.children.order(:position)
     assert_equal(3, p2c.size)
-    assert_equal(["p2c1", "p2c2", "p1c2"], p2c.map(&:name))
+    assert_equal(['p2c1', 'p2c2', 'p1c2'], p2c.map(&:name))
     assert_equal(p1c2, p2c[2])
     assert_equal(3, p2c[2].position)
   end
@@ -545,8 +545,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     # Child should have been removed
     assert_equal(2, @model1.children.size)
     c1, c2 = @model1.children.order(:position)
-    assert_equal("p1c1", c1.name)
-    assert_equal("p1c3", c2.name)
+    assert_equal('p1c1', c1.name)
+    assert_equal('p1c3', c2.name)
 
     assert_equal(0, child_model_class.where(id: child.id).size)
   end
@@ -555,47 +555,47 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     child = @model1.children[1]
 
     child_view = child_viewmodel_class.new(child).to_hash
-    child_view["name"] = "changed"
+    child_view['name'] = 'changed'
 
-    view = { "_type" => "Model",
-             "name" => "new_p",
-             "children" => [child_view, { "_type" => "Child", "name" => "new" }]}
+    view = { '_type' => 'Model',
+             'name' => 'new_p',
+             'children' => [child_view, { '_type' => 'Child', 'name' => 'new' }]}
 
     # TODO this is as awkward here as it is in the application
-    release_view = { "_type" => "Model",
-                     "id" => @model1.id,
-                     "children" => [{ "_type" => "Child", "id" => @model1.children[0].id },
-                                    { "_type" => "Child", "id" => @model1.children[2].id }]}
+    release_view = { '_type' => 'Model',
+                     'id' => @model1.id,
+                     'children' => [{ '_type' => 'Child', 'id' => @model1.children[0].id },
+                                    { '_type' => 'Child', 'id' => @model1.children[2].id }]}
 
     pv = viewmodel_class.deserialize_from_view([view, release_view])
     new_parent = pv.first.model
 
     # child should be removed from old parent and positions updated
     @model1.reload
-    assert_equal(2, @model1.children.size, "database has 2 children")
+    assert_equal(2, @model1.children.size, 'database has 2 children')
     oc1, oc2 = @model1.children.order(:position)
-    assert_equal("p1c1", oc1.name, "database c1 unchanged")
-    assert_equal("p1c3", oc2.name, "database c2 unchanged")
+    assert_equal('p1c1', oc1.name, 'database c1 unchanged')
+    assert_equal('p1c3', oc2.name, 'database c2 unchanged')
 
     # child should be added to new parent with valid position
-    assert_equal(2, new_parent.children.size, "viewmodel has 2 children")
+    assert_equal(2, new_parent.children.size, 'viewmodel has 2 children')
     nc1, nc2 = new_parent.children.order(:position)
     assert_equal(child, nc1)
-    assert_equal("changed", nc1.name)
-    assert_equal("new", nc2.name)
+    assert_equal('changed', nc1.name)
+    assert_equal('new', nc2.name)
   end
 
   def test_move_and_edit_child_to_existing
     old_child = @model1.children[1]
 
     old_child_view = child_viewmodel_class.new(old_child).to_hash
-    old_child_view["name"] = "changed"
+    old_child_view['name'] = 'changed'
     view = viewmodel_class.new(@model2).to_hash
-    view["children"] << old_child_view
+    view['children'] << old_child_view
 
-    release_view = {"_type" => "Model", "id" => @model1.id,
-                    "children" => [{"_type" => "Child", "id" => @model1.children[0].id},
-                                   {"_type" => "Child", "id" => @model1.children[2].id}]}
+    release_view = {'_type' => 'Model', 'id' => @model1.id,
+                    'children' => [{'_type' => 'Child', 'id' => @model1.children[0].id},
+                                   {'_type' => 'Child', 'id' => @model1.children[2].id}]}
 
     viewmodel_class.deserialize_from_view([view, release_view])
 
@@ -606,18 +606,18 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_equal(2, @model1.children.size)
     oc1, oc2 = @model1.children.order(:position)
 
-    assert_equal("p1c1", oc1.name)
-    assert_equal("p1c3", oc2.name)
+    assert_equal('p1c1', oc1.name)
+    assert_equal('p1c3', oc2.name)
 
     # child should be added to new parent with valid position
     assert_equal(3, @model2.children.size)
     nc1, _, nc3 = @model2.children.order(:position)
-    assert_equal("p2c1", nc1.name)
+    assert_equal('p2c1', nc1.name)
 
-    assert_equal("p2c1", nc1.name)
+    assert_equal('p2c1', nc1.name)
 
     assert_equal(old_child, nc3)
-    assert_equal("changed", nc3.name)
+    assert_equal('changed', nc3.name)
   end
 
   def test_functional_update_append

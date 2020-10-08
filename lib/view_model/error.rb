@@ -25,7 +25,7 @@ class ViewModel::AbstractError < StandardError
 
   # Human-readable reason for use displaying this error.
   def detail
-    "ViewModel::AbstractError"
+    'ViewModel::AbstractError'
   end
 
   # HTTP status code most appropriate for this error
@@ -40,7 +40,7 @@ class ViewModel::AbstractError < StandardError
 
   # Unique symbol identifying this error type
   def code
-    "ViewModel.AbstractError"
+    'ViewModel.AbstractError'
   end
 
   # Additional information specific to this error type.
@@ -117,7 +117,7 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
   def initialize(causes)
     @causes = Array.wrap(causes)
     unless @causes.present?
-      raise ArgumentError.new("A collection must have at least one cause")
+      raise ArgumentError.new('A collection must have at least one cause')
     end
     super()
   end
@@ -151,7 +151,7 @@ class ViewModel::AbstractErrorCollection < ViewModel::AbstractError
   protected
 
   def cause_details
-    causes.map(&:detail).join("; ")
+    causes.map(&:detail).join('; ')
   end
 end
 
@@ -180,7 +180,7 @@ end
 class ViewModel::Error < ViewModel::AbstractError
   attr_reader :detail, :status, :title, :code, :meta
 
-  def initialize(status: 400, detail: "ViewModel Error", title: nil, code: nil, meta: {})
+  def initialize(status: 400, detail: 'ViewModel Error', title: nil, code: nil, meta: {})
     @detail = detail
     @status = status
     @title  = title

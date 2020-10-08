@@ -98,27 +98,27 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
 
   def store_descendent_editability(view, descendent_editability)
     if @root_editability_store.has_key?(view.object_id)
-      raise RuntimeError.new("Root access control data already saved for root")
+      raise RuntimeError.new('Root access control data already saved for root')
     end
     @root_editability_store[view.object_id] = descendent_editability
   end
 
   def fetch_descendent_editability(view)
     @root_editability_store.fetch(view.object_id) do
-      raise RuntimeError.new("No root access control data recorded for root")
+      raise RuntimeError.new('No root access control data recorded for root')
     end
   end
 
   def store_descendent_visibility(view, descendent_visibility)
     if @root_visibility_store.has_key?(view.object_id)
-      raise RuntimeError.new("Root access control data already saved for root")
+      raise RuntimeError.new('Root access control data already saved for root')
     end
     @root_visibility_store[view.object_id] = descendent_visibility
   end
 
   def fetch_descendent_visibility(view)
     @root_visibility_store.fetch(view.object_id) do
-      raise RuntimeError.new("No root access control data recorded for root")
+      raise RuntimeError.new('No root access control data recorded for root')
     end
   end
 
@@ -187,7 +187,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       def inspect_checks
         checks = super
         if root?
-          checks << "no root checks"
+          checks << 'no root checks'
         else
           checks << "root_children_visible_if: #{root_children_visible_ifs.map(&:reason)}"            if root_children_visible_ifs.present?
           checks << "root_children_visible_unless: #{root_children_visible_unlesses.map(&:reason)}"   if root_children_visible_unlesses.present?

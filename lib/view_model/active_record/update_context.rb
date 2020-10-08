@@ -202,7 +202,7 @@ class ViewModel::ActiveRecord
 
       dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| upd.viewmodel.to_reference }
       if dangling_references.present?
-        raise ViewModel::DeserializationError::InvalidStructure.new("References not referred to from roots", dangling_references)
+        raise ViewModel::DeserializationError::InvalidStructure.new('References not referred to from roots', dangling_references)
       end
 
       self
@@ -265,8 +265,8 @@ class ViewModel::ActiveRecord
     # individual node that caused it, without attempting to parse Postgres'
     # human-readable error details.
     def check_deferred_constraints!(model_class)
-      if model_class.connection.adapter_name == "PostgreSQL"
-        model_class.connection.execute("SET CONSTRAINTS ALL IMMEDIATE")
+      if model_class.connection.adapter_name == 'PostgreSQL'
+        model_class.connection.execute('SET CONSTRAINTS ALL IMMEDIATE')
       end
     rescue ::ActiveRecord::StatementInvalid => ex
       raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex)
