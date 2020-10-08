@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative 'test_access_control.rb'
+require_relative 'test_access_control'
 
 require 'iknow_view_models'
 require 'view_model/active_record'
@@ -9,7 +9,7 @@ require 'view_model/active_record/controller'
 require 'acts_as_manual_list'
 
 db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
-db_config = YAML.load(File.open(db_config_path))
+db_config = YAML.safe_load(File.open(db_config_path))
 raise 'Test database configuration missing' unless db_config['test']
 
 ActiveRecord::Base.establish_connection(db_config['test'])

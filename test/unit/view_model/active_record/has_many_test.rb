@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 require 'minitest/autorun'
 
@@ -431,7 +431,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # child should be added to new parent
     new_children = new_parent.children.order(:position)
-    assert_equal(%w(p1c2 new), new_children.map(&:name))
+    assert_equal(%w[p1c2 new], new_children.map(&:name))
     assert_equal(moved_child, new_children.first)
   end
 
@@ -483,7 +483,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
     # child should be added to new parent with valid position
     new_children = @model2.children.order(:position)
-    assert_equal(%w(p2c1 p2c2 p1c2), new_children.map(&:name))
+    assert_equal(%w[p2c1 p2c2 p1c2], new_children.map(&:name))
     assert_equal(moved_child, new_children.last)
   end
 
@@ -562,7 +562,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
              'name' => 'new_p',
              'children' => [child_view, { '_type' => 'Child', 'name' => 'new' }] }
 
-    # TODO this is as awkward here as it is in the application
+    # TODO: this is as awkward here as it is in the application
     release_view = { '_type' => 'Model',
                      'id' => @model1.id,
                      'children' => [{ '_type' => 'Child', 'id' => @model1.children[0].id },

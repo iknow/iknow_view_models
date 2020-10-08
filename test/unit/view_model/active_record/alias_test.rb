@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 require 'minitest/autorun'
 
@@ -19,12 +19,12 @@ class ViewModel::ActiveRecord::Alias < ActiveSupport::TestCase
       viewmodel: ->(v) do
         add_view_alias 'ChildA'
         add_view_alias 'ChildB'
-      end
+      end,
     )
   end
 
   it 'permits association types to be aliased' do
-    %w(Child ChildA ChildB).each do |view_alias|
+    %w[Child ChildA ChildB].each do |view_alias|
       view = {
         '_type' => viewmodel_class.view_name,
         'child' => { '_type' => view_alias },

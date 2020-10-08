@@ -256,8 +256,8 @@ class ViewModel::ActiveRecord
     def add_update(association_data, update)
       target =
         case association_data.pointer_location
-        when :remote; pointed_to
-        when :local;  points_to
+        when :remote then pointed_to
+        when :local then  points_to
         end
 
       target[association_data] = update
@@ -660,7 +660,7 @@ class ViewModel::ActiveRecord
           other.indirect_viewmodel_reference == self.indirect_viewmodel_reference
       end
 
-      alias :eql? :==
+      alias eql? ==
     end
 
     # Helper class to wrap the previous members of a referenced collection and

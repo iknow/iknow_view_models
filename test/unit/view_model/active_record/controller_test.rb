@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # frozen_string_literal: true
 
 require 'minitest/autorun'
@@ -8,8 +7,8 @@ require 'minitest/hooks'
 require 'view_model'
 require 'view_model/active_record'
 
-require_relative '../../../helpers/controller_test_helpers.rb'
-require_relative '../../../helpers/callback_tracer.rb'
+require_relative '../../../helpers/controller_test_helpers'
+require_relative '../../../helpers/callback_tracer'
 
 class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ARVMTestUtilities
@@ -343,7 +342,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(%w{c1 c2 c3}, @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[c1 c2 c3], @parent.children.order(:position).pluck(:name))
     assert_equal({ 'data' => ChildView.new(@parent.children.last).to_hash },
                  childcontroller.hash_response)
 
@@ -361,7 +360,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(%w{c1 c2 c3 c4}, @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[c1 c2 c3 c4], @parent.children.order(:position).pluck(:name))
     new_children_hashes = @parent.children.last(2).map { |c| ChildView.new(c).to_hash }
     assert_equal({ 'data' => new_children_hashes },
                  childcontroller.hash_response)
@@ -384,7 +383,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(%w{newc1 newc2}, @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[newc1 newc2], @parent.children.order(:position).pluck(:name))
     assert_predicate(Child.where(id: old_children.map(&:id)), :empty?)
 
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
@@ -410,7 +409,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(%w{c2}, @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[c2], @parent.children.order(:position).pluck(:name))
     assert_predicate(Child.where(id: old_child.id), :empty?)
 
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
@@ -442,7 +441,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     @parent.reload
 
-    assert_equal(%w{c2}, @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[c2], @parent.children.order(:position).pluck(:name))
     assert_predicate(Child.where(id: old_child.id), :empty?)
   end
 

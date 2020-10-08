@@ -8,6 +8,7 @@ class ViewModel::Migration::OneWayError < ViewModel::AbstractError
   def initialize(vm_name, direction)
     @vm_name = vm_name
     @direction = direction
+    super()
   end
 
   def detail

@@ -4,8 +4,8 @@ require 'minitest/autorun'
 require 'minitest/unit'
 require 'minitest/hooks'
 
-require_relative '../../../helpers/arvm_test_models.rb'
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 # MiniTest::Spec.register_spec_type(/./, Minitest::HooksSpec)
 
@@ -247,6 +247,7 @@ class ViewModel::ActiveRecord
       class IgnoreFirstChildCloner < Cloner
         def initialize
           @ignored_first = false
+          super
         end
 
         def visit_child_view(node, model)

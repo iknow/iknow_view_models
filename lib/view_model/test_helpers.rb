@@ -87,7 +87,7 @@ module ViewModel::TestHelpers
       next unless association.loaded?
 
       case
-      when association.target == nil
+      when association.target.nil?
         assert_nil(database_model.association(reflection.name).target,
                    'in memory nil association matches database')
       when reflection.collection?

@@ -4,8 +4,8 @@ require 'iknow_view_models'
 require 'view_model/active_record'
 require 'view_model/active_record/controller'
 
-require_relative '../helpers/arvm_test_utilities.rb'
-require_relative '../helpers/arvm_test_models.rb'
+require_relative '../helpers/arvm_test_utilities'
+require_relative '../helpers/arvm_test_models'
 
 require 'acts_as_manual_list'
 
@@ -154,18 +154,16 @@ class DummyController
   end
 
   def invoke(method)
-    begin
-      self.public_send(method)
-    rescue Exception => ex
-      handler = self.class.rescue_block(ex.class)
-      case handler
-      when nil
-        raise
-      when Symbol
-        self.send(handler, ex)
-      when Proc
-        self.instance_exec(ex, &handler)
-      end
+    self.public_send(method)
+  rescue Exception => ex
+    handler = self.class.rescue_block(ex.class)
+    case handler
+    when nil
+      raise
+    when Symbol
+      self.send(handler, ex)
+    when Proc
+      self.instance_exec(ex, &handler)
     end
   end
 
@@ -197,6 +195,7 @@ class DummyController
   class << self
     def inherited(subclass)
       subclass.initialize_rescue_blocks
+      super
     end
 
     def initialize_rescue_blocks
@@ -211,8 +210,7 @@ class DummyController
       @rescue_blocks.to_a.reverse.detect { |btype, h| type <= btype }.try(&:last)
     end
 
-    def etag(*)
-    end
+    def etag(*); end
   end
 end
 

@@ -80,7 +80,7 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
   def initialize
     super()
     @always_policy_instance = self.class::AlwaysPolicy.new(self)
-    @view_policy_instances  = self.class.view_policies.each_with_object({}) { |(name, policy), h| h[name] = policy.new(self) }
+    @view_policy_instances  = self.class.view_policies.transform_values { |policy| policy.new(self) }
     @root_visibility_store  = {}
     @root_editability_store = {}
   end

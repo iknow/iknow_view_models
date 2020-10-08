@@ -24,7 +24,7 @@ class ViewModel
         other.model_id        == model_id
     end
 
-    alias :eql? :==
+    alias eql? ==
 
     def hash
       [viewmodel_class, model_id].hash

@@ -234,7 +234,7 @@ class ViewModel::ActiveRecord
         raise 'abstract'
       end
 
-      def parse_contents(values) # abstract
+      def parse_contents(_values) # abstract
         raise 'abstract'
       end
 
@@ -405,7 +405,7 @@ class ViewModel::ActiveRecord
           'properties'           => { ViewModel::TYPE_ATTRIBUTE => { 'type' => 'string' },
                                       ViewModel::ID_ATTRIBUTE   => ViewModel::Schemas::ID_SCHEMA },
           'additionalProperties' => false,
-          'required'             => [ViewModel::TYPE_ATTRIBUTE, ViewModel::ID_ATTRIBUTE]
+          'required'             => [ViewModel::TYPE_ATTRIBUTE, ViewModel::ID_ATTRIBUTE],
         }
 
       VIEWMODEL_REFERENCE_ONLY = JsonSchema.parse!(viewmodel_reference_only)
@@ -618,7 +618,7 @@ class ViewModel::ActiveRecord
     def preload_dependencies
       deps = {}
 
-      (associations.merge(referenced_associations)).each do |assoc_name, reference|
+      associations.merge(referenced_associations).each do |assoc_name, reference|
         association_data = self.viewmodel_class._association_data(assoc_name)
 
         preload_specs = build_preload_specs(association_data,

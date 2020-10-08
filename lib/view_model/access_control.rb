@@ -18,7 +18,7 @@ class ViewModel::AccessControl
       super(permit, error)
     end
 
-    alias :permit? :permit
+    alias_method :permit?, :permit
 
     # Merge this result with another access control result. Takes a block
     # returning a result, and returns a combined result for both tests. Access

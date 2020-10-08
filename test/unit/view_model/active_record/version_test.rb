@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
 
 require 'minitest/autorun'
 
@@ -88,7 +88,7 @@ class ViewModel::ActiveRecord::VersionTest < ActiveSupport::TestCase
       ParentView.deserialize_from_view(
         { '_type'    => 'Parent',
           '_new'     => true,
-          '_version' => 99 },)
+          '_version' => 99 })
     end
     assert_match(/schema version/, ex.message)
   end

@@ -410,8 +410,9 @@ class ViewModel
 
         private
 
-        QUOTED_IDENTIFIER   = /\A"(?:[^"]|"")+"/
-        UNQUOTED_IDENTIFIER = /\A(?:\p{Alpha}|_)(?:\p{Alnum}|_)*/
+        QUOTED_IDENTIFIER   = /\A"(?:[^"]|"")+"/.freeze
+        UNQUOTED_IDENTIFIER = /\A(?:\p{Alpha}|_)(?:\p{Alnum}|_)*/.freeze
+
         def parse_identifier(stream)
           if (identifier = stream.slice!(UNQUOTED_IDENTIFIER))
             identifier

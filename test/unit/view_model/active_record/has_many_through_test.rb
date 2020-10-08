@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
 
 require 'minitest/autorun'
 
@@ -80,7 +80,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
       define_model do
         belongs_to :parent
         belongs_to :tag
-        # TODO list membership?
+        # TODO: list membership?
       end
 
       no_viewmodel
@@ -132,7 +132,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
   end
 
   def test_preload_dependencies
-    # TODO not part of ARVM; but depends on the particular context from #before_all
+    # TODO: not part of ARVM; but depends on the particular context from #before_all
     # If we refactor out the contexts from their tests, this should go in another test file.
 
     root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Parent' }])

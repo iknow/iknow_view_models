@@ -4,8 +4,8 @@ require 'minitest/autorun'
 require 'minitest/unit'
 require 'minitest/hooks'
 
-require_relative '../../helpers/arvm_test_utilities.rb'
-require_relative '../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../helpers/arvm_test_utilities'
+require_relative '../../helpers/viewmodel_spec_helpers'
 
 require 'view_model'
 require 'view_model/controller'

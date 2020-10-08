@@ -12,7 +12,7 @@ unless ViewModel::Config.configured?
   end
 end
 
-require_relative 'query_logging.rb'
+require_relative 'query_logging'
 
 ActiveSupport::TestCase.include(Minitest::Hooks)
 
@@ -93,7 +93,7 @@ module ARVMTestUtilities
 
   def enable_logging!
     if ENV['DEBUG']
-      ActiveRecord::Base.logger = Logger.new(STDERR)
+      ActiveRecord::Base.logger = Logger.new($stderr)
     end
   end
 
@@ -172,7 +172,7 @@ module ARVMTestUtilities
         {
           ViewModel::ActiveRecord::TYPE_ATTRIBUTE   => type::NAME,
           ViewModel::ActiveRecord::VALUES_ATTRIBUTE => values,
-        }.merge(rest.transform_keys(&:to_s))
+        }.merge(rest.transform_keys(&:to_s)),
       )
     end
 

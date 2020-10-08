@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../../helpers/test_access_control.rb'
+require_relative '../../helpers/test_access_control'
 
 require 'minitest/autorun'
 require 'minitest/unit'

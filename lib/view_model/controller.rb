@@ -130,11 +130,18 @@ module ViewModel::Controller
   # untouched. Requires a MultiJson adapter other than ActiveSupport's
   # (modified) JsonGem.
   class CompiledJson
-    def initialize(s);  @s = s; end
+    def initialize(s)
+      @s = s
+    end
 
-    def to_json(*args); @s;     end
+    def to_json(*_args)
+      @s
+    end
 
-    def to_s;           @s;     end
+    def to_s
+      @s
+    end
+
     undef_method :as_json
   end
 

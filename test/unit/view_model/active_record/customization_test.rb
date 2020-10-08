@@ -1,8 +1,8 @@
 # coding: utf-8
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
 
 require 'minitest/autorun'
 
@@ -105,8 +105,8 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
     new_translations = new_text_model.translations.map do |x|
       [x['language'], x['translation']]
     end
-    assert_equal([%w(fr chien),
-                  %w(ja 犬),],
+    assert_equal([%w[fr chien],
+                  %w[ja 犬],],
                  new_translations.sort)
   end
 

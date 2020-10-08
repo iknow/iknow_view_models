@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 require 'minitest/autorun'
 
@@ -17,7 +17,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   def setup
     super
 
-    # TODO make a `has_list?` that allows a model to set all children as an array
+    # TODO: make a `has_list?` that allows a model to set all children as an array
     @model1 = model_class.new(name: 'p1',
                           child: child_model_class.new(name: 'p1t'))
     @model1.save!

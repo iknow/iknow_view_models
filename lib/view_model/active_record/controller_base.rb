@@ -33,7 +33,7 @@ module ViewModel::ActiveRecord::ControllerBase
         if (match = /(.*)Controller$/.match(self.name))
           self.viewmodel_name = match[1].singularize
         else
-          raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'") if match.nil?
+          raise ArgumentError.new("Could not auto-determine ViewModel from Controller name '#{self.name}'")
         end
       end
       @viewmodel_class

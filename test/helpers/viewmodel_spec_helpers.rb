@@ -79,7 +79,7 @@ module ViewModelSpecHelpers
       ViewModel::TestHelpers::ARVMBuilder::Spec.new(
         schema:    ->(t) { t.string :name },
         model:     ->(m) {},
-        viewmodel: ->(v) { root!; attribute :name }
+        viewmodel: ->(v) { root!; attribute :name },
       )
     end
 
@@ -87,7 +87,7 @@ module ViewModelSpecHelpers
       ViewModel::TestHelpers::ARVMBuilder::Spec.new(
         schema:    ->(t) { t.string :name },
         model:     ->(m) {},
-        viewmodel: ->(v) { attribute :name }
+        viewmodel: ->(v) { attribute :name },
       )
     end
 
@@ -248,14 +248,14 @@ module ViewModelSpecHelpers
       f = subject_association_features
       super.merge(
         model:     ->(m) { has_one :child, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :child, **f }
+        viewmodel: ->(v) { association :child, **f },
       )
     end
 
     def child_attributes
       super.merge(
         schema: ->(t) { t.references :model, foreign_key: true },
-        model:  ->(m) { belongs_to :model, inverse_of: :child }
+        model:  ->(m) { belongs_to :model, inverse_of: :child },
       )
     end
 
@@ -286,14 +286,14 @@ module ViewModelSpecHelpers
       f = subject_association_features
       super.merge(
         model:     ->(m) { has_many :children, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :children, **f }
+        viewmodel: ->(v) { association :children, **f },
       )
     end
 
     def child_attributes
       super.merge(
         schema: ->(t) { t.references :model, foreign_key: true },
-        model:  ->(m) { belongs_to :model, inverse_of: :children }
+        model:  ->(m) { belongs_to :model, inverse_of: :children },
       )
     end
 
@@ -360,14 +360,14 @@ module ViewModelSpecHelpers
       f = subject_association_features
       super.merge(
         model:     ->(m) { has_many :model_children, inverse_of: :model, dependent: :destroy },
-        viewmodel: ->(v) { association :children, through: :model_children, through_order_attr: :position, **f }
+        viewmodel: ->(v) { association :children, through: :model_children, through_order_attr: :position, **f },
       )
     end
 
     def child_attributes
       super.merge(
         model: ->(m) { has_many :model_children, inverse_of: :child, dependent: :destroy },
-        viewmodel: ->(v) { root! }
+        viewmodel: ->(v) { root! },
       )
     end
 

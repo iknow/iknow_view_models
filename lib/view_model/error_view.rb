@@ -12,7 +12,7 @@ class ViewModel::ErrorView < ViewModel::Record
     def serialize_view(json, serialize_context: nil)
       json.set! :class, exception.class.name
       json.backtrace exception.backtrace
-      if cause = exception.cause
+      if (cause = exception.cause)
         json.cause do
           json.set! :class, cause.class.name
           json.backtrace cause.backtrace

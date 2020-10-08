@@ -9,6 +9,7 @@ class ViewModel::Migration::NoPathError < ViewModel::AbstractError
     @vm_name = viewmodel.view_name
     @from = from
     @to = to
+    super()
   end
 
   def detail

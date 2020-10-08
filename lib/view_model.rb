@@ -18,7 +18,7 @@ class ViewModel
   MIGRATED_ATTRIBUTE  = '_migrated'
 
   Metadata = Struct.new(:id, :view_name, :schema_version, :new, :migrated) do
-    alias :new? :new
+    alias_method :new?, :new
   end
 
   class << self
@@ -28,6 +28,7 @@ class ViewModel
     attr_writer   :view_name
 
     def inherited(subclass)
+      super
       subclass.initialize_as_viewmodel
     end
 

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 # frozen_string_literal: true
 
-require_relative '../../helpers/arvm_test_utilities.rb'
-require_relative '../../helpers/arvm_test_models.rb'
+require_relative '../../helpers/arvm_test_utilities'
+require_relative '../../helpers/arvm_test_models'
 
 require 'minitest/autorun'
 require 'minitest/unit'
@@ -235,7 +235,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     new_parents = Parent.where(id: result.map { |x| x.model.id })
 
-    assert_equal(%w{newp1 newp2}, new_parents.pluck(:name).sort)
+    assert_equal(%w[newp1 newp2], new_parents.pluck(:name).sort)
   end
 
   def test_update_duplicate_specification

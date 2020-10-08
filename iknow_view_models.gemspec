@@ -1,7 +1,6 @@
 # frozen_string_literal: true
-# coding: utf-8
 
-lib = File.expand_path('../lib', __FILE__)
+lib = File.expand_path('lib', __dir__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
 require 'iknow_view_models/version'
 
@@ -20,6 +19,8 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ['lib']
 
+  spec.required_ruby_version = 2.6
+
   spec.add_dependency 'activerecord', '>= 5.0'
   spec.add_dependency 'activesupport', '>= 5.0'
 
@@ -27,15 +28,15 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'deep_preloader', '>= 1.0.1'
   spec.add_dependency 'iknow_cache'
   spec.add_dependency 'iknow_params', '~> 2.2.0'
-  spec.add_dependency 'safe_values'
   spec.add_dependency 'keyword_builder'
+  spec.add_dependency 'safe_values'
 
   spec.add_dependency 'concurrent-ruby'
   spec.add_dependency 'jbuilder'
   spec.add_dependency 'json_schema'
   spec.add_dependency 'lazily'
-  spec.add_dependency 'renum'
   spec.add_dependency 'oj'
+  spec.add_dependency 'renum'
   spec.add_dependency 'rgl'
 
   spec.add_development_dependency 'appraisal'

@@ -68,7 +68,7 @@ class ViewModel::ActiveRecord
         .assemble_update_tree
     end
 
-    # TODO an unfortunate abstraction violation. The `append` case constructs an
+    # TODO: an unfortunate abstraction violation. The `append` case constructs an
     # update tree and later injects the context of parent and position.
     def root_updates
       @root_update_operations
@@ -145,7 +145,7 @@ class ViewModel::ActiveRecord
           if ref.nil?
             @root_update_operations << update_op
           else
-            # TODO make sure that referenced subtree hashes are unique and provide a decent error message
+            # TODO: make sure that referenced subtree hashes are unique and provide a decent error message
             # not strictly necessary, but will save confusion
             @referenced_update_operations[ref] = update_op
           end
@@ -202,7 +202,7 @@ class ViewModel::ActiveRecord
         deferred_update.build!(self)
       end
 
-      dangling_references = @referenced_update_operations.reject { |ref, upd| upd.built? }.map { |ref, upd| upd.viewmodel.to_reference }
+      dangling_references = @referenced_update_operations.reject { |_ref, upd| upd.built? }.map { |_ref, upd| upd.viewmodel.to_reference }
       if dangling_references.present?
         raise ViewModel::DeserializationError::InvalidStructure.new('References not referred to from roots', dangling_references)
       end

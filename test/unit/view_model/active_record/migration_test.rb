@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../../helpers/arvm_test_utilities.rb'
-require_relative '../../../helpers/arvm_test_models.rb'
-require_relative '../../../helpers/viewmodel_spec_helpers.rb'
+require_relative '../../../helpers/arvm_test_utilities'
+require_relative '../../../helpers/arvm_test_models'
+require_relative '../../../helpers/viewmodel_spec_helpers'
 
 require 'minitest/autorun'
 
@@ -61,7 +61,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
             ViewModel::MIGRATED_ATTRIBUTE => true,
             'former_field' => 'reconstructed',
           },
-        }
+        },
       )
     end
 
@@ -92,7 +92,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         'new_field' => 3,
         'child' => {
           ViewModel::MIGRATED_ATTRIBUTE => true,
-        }
+        },
       )
     end
 
@@ -133,7 +133,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       let(:subject) do
         v2_serialization.deep_merge(
-          'child' => { ViewModel::VERSION_ATTRIBUTE => 1 }
+          'child' => { ViewModel::VERSION_ATTRIBUTE => 1 },
         )
       end
 
