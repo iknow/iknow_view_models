@@ -10,6 +10,11 @@ module ViewModel::MigratableView
   extend ActiveSupport::Concern
 
   class_methods do
+    def inherited(base)
+      super
+      base.initialize_as_migratable_view
+    end
+
     def initialize_as_migratable_view
       @migrations_lock   = Monitor.new
       @migration_classes = {}

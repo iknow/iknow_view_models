@@ -12,6 +12,8 @@ class ViewModel::Record < ViewModel
   require 'view_model/record/attribute_data'
   require 'view_model/migratable_view'
 
+  include ViewModel::MigratableView
+
   class << self
     attr_reader :_members
     attr_accessor :abstract_class, :unregistered
@@ -26,9 +28,6 @@ class ViewModel::Record < ViewModel
       @_members       = {}
       @abstract_class = false
       @unregistered   = false
-
-      include ViewModel::MigratableView
-      initialize_as_migratable_view
 
       @generated_accessor_module = Module.new
       include @generated_accessor_module
