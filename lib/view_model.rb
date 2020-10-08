@@ -11,6 +11,10 @@ class ViewModel
   TYPE_ATTRIBUTE      = "_type"
   VERSION_ATTRIBUTE   = "_version"
   NEW_ATTRIBUTE       = "_new"
+
+  # Migrations leave a metadata attribute _migrated on any views that they
+  # alter. This attribute is accessible as metadata when deserializing migrated
+  # input, and is included in the output serialization sent to clients.
   MIGRATED_ATTRIBUTE  = "_migrated"
 
   Metadata = Struct.new(:id, :view_name, :schema_version, :new, :migrated) do
