@@ -101,7 +101,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   def test_has_one_create
     @model1.update(child: nil)
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 't' }
     end
 
@@ -109,7 +109,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
   end
 
   def test_has_one_update
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child']['name'] = 'hello'
     end
 
@@ -118,7 +118,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   def test_has_one_destroy
     old_child = @model1.child
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = nil
     end
     assert(Child.where(id: old_child.id).blank?)
@@ -128,7 +128,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     old_model1_child = @model1.child
     old_model2_child = @model2.child
 
-    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p2['child'] = p1['child']
       p1['child'] = nil
     end
@@ -191,7 +191,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
 
   describe 'owned reference child' do
     def child_attributes
-      super.merge(viewmodel: ->(v) { root! })
+      super.merge(viewmodel: ->(_v) { root! })
     end
 
     def new_model
@@ -420,7 +420,7 @@ class ViewModel::ActiveRecord::HasOneTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ModelView, @model) do |view, refs|
+      alter_by_view!(ModelView, @model) do |view, _refs|
         assert_equal({ 'id'       => @model.child.id,
                        '_type'    => 'Child',
                        '_version' => 1,

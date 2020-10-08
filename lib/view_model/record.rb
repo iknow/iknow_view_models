@@ -116,7 +116,7 @@ class ViewModel::Record < ViewModel
       end
     end
 
-    def resolve_viewmodel(metadata, view_hash, deserialize_context:)
+    def resolve_viewmodel(_metadata, _view_hash, deserialize_context:)
       self.for_new_model
     end
 

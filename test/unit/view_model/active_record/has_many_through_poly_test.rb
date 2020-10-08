@@ -187,7 +187,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   end
 
   def test_reordering_swap_type
-    alter_by_view!(ParentView, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, _refs|
       t1, t2, t3, t4 = view['tags']
       view['tags'] = [t3, t2, t1, t4]
     end

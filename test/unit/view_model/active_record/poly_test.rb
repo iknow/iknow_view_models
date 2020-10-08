@@ -110,7 +110,7 @@ module ViewModel::ActiveRecord::PolyTest
 
     def test_move
       # test that I can move a child from one type to another and the parent pointer/type is correctly updated.
-      alter_by_view!(GrandparentView, @grandparent) do |view, refs|
+      alter_by_view!(GrandparentView, @grandparent) do |view, _refs|
         c1 = view['poly_parent_one']['child']
         c2 = view['poly_parent_two']['children'].pop
         view['poly_parent_one']['child'] = c2
@@ -254,7 +254,7 @@ module ViewModel::ActiveRecord::PolyTest
     def test_change_polymorphic_type
       old_poly = @parent1.poly
 
-      alter_by_view!(ParentView, @parent1) do |view, refs|
+      alter_by_view!(ParentView, @parent1) do |view, _refs|
         view['poly'] = { '_type' => 'PolyTwo', 'text' => 'hi' }
       end
 
@@ -302,7 +302,7 @@ module ViewModel::ActiveRecord::PolyTest
       end
 
       def test_renamed_roundtrip
-        alter_by_view!(ParentView, @parent) do |view, refs|
+        alter_by_view!(ParentView, @parent) do |view, _refs|
           assert_equal({ 'id'       => @parent.id,
                          '_type'    => 'PolyOne',
                          '_version' => 1,

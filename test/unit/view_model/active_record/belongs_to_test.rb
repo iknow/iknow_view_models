@@ -88,7 +88,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_create
     @model1.update(child: nil)
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
@@ -98,7 +98,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
   def test_belongs_to_replace
     old_child = @model1.child
 
-    alter_by_view!(ModelView, @model1) do |view, refs|
+    alter_by_view!(ModelView, @model1) do |view, _refs|
       view['child'] = { '_type' => 'Child', 'name' => 'cheese' }
     end
 
@@ -110,7 +110,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     old_p1_child = @model1.child
     old_p2_child = @model2.child
 
-    set_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    set_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p1['child'] = nil
       p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
@@ -124,7 +124,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     old_p1_child = @model1.child
     old_p2_child = @model2.child
 
-    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), refs|
+    alter_by_view!(ModelView, [@model1, @model2]) do |(p1, p2), _refs|
       p1['child'] = update_hash_for(ChildView, old_p2_child)
       p2['child'] = update_hash_for(ChildView, old_p1_child)
     end
@@ -144,7 +144,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     alter_by_view!(
       ModelView, [from_model, to_model],
       deserialize_context: d_context
-    ) do |(from, to), refs|
+    ) do |(from, to), _refs|
       from['child'] = nil
       to['child']   = update_hash_for(ChildView, target_child)
     end
@@ -176,11 +176,11 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
           t.integer :deleted_child_id
           t.integer :ignored_child_id
         end,
-        model: ->(m) do
+        model: ->(_m) do
           belongs_to :deleted_child, class_name: Child.name, dependent: :delete
           belongs_to :ignored_child, class_name: Child.name
         end,
-        viewmodel: ->(v) do
+        viewmodel: ->(_v) do
           associations :deleted_child, :ignored_child
         end)
     end
@@ -234,7 +234,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     def test_renamed_roundtrip
-      alter_by_view!(ModelView, @model) do |view, refs|
+      alter_by_view!(ModelView, @model) do |view, _refs|
         assert_equal({ 'id'       => @model.child.id,
                        '_type'    => 'Child',
                        '_version' => 1,
@@ -300,7 +300,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     def test_move
       model = Aye.create(bee: Bee.new(cee: Cee.new))
       assert_raises(ViewModel::DeserializationError::ParentNotFound) do
-        alter_by_view!(AyeView, model) do |view, refs|
+        alter_by_view!(AyeView, model) do |view, _refs|
           view['bee'].delete('id')
         end
       end

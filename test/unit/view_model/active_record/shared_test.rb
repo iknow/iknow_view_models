@@ -160,7 +160,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
 
   def test_shared_requires_all_references
     ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
-      alter_by_view!(ParentView, @parent2) do |p2view, refs|
+      alter_by_view!(ParentView, @parent2) do |_p2view, refs|
         refs['spurious_ref'] = { '_type' => 'Parent', 'id' => @parent1.id }
       end
     end
@@ -169,7 +169,7 @@ class ViewModel::ActiveRecord::SharedTest < ActiveSupport::TestCase
 
   def test_shared_requires_valid_references
     assert_raises(ViewModel::DeserializationError::InvalidSharedReference) do
-      alter_by_view!(ParentView, @parent1) do |p1view, refs|
+      alter_by_view!(ParentView, @parent1) do |_p1view, refs|
         refs.clear # remove the expected serialized refs
       end
     end

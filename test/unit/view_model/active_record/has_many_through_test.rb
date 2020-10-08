@@ -403,7 +403,7 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     c2.parents_tags.destroy_all
 
     ex = assert_raises(ViewModel::DeserializationError::AssociatedNotFound) do
-      fupdate_tags(@parent1) do |tags|
+      fupdate_tags(@parent1) do |_tags|
         { :fupdate => build_fupdate { update([{ '_ref' => 'c2' }]) },
           :refs    => { 'c2' => { '_type' => 'Tag', 'id' => c2.id, 'name' => 'c2 new name' } },
         }

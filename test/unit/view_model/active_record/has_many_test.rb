@@ -150,7 +150,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_replace_has_many
     old_children = @model1.children
 
-    alter_by_view!(viewmodel_class, @model1) do |view, refs|
+    alter_by_view!(viewmodel_class, @model1) do |view, _refs|
       view['children'] = [{ '_type' => 'Child', 'name' => 'new_child' }]
     end
 
@@ -216,7 +216,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   def test_remove_has_many
     old_children = @model1.children
-    _, context = alter_by_view!(viewmodel_class, @model1) do |view, refs|
+    _, context = alter_by_view!(viewmodel_class, @model1) do |view, _refs|
       view['children'] = []
     end
 
@@ -378,7 +378,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_edit_implicit_list_position
     c1, c2, c3 = @model1.children.order(:position).to_a
 
-    alter_by_view!(viewmodel_class, @model1) do |view, refs|
+    alter_by_view!(viewmodel_class, @model1) do |view, _refs|
       view['children'].reverse!
       view['children'].insert(1, { '_type' => 'Child', 'name' => 'new_c' })
     end
@@ -867,7 +867,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
 
   describe 'owned reference children' do
     def child_attributes
-      super.merge(viewmodel: ->(v) { root! })
+      super.merge(viewmodel: ->(_v) { root! })
     end
 
     def new_model

@@ -96,7 +96,7 @@ module ControllerTestModels
             end
           end
 
-          down do |view, refs|
+          down do |view, _refs|
             view['old_name'] = view.delete('name')
           end
         end
@@ -207,7 +207,7 @@ class DummyController
     end
 
     def rescue_block(type)
-      @rescue_blocks.to_a.reverse.detect { |btype, h| type <= btype }.try(&:last)
+      @rescue_blocks.to_a.reverse.detect { |btype, _h| type <= btype }.try(&:last)
     end
 
     def etag(*); end
@@ -234,12 +234,12 @@ module CallbackTracing
 
   delegate :hook_trace, to: :callback_tracer
 
-  def new_deserialize_context(**args)
+  def new_deserialize_context(**_args)
     @callback_tracer ||= CallbackTracer.new
     super(callbacks: [@callback_tracer])
   end
 
-  def new_serialize_context(**args)
+  def new_serialize_context(**_args)
     @callback_tracer ||= CallbackTracer.new
     super(callbacks: [@callback_tracer])
   end
@@ -249,14 +249,14 @@ module ControllerTestControllers
   def before_all
     super
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:ParentController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:ChildController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
@@ -264,7 +264,7 @@ module ControllerTestControllers
       nested_in :parent, as: :children
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:LabelController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
@@ -272,7 +272,7 @@ module ControllerTestControllers
       nested_in :parent, as: :label
     end
 
-    Class.new(DummyController) do |c|
+    Class.new(DummyController) do |_c|
       Object.const_set(:TargetController, self)
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing

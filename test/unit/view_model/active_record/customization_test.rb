@@ -29,7 +29,7 @@ class ViewModel::ActiveRecord::SpecializeAssociationTest < ActiveSupport::TestCa
         attributes :text
         association :translations
 
-        def self.pre_parse_translations(viewmodel_reference, metadata, hash, translations)
+        def self.pre_parse_translations(_viewmodel_reference, _metadata, hash, translations)
           raise 'type check' unless translations.is_a?(Hash) && translations.all? { |k, v| k.is_a?(String) && v.is_a?(String) }
 
           hash['translations'] = translations.map { |lang, text| { '_type' => 'Translation', 'language' => lang, 'translation' => text } }
@@ -373,7 +373,7 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
     end
 
     def test_functional_update
-      alter_by_view!(ExerciseView, @exercise1) do |view, refs|
+      alter_by_view!(ExerciseView, @exercise1) do |view, _refs|
         view['sections'] = {
           '_type'   => '_update',
           'actions' => [{ '_type'  => 'append',

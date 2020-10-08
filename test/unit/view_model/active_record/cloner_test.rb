@@ -47,7 +47,7 @@ class ViewModel::ActiveRecord
       end
 
       class IgnoreParentCloner < Cloner
-        def visit_model_view(node, model)
+        def visit_model_view(_node, _model)
           ignore!
         end
       end
@@ -58,7 +58,7 @@ class ViewModel::ActiveRecord
       end
 
       class IgnoreAllCloner < Cloner
-        def pre_visit(node, model)
+        def pre_visit(_node, _model)
           ignore!
         end
       end
@@ -69,7 +69,7 @@ class ViewModel::ActiveRecord
       end
 
       class AlterAttributeCloner < Cloner
-        def visit_model_view(node, model)
+        def visit_model_view(_node, model)
           model.name = 'changed'
         end
       end
@@ -86,7 +86,7 @@ class ViewModel::ActiveRecord
       end
 
       class PostAlterAttributeCloner < Cloner
-        def end_visit_model_view(node, model)
+        def end_visit_model_view(_node, model)
           model.name = 'changed'
         end
       end
@@ -125,7 +125,7 @@ class ViewModel::ActiveRecord
       end
 
       class IgnoreChildAssociationCloner < Cloner
-        def visit_model_view(node, model)
+        def visit_model_view(_node, _model)
           ignore_association!(:child)
         end
       end
@@ -197,7 +197,7 @@ class ViewModel::ActiveRecord
     end
 
     class IgnoreChildrenAssociationCloner < Cloner
-      def visit_model_view(node, model)
+      def visit_model_view(_node, _model)
         ignore_association!(:children)
       end
     end
@@ -250,7 +250,7 @@ class ViewModel::ActiveRecord
           super
         end
 
-        def visit_child_view(node, model)
+        def visit_child_view(_node, _model)
           unless @ignored_first
             @ignored_first = true
             ignore!

@@ -51,7 +51,7 @@ class ViewModel::ActiveRecord::CounterTest < ActiveSupport::TestCase
   end
 
   def test_counter_cache_create
-    alter_by_view!(CategoryView, @category1) do |view, refs|
+    alter_by_view!(CategoryView, @category1) do |view, _refs|
       view['products'] << { '_type' => 'Product' }
     end
     assert_equal(2, @category1.products_count)
@@ -59,7 +59,7 @@ class ViewModel::ActiveRecord::CounterTest < ActiveSupport::TestCase
 
   def test_counter_cache_move
     @category2 = Category.create(name: 'c2')
-    alter_by_view!(CategoryView, [@category1, @category2]) do |(c1view, c2view), refs|
+    alter_by_view!(CategoryView, [@category1, @category2]) do |(c1view, c2view), _refs|
       c2view['products'] = c1view['products']
       c1view['products'] = []
     end
@@ -68,7 +68,7 @@ class ViewModel::ActiveRecord::CounterTest < ActiveSupport::TestCase
   end
 
   def test_counter_cache_delete
-    alter_by_view!(CategoryView, @category1) do |view, refs|
+    alter_by_view!(CategoryView, @category1) do |view, _refs|
       view['products'] = []
     end
     assert_equal(0, @category1.products_count)

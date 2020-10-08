@@ -270,7 +270,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   end
 
   def test_edit_attribute_from_view
-    alter_by_view!(ParentView, @parent1) do |view, refs|
+    alter_by_view!(ParentView, @parent1) do |view, _refs|
       view['name'] = 'renamed'
     end
     assert_equal('renamed', @parent1.name)
@@ -279,7 +279,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
   def test_edit_attribute_validation_failure
     old_name = @parent1.name
     ex = assert_raises(ViewModel::DeserializationError::Validation) do
-      alter_by_view!(ParentView, @parent1) do |view, refs|
+      alter_by_view!(ParentView, @parent1) do |view, _refs|
         view['name'] = 'invalid'
       end
     end
@@ -290,7 +290,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
   def test_edit_readonly_attribute
     assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
-      ex = alter_by_view!(ParentView, @parent1) do |view, refs|
+      ex = alter_by_view!(ParentView, @parent1) do |view, _refs|
         view['one'] = 2
       end
       assert_equal('one', ex.attribute)

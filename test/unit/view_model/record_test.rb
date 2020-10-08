@@ -316,7 +316,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     describe 'with read-only write-once attribute' do
       let(:attributes) { { write_once: { read_only: true, write_once: true } } }
       let(:model_body) do
-        ->(x) do
+        ->(_x) do
           # For the purposes of testing, we assume a record is new and can be
           # written once to if write_once is nil. We will never write a nil.
           def new_record?
@@ -343,7 +343,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       let(:default_view_values)  { { overridden: 10 } }
       let(:default_model_values) { { overridden: 5 } }
       let(:viewmodel_body) do
-        ->(x) do
+        ->(_x) do
           def serialize_overridden(json, serialize_context:)
             json.overridden model.overridden.try { |o| o * 2 }
           end

@@ -16,7 +16,7 @@ class ViewModel::ActiveRecord::Alias < ActiveSupport::TestCase
 
   def child_attributes
     super.merge(
-      viewmodel: ->(v) do
+      viewmodel: ->(_v) do
         add_view_alias 'ChildA'
         add_view_alias 'ChildB'
       end,

@@ -87,7 +87,7 @@ class ViewModel::TestHelpers::ARVMBuilder
   def define_model(&block)
     model_name = name
     _namespace = namespace
-    @model = Class.new(@model_base) do |c|
+    @model = Class.new(@model_base) do |_c|
       raise "Model already defined: #{model_name}" if _namespace.const_defined?(model_name, false)
 
       _namespace.const_set(model_name, self)
@@ -100,7 +100,7 @@ class ViewModel::TestHelpers::ARVMBuilder
   def define_viewmodel(&block)
     vm_name = viewmodel_name
     _namespace = namespace
-    @viewmodel = Class.new(@viewmodel_base) do |c|
+    @viewmodel = Class.new(@viewmodel_base) do |_c|
       raise "Viewmodel alreay defined: #{vm_name}" if _namespace.const_defined?(vm_name, false)
 
       _namespace.const_set(vm_name, self)
