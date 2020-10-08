@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative '../../../helpers/arvm_test_utilities.rb'
 require_relative '../../../helpers/arvm_test_models.rb'
 require_relative '../../../helpers/viewmodel_spec_helpers.rb'

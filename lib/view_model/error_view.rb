@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'view_model/record'
 
 # ViewModel for rendering ViewModel::AbstractErrors

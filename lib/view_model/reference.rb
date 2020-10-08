@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel
   # Key to identify a viewmodel with some kind of inherent ID (e.g. an ViewModel::ActiveRecord)
   class Reference

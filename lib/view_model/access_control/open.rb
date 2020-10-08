@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::AccessControl::Open < ViewModel::AccessControl
   def visible_check(_traversal_env)
     ViewModel::AccessControl::Result::PERMIT

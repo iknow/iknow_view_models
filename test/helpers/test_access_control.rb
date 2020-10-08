@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'iknow_view_models'
 
 class TestAccessControl < ViewModel::AccessControl

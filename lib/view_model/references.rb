@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel
   # A bucket for configuration, used for serializing and deserializing.
   class References

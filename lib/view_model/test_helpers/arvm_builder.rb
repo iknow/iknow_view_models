@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::TestHelpers::ARVMBuilder
   attr_reader :name, :model, :viewmodel, :namespace
 

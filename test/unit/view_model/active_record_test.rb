@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+# frozen_string_literal: true
 
 require_relative '../../helpers/arvm_test_utilities.rb'
 require_relative '../../helpers/arvm_test_models.rb'

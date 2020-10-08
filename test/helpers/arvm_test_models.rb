@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require_relative 'test_access_control.rb'
 
 require 'iknow_view_models'

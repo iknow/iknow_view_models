@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::SerializationError < ViewModel::AbstractError
   attr_reader :detail
 

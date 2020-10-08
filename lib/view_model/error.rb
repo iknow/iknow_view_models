@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Abstract base for renderable errors in ViewModel-based APIs. Errors of this
 # type will be caught by ViewModel controllers and rendered in a standard format
 # by ViewModel::ErrorView, which loosely follows errors in JSON-API.

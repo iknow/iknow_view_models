@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ## Defines an access control discipline for a given action against a tree of
 ## viewmodels.
 ##

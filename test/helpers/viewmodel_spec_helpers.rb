@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'view_model'
 require 'view_model/test_helpers'
 

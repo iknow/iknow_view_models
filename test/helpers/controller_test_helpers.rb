@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'iknow_view_models'
 require 'view_model/active_record'
 require 'view_model/active_record/controller'

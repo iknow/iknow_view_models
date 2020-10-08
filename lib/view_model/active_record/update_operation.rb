@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'renum'
 
 # Partially parsed tree of user-specified update hashes, created during deserialization.

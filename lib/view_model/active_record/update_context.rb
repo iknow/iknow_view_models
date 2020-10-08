@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Assembles an update operation tree from user input. Handles the interlinking
 # and model of update operations, but does not handle the actual user data nor
 # the mechanism by which it is applied to models.

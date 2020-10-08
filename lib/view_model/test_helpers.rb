@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 ##
 # Helpers useful for writing tests for viewmodel implementations
 module ViewModel::TestHelpers

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ViewModel::AccessControlError < ViewModel::AbstractErrorWithBlame
   attr_reader :detail
 
