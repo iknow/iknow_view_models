@@ -7,6 +7,8 @@ require 'view_model/active_record/controller'
 require_relative '../helpers/arvm_test_utilities'
 require_relative '../helpers/arvm_test_models'
 
+require 'action_controller'
+
 require 'acts_as_manual_list'
 
 # models for ARVM controller test
@@ -145,11 +147,11 @@ end
 
 ## Dummy Rails Controllers
 class DummyController
-  attr_reader :params, :status
+  attr_reader :params, :headers, :status
 
-  def initialize(**params)
-    # in Rails 5, this will not be a hash, which weakens the value of the test.
-    @params = params.with_indifferent_access
+  def initialize(headers: {}, params: {})
+    @params = ActionController::Parameters.new(params)
+    @headers = ActionDispatch::Http::Headers.from_hash({}).merge!(headers)
     @status = 200
   end
 
@@ -190,6 +192,11 @@ class DummyController
 
   def hash_response
     JSON.parse(json_response)
+  end
+
+  # for request.params and request.headers
+  def request
+    self
   end
 
   class << self

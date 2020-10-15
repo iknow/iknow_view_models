@@ -17,6 +17,8 @@ module ViewModel::ActiveRecord::Controller
   include ViewModel::ActiveRecord::CollectionNestedController
   include ViewModel::ActiveRecord::SingularNestedController
 
+  MIGRATION_VERSION_HEADER = 'X-ViewModel-Versions'
+
   def show(scope: nil, viewmodel_class: self.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     view = nil
     pre_rendered = viewmodel_class.transaction do
@@ -96,11 +98,20 @@ module ViewModel::ActiveRecord::Controller
   def migration_versions
     @migration_versions ||=
       begin
-        versions = parse_param(
-          :versions,
-          default: {},
-          with: IknowParams::Serializer::HashOf.new(
-            IknowParams::Serializer::String, IknowParams::Serializer::Integer))
+        version_spec =
+          if params.include?(:versions)
+            params[:versions]
+          elsif request.headers.include?(MIGRATION_VERSION_HEADER)
+            JSON.parse(request.headers[MIGRATION_VERSION_HEADER])
+          else
+            {}
+          end
+
+        versions =
+          IknowParams::Parser.parse_value(
+            version_spec,
+            with: IknowParams::Serializer::HashOf.new(
+              IknowParams::Serializer::String, IknowParams::Serializer::Integer))
 
         migration_versions = {}
 
