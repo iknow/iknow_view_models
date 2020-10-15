@@ -98,7 +98,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_show
-    parentcontroller = ParentController.new(id: @parent.id)
+    parentcontroller = ParentController.new(params: { id: @parent.id })
     parentcontroller.invoke(:show)
 
     assert_equal({ 'data' => @parent_view.to_hash },
@@ -110,7 +110,10 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_migrated_show
-    parentcontroller = ParentController.new(id: @parent.id, versions: { ParentView.view_name => 1 })
+    parentcontroller = ParentController.new(
+      params: { id: @parent.id },
+      headers: { 'X-ViewModel-Versions' => { ParentView.view_name => 1 }.to_json })
+
     parentcontroller.invoke(:show)
 
     expected_view = @parent_view.to_hash
@@ -125,6 +128,18 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, parentcontroller.status)
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
+  end
+
+  def test_invalid_migration_header
+    parentcontroller = ParentController.new(
+      params: { id: @parent.id },
+      headers: { 'X-ViewModel-Versions' => 'not a json' })
+
+    parentcontroller.invoke(:show)
+    assert_equal(400, parentcontroller.status)
+    assert_match(/Invalid JSON/i,
+                 parentcontroller.hash_response['error']['detail'],
+                 'json error propagated')
   end
 
   def test_index
@@ -152,7 +167,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
                        { '_type' => 'Child', 'name' => 'c2' },],
     }
 
-    parentcontroller = ParentController.new(data: data)
+    parentcontroller = ParentController.new(params: { data: data })
     parentcontroller.invoke(:create)
 
     assert_equal(200, parentcontroller.status)
@@ -173,7 +188,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
       'old_name' => 'p2',
     }
 
-    parentcontroller = ParentController.new(data: data, versions: { ParentView.view_name => 1 })
+    parentcontroller = ParentController.new(params: { data: data, versions: { ParentView.view_name => 1 } })
     parentcontroller.invoke(:create)
 
     assert_equal(200, parentcontroller.status)
@@ -183,14 +198,14 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_create_empty
-    parentcontroller = ParentController.new(data: [])
+    parentcontroller = ParentController.new(params: { data: [] })
     parentcontroller.invoke(:create)
 
     assert_equal(400, parentcontroller.status)
   end
 
   def test_create_invalid
-    parentcontroller = ParentController.new(data: 42)
+    parentcontroller = ParentController.new(params: { data: 42 })
     parentcontroller.invoke(:create)
 
     assert_equal(400, parentcontroller.status)
@@ -201,7 +216,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
              '_type' => 'Parent',
              'name'  => 'new' }
 
-    parentcontroller = ParentController.new(id: @parent.id, data: data)
+    parentcontroller = ParentController.new(params: { id: @parent.id, data: data })
     parentcontroller.invoke(:create)
 
     assert_equal(200, parentcontroller.status)
@@ -216,7 +231,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_destroy
-    parentcontroller = ParentController.new(id: @parent.id)
+    parentcontroller = ParentController.new(params: { id: @parent.id })
     parentcontroller.invoke(:destroy)
 
     assert_equal(200, parentcontroller.status)
@@ -230,7 +245,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_show_missing
-    parentcontroller = ParentController.new(id: 9999)
+    parentcontroller = ParentController.new(params: { id: 9999 })
     parentcontroller.invoke(:show)
 
     assert_equal(404, parentcontroller.status)
@@ -252,7 +267,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
              'children' => [{ '_type' => 'Child',
                               'age'   => 42 }] }
 
-    parentcontroller = ParentController.new(data: data)
+    parentcontroller = ParentController.new(params: { data: data })
     parentcontroller.invoke(:create)
 
     assert_equal({ 'error' => {
@@ -275,7 +290,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     data = { '_type'    => 'Parent',
              'children' => [{ '_type' => 'Child',
                               'age'   => 1 }] }
-    parentcontroller = ParentController.new(data: data)
+    parentcontroller = ParentController.new(params: { data: data })
     parentcontroller.invoke(:create)
 
     assert_equal(400, parentcontroller.status)
@@ -285,7 +300,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_destroy_missing
-    parentcontroller = ParentController.new(id: 9999)
+    parentcontroller = ParentController.new(params: { id: 9999 })
     parentcontroller.invoke(:destroy)
 
     assert_equal({ 'error' => {
@@ -307,7 +322,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_collection_index_associated
     _distractor = Parent.create(name: 'p2', children: [Child.new(name: 'c3', position: 1)])
 
-    childcontroller = ChildController.new(parent_id: @parent.id)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id })
     childcontroller.invoke(:index_associated)
 
     assert_equal(200, childcontroller.status)
@@ -334,7 +349,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_nested_collection_append_one
     data = { '_type' => 'Child', 'name' => 'c3' }
-    childcontroller = ChildController.new(parent_id: @parent.id, data: data)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id, data: data })
 
     childcontroller.invoke(:append)
 
@@ -353,7 +368,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     data = [{ '_type' => 'Child', 'name' => 'c3' },
             { '_type' => 'Child', 'name' => 'c4' },]
 
-    childcontroller = ChildController.new(parent_id: @parent.id, data: data)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id, data: data })
     childcontroller.invoke(:append)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -376,7 +391,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     data = [{ '_type' => 'Child', 'name' => 'newc1' },
             { '_type' => 'Child', 'name' => 'newc2' },]
 
-    childcontroller = ChildController.new(parent_id: @parent.id, data: data)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id, data: data })
     childcontroller.invoke(:replace)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -391,7 +406,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_nested_collection_replace_bad_data
     data = [{ 'name' => 'nc' }]
-    childcontroller = ChildController.new(parent_id: @parent.id, data: data)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id, data: data })
 
     childcontroller.invoke(:replace)
 
@@ -402,7 +417,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
   def test_nested_collection_disassociate_one
     old_child = @parent.children.first
-    childcontroller = ChildController.new(parent_id: @parent.id, id: old_child.id)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id, id: old_child.id })
     childcontroller.invoke(:disassociate)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -418,7 +433,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_collection_disassociate_many
     old_children = @parent.children
 
-    childcontroller = ChildController.new(parent_id: @parent.id)
+    childcontroller = ChildController.new(params: { parent_id: @parent.id })
     childcontroller.invoke(:disassociate_all)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -434,7 +449,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   # direct methods on nested controller
   def test_nested_collection_destroy
     old_child = @parent.children.first
-    childcontroller = ChildController.new(id: old_child.id)
+    childcontroller = ChildController.new(params: { id: old_child.id })
     childcontroller.invoke(:destroy)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -452,7 +467,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
              '_type' => 'Child',
              'name' => 'new_name' }
 
-    childcontroller = ChildController.new(data: data)
+    childcontroller = ChildController.new(params: { data: data })
     childcontroller.invoke(:create)
 
     assert_equal(200, childcontroller.status, childcontroller.hash_response)
@@ -467,7 +482,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_collection_show
     old_child = @parent.children.first
 
-    childcontroller = ChildController.new(id: old_child.id)
+    childcontroller = ChildController.new(params: { id: old_child.id })
     childcontroller.invoke(:show)
 
     assert_equal({ 'data' => ChildView.new(old_child).to_hash },
@@ -482,7 +497,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     old_label = @parent.label
 
     data = { '_type' => 'Label', 'text' => 'new label' }
-    labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
+    labelcontroller = LabelController.new(params: { parent_id: @parent.id, data: data })
     labelcontroller.invoke(:create_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
@@ -504,7 +519,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_parent
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller = LabelController.new(params: { parent_id: @parent.id })
     labelcontroller.invoke(:show_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
@@ -518,7 +533,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_destroy_from_parent
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(parent_id: @parent.id)
+    labelcontroller = LabelController.new(params: { parent_id: @parent.id })
     labelcontroller.invoke(:destroy_associated)
 
     @parent.reload
@@ -536,7 +551,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     old_label = @parent.label
 
     data = { '_type' => 'Label', 'id' => old_label.id, 'text' => 'new label' }
-    labelcontroller = LabelController.new(parent_id: @parent.id, data: data)
+    labelcontroller = LabelController.new(params: { parent_id: @parent.id, data: data })
     labelcontroller.invoke(:create_associated)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
@@ -553,7 +568,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   def test_nested_singular_show_from_id
     old_label = @parent.label
 
-    labelcontroller = LabelController.new(id: old_label.id)
+    labelcontroller = LabelController.new(params: { id: old_label.id })
     labelcontroller.invoke(:show)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
@@ -567,7 +582,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     # foreign key violation. Destroy target instead.
     old_target = @parent.target
 
-    targetcontroller = TargetController.new(id: old_target.id)
+    targetcontroller = TargetController.new(params: { id: old_target.id })
     targetcontroller.invoke(:destroy)
 
     @parent.reload
@@ -583,7 +598,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     old_label = @parent.label
 
     data = { '_type' => 'Label', 'id' => old_label.id, 'text' => 'new label' }
-    labelcontroller = LabelController.new(data: data)
+    labelcontroller = LabelController.new(params: { data: data })
     labelcontroller.invoke(:create)
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
