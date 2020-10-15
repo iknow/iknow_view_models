@@ -130,6 +130,18 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
 
+  def test_invalid_migration_header
+    parentcontroller = ParentController.new(
+      params: { id: @parent.id },
+      headers: { 'X-ViewModel-Versions' => 'not a json' })
+
+    parentcontroller.invoke(:show)
+    assert_equal(400, parentcontroller.status)
+    assert_match(/Invalid JSON/i,
+                 parentcontroller.hash_response['error']['detail'],
+                 'json error propagated')
+  end
+
   def test_index
     p2      = Parent.create(name: 'p2')
     p2_view = ParentView.new(p2)

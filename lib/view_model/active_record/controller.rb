@@ -102,7 +102,11 @@ module ViewModel::ActiveRecord::Controller
           if params.include?(:versions)
             params[:versions]
           elsif request.headers.include?(MIGRATION_VERSION_HEADER)
-            JSON.parse(request.headers[MIGRATION_VERSION_HEADER])
+            begin
+              JSON.parse(request.headers[MIGRATION_VERSION_HEADER])
+            rescue JSON::ParserError
+              raise ViewModel::Error.new(status: 400, detail: "Invalid JSON in #{MIGRATION_VERSION_HEADER}")
+            end
           else
             {}
           end
