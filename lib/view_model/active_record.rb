@@ -224,7 +224,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       DeepPreloader::Spec.new(association_specs)
     end
 
-    def dependent_viewmodels(seen = Set.new, include_referenced: true)
+    def dependent_viewmodels(seen = Set.new, include_referenced: true, include_external: true)
       return if seen.include?(self)
 
       seen << self
@@ -232,6 +232,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       _members.each_value do |data|
         next unless data.is_a?(AssociationData)
         next unless include_referenced || !data.referenced?
+        next unless include_external   || !data.external?
 
         data.viewmodel_classes.each do |vm|
           vm.dependent_viewmodels(seen, include_referenced: include_referenced)
@@ -241,10 +242,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
       seen
     end
 
-    def deep_schema_version(include_referenced: true)
+    def deep_schema_version(include_referenced: true, include_external: true)
       (@deep_schema_version ||= {})[include_referenced] ||=
         begin
-          dependent_viewmodels(include_referenced: include_referenced).each_with_object({}) do |view, h|
+          dependent_viewmodels(include_referenced: include_referenced, include_external: include_external).each_with_object({}) do |view, h|
             h[view.view_name] = view.schema_version
           end.freeze
         end
