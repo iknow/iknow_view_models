@@ -235,7 +235,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless include_external   || !data.external?
 
         data.viewmodel_classes.each do |vm|
-          vm.dependent_viewmodels(seen, include_referenced: include_referenced)
+          vm.dependent_viewmodels(seen, include_referenced: include_referenced, include_external: include_external)
         end
       end
 
