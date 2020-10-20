@@ -365,122 +365,140 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
     end
 
-    Nested = Struct.new(:member)
-
-    class NestedView < TestViewModel
-      self.view_name = 'Nested'
-      self.model_class = Nested
-      attribute :member
-    end
-
-    describe 'with nested viewmodel' do
-      let(:default_nested_model) { Nested.new('member') }
-      let(:default_nested_view)  { view_base.merge('_type' => 'Nested', 'member' => 'member') }
-
-      let(:attributes) { { simple: {}, nested: { using: NestedView } } }
-
-      let(:default_view_values)  { { nested: default_nested_view } }
-      let(:default_model_values) { { nested: default_nested_model } }
-
-      let(:update_context) do
-        TestDeserializeContext.new(targets: [default_model, default_nested_model],
-                                   access_control: access_control)
+    describe 'nesting' do
+      let(:nested_model_class) do
+        klass = Struct.new(:member)
+        Object.const_set(:Nested, klass)
+        klass
       end
 
-      include CanSerialize
-      include CanDeserializeToNew
-      include CanDeserializeToExisting
-
-      it 'can update the nested value' do
-        new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
-
-        vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
-
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        assert(default_nested_model.equal?(vm.model.nested), 'returned nested model was not the same')
-
-        assert_equal('changed', default_model.nested.member)
-
-        assert_unchanged(vm)
-        assert_edited(vm.nested, changed_attributes: [:member])
-      end
-
-      it 'can replace the nested value' do
-        # The value will be unified if it is different after deserialization
-        new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
-
-        partial_update_context = TestDeserializeContext.new(targets: [default_model],
-                                                            access_control: access_control)
-
-        vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: partial_update_context)
-
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        refute(default_nested_model.equal?(vm.model.nested), 'returned nested model was the same')
-
-        assert_edited(vm, new: false, changed_attributes: [:nested])
-        assert_edited(vm.nested, new: true, changed_attributes: [:member])
-      end
-    end
-
-    describe 'with array of nested viewmodel' do
-      let(:default_nested_model_1) { Nested.new('member1') }
-      let(:default_nested_view_1)  { view_base.merge('_type' => 'Nested', 'member' => 'member1') }
-
-      let(:default_nested_model_2) { Nested.new('member2') }
-      let(:default_nested_view_2)  { view_base.merge('_type' => 'Nested', 'member' => 'member2') }
-
-      let(:attributes) { { simple: {}, nested: { using: NestedView, array: true } } }
-
-      let(:default_view_values)  { { nested: [default_nested_view_1, default_nested_view_2] } }
-      let(:default_model_values) { { nested: [default_nested_model_1, default_nested_model_2] } }
-
-      let(:update_context) {
-        TestDeserializeContext.new(targets: [default_model, default_nested_model_1, default_nested_model_2],
-                                   access_control: access_control)
-      }
-
-      include CanSerialize
-      include CanDeserializeToNew
-      include CanDeserializeToExisting
-
-      it 'rejects change to attribute' do
-        new_view = default_view.merge('nested' => 'terrible')
-        ex = assert_raises(ViewModel::DeserializationError::InvalidAttributeType) do
-          viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+      let(:nested_viewmodel_class) do
+        mc = nested_model_class
+        klass = Class.new(TestViewModel) do
+          self.view_name = 'Nested'
+          self.model_class = mc
+          attribute :member
         end
-        assert_equal('nested', ex.attribute)
-        assert_equal('Array',  ex.expected_type)
-        assert_equal('String', ex.provided_type)
+        Object.const_set(:NestedView, klass)
+        klass
       end
 
-      it 'can edit a nested value' do
-        default_view['nested'][0]['member'] = 'changed'
-        vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        assert_equal(2, vm.model.nested.size)
-        assert(default_nested_model_1.equal?(vm.model.nested[0]))
-        assert(default_nested_model_2.equal?(vm.model.nested[1]))
-
-        assert_unchanged(vm)
-        assert_edited(vm.nested[0], changed_attributes: [:member])
+      def teardown
+        Object.send(:remove_const, :Nested)
+        Object.send(:remove_const, :NestedView)
+        ActiveSupport::Dependencies::Reference.clear!
+        super
       end
 
-      it 'can append a nested value' do
-        default_view['nested'] << view_base.merge('_type' => 'Nested', 'member' => 'member3')
+      describe 'with nested viewmodel' do
+        let(:default_nested_model) { nested_model_class.new('member') }
+        let(:default_nested_view)  { view_base.merge('_type' => 'Nested', 'member' => 'member') }
 
-        vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
+        let(:attributes) { { simple: {}, nested: { using: nested_viewmodel_class } } }
 
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        assert_equal(3, vm.model.nested.size)
-        assert(default_nested_model_1.equal?(vm.model.nested[0]))
-        assert(default_nested_model_2.equal?(vm.model.nested[1]))
+        let(:default_view_values)  { { nested: default_nested_view } }
+        let(:default_model_values) { { nested: default_nested_model } }
 
-        vm.model.nested.each_with_index do |nvm, i|
-          assert_equal("member#{i + 1}", nvm.member)
+        let(:update_context) do
+          TestDeserializeContext.new(targets: [default_model, default_nested_model],
+                                     access_control: access_control)
         end
 
-        assert_edited(vm, changed_attributes: [:nested])
-        assert_edited(vm.nested[2], new: true, changed_attributes: [:member])
+        include CanSerialize
+        include CanDeserializeToNew
+        include CanDeserializeToExisting
+
+        it 'can update the nested value' do
+          new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
+
+          vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+
+          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          assert(default_nested_model.equal?(vm.model.nested), 'returned nested model was not the same')
+
+          assert_equal('changed', default_model.nested.member)
+
+          assert_unchanged(vm)
+          assert_edited(vm.nested, changed_attributes: [:member])
+        end
+
+        it 'can replace the nested value' do
+          # The value will be unified if it is different after deserialization
+          new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
+
+          partial_update_context = TestDeserializeContext.new(targets: [default_model],
+                                                              access_control: access_control)
+
+          vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: partial_update_context)
+
+          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          refute(default_nested_model.equal?(vm.model.nested), 'returned nested model was the same')
+
+          assert_edited(vm, new: false, changed_attributes: [:nested])
+          assert_edited(vm.nested, new: true, changed_attributes: [:member])
+        end
+      end
+
+      describe 'with array of nested viewmodel' do
+        let(:default_nested_model_1) { nested_model_class.new('member1') }
+        let(:default_nested_view_1)  { view_base.merge('_type' => 'Nested', 'member' => 'member1') }
+
+        let(:default_nested_model_2) { nested_model_class.new('member2') }
+        let(:default_nested_view_2)  { view_base.merge('_type' => 'Nested', 'member' => 'member2') }
+
+        let(:attributes) { { simple: {}, nested: { using: nested_viewmodel_class, array: true } } }
+
+        let(:default_view_values)  { { nested: [default_nested_view_1, default_nested_view_2] } }
+        let(:default_model_values) { { nested: [default_nested_model_1, default_nested_model_2] } }
+
+        let(:update_context) {
+          TestDeserializeContext.new(targets: [default_model, default_nested_model_1, default_nested_model_2],
+                                     access_control: access_control)
+        }
+
+        include CanSerialize
+        include CanDeserializeToNew
+        include CanDeserializeToExisting
+
+        it 'rejects change to attribute' do
+          new_view = default_view.merge('nested' => 'terrible')
+          ex = assert_raises(ViewModel::DeserializationError::InvalidAttributeType) do
+            viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+          end
+          assert_equal('nested', ex.attribute)
+          assert_equal('Array',  ex.expected_type)
+          assert_equal('String', ex.provided_type)
+        end
+
+        it 'can edit a nested value' do
+          default_view['nested'][0]['member'] = 'changed'
+          vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
+          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          assert_equal(2, vm.model.nested.size)
+          assert(default_nested_model_1.equal?(vm.model.nested[0]))
+          assert(default_nested_model_2.equal?(vm.model.nested[1]))
+
+          assert_unchanged(vm)
+          assert_edited(vm.nested[0], changed_attributes: [:member])
+        end
+
+        it 'can append a nested value' do
+          default_view['nested'] << view_base.merge('_type' => 'Nested', 'member' => 'member3')
+
+          vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
+
+          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          assert_equal(3, vm.model.nested.size)
+          assert(default_nested_model_1.equal?(vm.model.nested[0]))
+          assert(default_nested_model_2.equal?(vm.model.nested[1]))
+
+          vm.model.nested.each_with_index do |nvm, i|
+            assert_equal("member#{i + 1}", nvm.member)
+          end
+
+          assert_edited(vm, changed_attributes: [:nested])
+          assert_edited(vm.nested[2], new: true, changed_attributes: [:member])
+        end
       end
     end
   end
