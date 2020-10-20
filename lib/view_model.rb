@@ -245,7 +245,7 @@ class ViewModel
 
     def schema_hash(schema_versions)
       version_string = schema_versions.to_a.sort.join(',')
-      Base64.urlsafe_encode64(Digest::MD5.digest(version_string))
+      Base64.urlsafe_encode64(Digest::MD5.digest(version_string), padding: false)
     end
 
     def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_referenced: true, lock: nil)
