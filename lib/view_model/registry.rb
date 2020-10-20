@@ -6,7 +6,8 @@ class ViewModel::Registry
   DEFERRED_NAME = Object.new
 
   class << self
-    delegate :for_view_name, :register, :default_view_name, :infer_model_class_name, :clear_removed_classes!,
+    delegate :for_view_name, :register, :default_view_name, :infer_model_class_name,
+             :clear_removed_classes!, :all, :roots,
              to: :instance
   end
 
@@ -31,6 +32,17 @@ class ViewModel::Registry
 
       viewmodel_class
     end
+  end
+
+  def all
+    @lock.synchronize do
+      resolve_deferred_classes
+      @viewmodel_classes_by_name.values
+    end
+  end
+
+  def roots
+    all.select { |c| c.root? }
   end
 
   def register(viewmodel, as: DEFERRED_NAME)
