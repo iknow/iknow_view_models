@@ -245,7 +245,9 @@ class ViewModel
 
     def schema_hash(schema_versions)
       version_string = schema_versions.to_a.sort.join(',')
-      Base64.urlsafe_encode64(Digest::MD5.digest(version_string), padding: false)
+      # We want a short hash value, as this will be used in cache keys
+      hash = Digest::SHA256.digest(version_string).byteslice(0, 16)
+      Base64.urlsafe_encode64(hash, padding: false)
     end
 
     def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_referenced: true, lock: nil)
