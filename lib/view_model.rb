@@ -243,6 +243,12 @@ class ViewModel
       schema_version == self.schema_version
     end
 
+    def schema_versions(viewmodels)
+      viewmodels.each_with_object({}) do |view, h|
+        h[view.view_name] = view.schema_version
+      end
+    end
+
     def schema_hash(schema_versions)
       version_string = schema_versions.to_a.sort.join(',')
       # We want a short hash value, as this will be used in cache keys

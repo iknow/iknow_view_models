@@ -243,11 +243,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
 
     def deep_schema_version(include_referenced: true, include_external: true)
-      (@deep_schema_version ||= {})[include_referenced] ||=
+      (@deep_schema_version ||= {})[[include_referenced, include_external]] ||=
         begin
-          dependent_viewmodels(include_referenced: include_referenced, include_external: include_external).each_with_object({}) do |view, h|
-            h[view.view_name] = view.schema_version
-          end.freeze
+          vms = dependent_viewmodels(include_referenced: include_referenced, include_external: include_external)
+          ViewModel.schema_versions(vms).freeze
         end
     end
 
