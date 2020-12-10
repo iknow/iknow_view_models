@@ -4,6 +4,7 @@ class ViewModel::Migration::OneWayError < ViewModel::AbstractError
   attr_reader :vm_name, :direction
 
   status 400
+  code 'Migration.OneWayError'
 
   def initialize(vm_name, direction)
     @vm_name = vm_name

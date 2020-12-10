@@ -4,6 +4,7 @@ class ViewModel::Migration::UnspecifiedVersionError < ViewModel::AbstractError
   attr_reader :vm_name, :version
 
   status 400
+  code 'Migration.UnspecifiedVersionError'
 
   def initialize(vm_name, version)
     @vm_name = vm_name
