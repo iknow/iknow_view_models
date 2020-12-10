@@ -4,6 +4,7 @@ class ViewModel::Migration::NoPathError < ViewModel::AbstractError
   attr_reader :vm_name, :from, :to
 
   status 400
+  code 'Migration.NoPathError'
 
   def initialize(viewmodel, from, to)
     @vm_name = viewmodel.view_name
