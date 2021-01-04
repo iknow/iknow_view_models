@@ -684,6 +684,12 @@ class ViewModel::ActiveRecord
         when AssociationData
           association_data = member_data
 
+          # FIXME: replace_associated uses this update machinery, this won't work
+          # until we mark it.
+          if association_data.external?
+            raise ViewModel::DeserializationError::ExternalAssociationWrite.new(name)
+          end
+
           case
           when value.nil?
             if association_data.collection?

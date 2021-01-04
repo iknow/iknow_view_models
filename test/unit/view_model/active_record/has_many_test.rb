@@ -1088,6 +1088,10 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     end
 
     describe 'with association manipulation' do
+      def subject_association_features
+        super.merge(external: true)
+      end
+
       it 'appends a child' do
         view = create_viewmodel!
 

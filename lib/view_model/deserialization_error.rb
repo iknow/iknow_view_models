@@ -163,6 +163,33 @@ class ViewModel
       end
     end
 
+    # Attempted to write to an external association during a deserialization
+    class ExternalAssociationWrite < InvalidRequest
+      attr_reader :association
+
+      def initialize(association, node)
+        @association = association
+        super([node])
+      end
+
+      def detail
+        "Invalid write to external association #{association} in deserialization"
+      end
+    end
+
+    # Attempted to write to an internal association during an association_manipulation
+    class InternalAssociationWrite < InvalidRequest
+      attr_reader :association
+      def initialize(association, node)
+        @association = association
+        super([node])
+      end
+
+      def detail
+        "Invalid write to internal association #{association} via external manipulation"
+      end
+    end
+
     class InvalidViewType < InvalidRequest
       attr_reader :expected_type
 
