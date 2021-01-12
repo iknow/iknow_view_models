@@ -52,6 +52,9 @@ module ViewModel::MigratableView
 
       graph = RGL::DirectedAdjacencyGraph.new
 
+      # Add a vertex for the current version, in case no edges reach it
+      graph.add_vertex(self.schema_version)
+
       # Add edges backwards, as we care about paths from the latest version
       @migration_classes.each_key do |from, to|
         graph.add_edge(to, from)
@@ -60,7 +63,7 @@ module ViewModel::MigratableView
       paths = graph.dijkstra_shortest_paths(Hash.new { 1 }, self.schema_version)
 
       paths.each do |target_version, path|
-        next if path.length == 1
+        next if path.nil? || path.length == 1
 
         # Store the path forwards rather than backwards
         path_migration_classes = path.reverse.each_cons(2).map do |from, to|
