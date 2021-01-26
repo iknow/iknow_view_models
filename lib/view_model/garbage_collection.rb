@@ -8,23 +8,21 @@ class ViewModel::GarbageCollection
       roots      = serialization.except('references')
       references = serialization['references']
 
-      root_refs      = collect_references(roots)
-      reference_refs = collect_references(references)
+      queue = []
+      seen = Set.new
 
-      loop do
-        changed = false
+      collect_references(roots, queue)
 
-        references.keep_if do |ref, _val|
-          present = root_refs.include?(ref) || reference_refs.include?(ref)
-          changed = true unless present
-          present
-        end
-
-        break unless changed
-
-        reference_refs = collect_references(references)
+      while (live = queue.shift)
+        next if seen.include?(live)
+        seen << live
+        collect_references(references[live], queue)
       end
+
+      references.keep_if { |ref, _val| seen.include?(ref) }
     end
+
+    private
 
     def collect_references(tree, acc = Set.new)
       case tree
