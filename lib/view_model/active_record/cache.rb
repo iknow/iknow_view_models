@@ -177,28 +177,27 @@ class ViewModel::ActiveRecord::Cache
           ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
         end
 
+        # viewmodels referenced from roots
         referenced_viewmodels = serialize_context.extract_referenced_views!
 
         if migration_versions.present?
           migrator = ViewModel::DownMigrator.new(migration_versions)
 
-          # This migration isn't given the chance to inspect/alter the contents
-          # of referenced views, only their presence: it's strictly less
-          # powerful than migrations on a fully serialized tree, as the only
-          # possible action on a referenced child is to delete it. The effect of
-          # this is that for sufficiently complex migrations where a parent view
-          # must introduce children or alter the contents of its referenced
-          # children, we may have to avoid caching while the migration is in
-          # use.
+          # This migration isn't able to affect the contents of referenced
+          # views, only their presence. The references will be themselves
+          # rendered (and migrated) independently later. We mark the dummy
+          # references provided to exclude their partial contents from being
+          # themselves migrated.
           dummy_references = referenced_viewmodels.transform_values do |ref_vm|
             {
               ViewModel::TYPE_ATTRIBUTE    => ref_vm.class.view_name,
               ViewModel::VERSION_ATTRIBUTE => ref_vm.class.schema_version,
               ViewModel::ID_ATTRIBUTE      => ref_vm.id,
+              ViewModel::Migrator::EXCLUDE_FROM_MIGRATION => true,
             }.freeze
           end
 
-          migrator.migrate!(builder.attributes!, references: dummy_references)
+          migrator.migrate!({ 'data' => builder.attributes!, 'references' => dummy_references })
 
           # Removed dummy references can be removed from referenced_viewmodels.
           referenced_viewmodels.keep_if { |k, _| dummy_references.has_key?(k) }

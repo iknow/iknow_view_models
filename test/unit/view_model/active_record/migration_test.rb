@@ -24,25 +24,39 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
   let(:up_migrator) { ViewModel::UpMigrator.new(migration_versions) }
 
   def migrate!
-    migrator.migrate!(subject, references: {})
+    migrator.migrate!(subject)
   end
 
-  let(:current_serialization) { ViewModel.serialize_to_hash(viewmodel) }
+  let(:current_serialization) do
+    ctx = viewmodel_class.new_serialize_context
+    view = ViewModel.serialize_to_hash(viewmodel, serialize_context: ctx)
+    refs = ctx.serialize_references_to_hash
+    { 'data' => view, 'references' => refs }
+  end
+
+  let(:v2_serialization_data) do
+    {
+        ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+        ViewModel::VERSION_ATTRIBUTE => 2,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'old_field' => 1,
+        'child' => {
+          ViewModel::TYPE_ATTRIBUTE => child_viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 2,
+          ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
+          'name' => viewmodel.child.name,
+          'former_field' => 'former_value',
+        },
+    }
+  end
+
+  let(:v2_serialization_references) { {} }
 
   let(:v2_serialization) do
     {
-      ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
-      ViewModel::VERSION_ATTRIBUTE => 2,
-      ViewModel::ID_ATTRIBUTE => viewmodel.id,
-      'name' => viewmodel.name,
-      'old_field' => 1,
-      'child' => {
-        ViewModel::TYPE_ATTRIBUTE => child_viewmodel_class.view_name,
-        ViewModel::VERSION_ATTRIBUTE => 2,
-        ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
-        'name' => viewmodel.child.name,
-        'former_field' => 'former_value',
-      },
+      'data' => v2_serialization_data,
+      'references' => v2_serialization_references,
     }
   end
 
@@ -56,14 +70,15 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       let(:expected_result) do
         v2_serialization.deep_merge(
           {
-            ViewModel::MIGRATED_ATTRIBUTE => true,
-            'old_field' => -1,
-            'child' => {
+            'data' => {
               ViewModel::MIGRATED_ATTRIBUTE => true,
-              'former_field' => 'reconstructed',
+              'old_field' => -1,
+              'child' => {
+                ViewModel::MIGRATED_ATTRIBUTE => true,
+                'former_field' => 'reconstructed',
+              },
             },
-          },
-        )
+          })
       end
 
       it 'migrates' do
@@ -85,15 +100,21 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
     describe 'upwards' do
       let(:migrator) { up_migrator }
-      let(:subject) { v2_serialization.deep_dup }
+      let(:subject_data) { v2_serialization_data.deep_dup }
+      let(:subject_references) { v2_serialization_references.deep_dup }
+      let(:subject) { { 'data' => subject_data, 'references' => subject_references } }
 
       let(:expected_result) do
         current_serialization.deep_merge(
-          ViewModel::MIGRATED_ATTRIBUTE => true,
-          'new_field' => 3,
-          'child' => {
-            ViewModel::MIGRATED_ATTRIBUTE => true,
-          },
+          {
+            'data' => {
+              ViewModel::MIGRATED_ATTRIBUTE => true,
+              'new_field' => 3,
+              'child' => {
+                ViewModel::MIGRATED_ATTRIBUTE => true,
+              },
+            },
+          }
         )
       end
 
@@ -104,9 +125,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       end
 
       describe 'with version unspecified' do
-        let(:subject) do
-          v2_serialization
-            .except(ViewModel::VERSION_ATTRIBUTE)
+        let(:subject_data) do
+          v2_serialization_data.except(ViewModel::VERSION_ATTRIBUTE)
         end
 
         it 'treats it as the requested version' do
@@ -116,8 +136,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       end
 
       describe 'with a version not in the specification' do
-        let(:subject) do
-          v2_serialization
+        let(:subject_data) do
+          v2_serialization_data
             .except('old_field')
             .deep_merge(ViewModel::VERSION_ATTRIBUTE => 3, 'mid_field' => 1)
         end
@@ -132,8 +152,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       describe 'from an unreachable version' do
         let(:migration_versions) { { viewmodel_class => 2, child_viewmodel_class => 1 } }
 
-        let(:subject) do
-          v2_serialization.deep_merge(
+        let(:subject_data) do
+          v2_serialization_data.deep_merge(
             'child' => { ViewModel::VERSION_ATTRIBUTE => 1 },
           )
         end
@@ -148,8 +168,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       describe 'in an undefined direction' do
         let(:migration_versions) { { viewmodel_class => 1, child_viewmodel_class => 2 } }
 
-        let(:subject) do
-          v2_serialization.except('old_field').merge(ViewModel::VERSION_ATTRIBUTE => 1)
+        let(:subject_data) do
+          v2_serialization_data.except('old_field').merge(ViewModel::VERSION_ATTRIBUTE => 1)
         end
 
         it 'raises' do
@@ -158,6 +178,75 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           end
         end
       end
+    end
+  end
+
+  describe 'garbage collection' do
+    include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
+
+    # current (v2) features the shared child, v1 did not
+    def model_attributes
+      super.merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+          migrates from: 1, to: 2 do
+            down do |view, refs|
+              view.delete('child')
+            end
+          end
+        })
+    end
+
+    # current (v2) refers to another child, v1 did not
+    def child_attributes
+      super.merge(
+        schema: ->(t) { t.references :child, foreign_key: true },
+        model: ->(m) {
+          belongs_to :child, inverse_of: :parent, dependent: :destroy
+          has_one :parent, inverse_of: :child, class_name: self.name
+        },
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+          association :child
+          migrates from: 1, to: 2 do
+            down do |view, refs|
+              view.delete('child')
+            end
+          end
+        })
+    end
+
+    def new_model
+      model_class.new(name: 'm1',
+                      child: child_model_class.new(
+                        name: 'c1',
+                        child: child_model_class.new(
+                          name: 'c2')))
+    end
+
+
+    let(:migrator) { down_migrator }
+    let(:migration_versions) { { viewmodel_class => 1, child_viewmodel_class => 1 } }
+
+    let(:subject) { current_serialization.deep_dup }
+
+    let(:expected_result) do
+      {
+        'data' => {
+          ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 1,
+          ViewModel::ID_ATTRIBUTE => viewmodel.id,
+          ViewModel::MIGRATED_ATTRIBUTE => true,
+          'name' => viewmodel.name,
+        },
+        'references' => {},
+      }
+    end
+
+    it 'migrates' do
+      migrate!
+
+      assert_equal(expected_result, subject)
     end
   end
 

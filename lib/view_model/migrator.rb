@@ -2,6 +2,8 @@
 
 class ViewModel
   class Migrator
+    EXCLUDE_FROM_MIGRATION = '_exclude_from_migration'
+
     class << self
       def migrated_deep_schema_version(viewmodel_class, required_versions, include_referenced: true)
         deep_schema_version = viewmodel_class.deep_schema_version(include_referenced: include_referenced)
@@ -34,11 +36,23 @@ class ViewModel
       end
     end
 
-    def migrate!(node, references:)
+    def migrate!(serialization)
+      migrate_tree!(serialization, references: serialization['references'] || {})
+      garbage_collect_references!(serialization)
+    end
+
+    private
+
+    def migrate_tree!(node, references:)
       case node
       when Hash
         if (type = node[ViewModel::TYPE_ATTRIBUTE])
           version = node[ViewModel::VERSION_ATTRIBUTE]
+
+          # We allow subtrees to be excluded from migration. This is used
+          # internally to permit stub references that are not a full
+          # serialization of the referenced type: see ViewModel::Cache.
+          return if node[EXCLUDE_FROM_MIGRATION]
 
           if migrate_viewmodel!(type, version, node, references)
             node[ViewModel::MIGRATED_ATTRIBUTE] = true
@@ -46,17 +60,54 @@ class ViewModel
         end
 
         node.each_value do |child|
-          migrate!(child, references: references)
+          migrate_tree!(child, references: references)
         end
       when Array
-        node.each { |child| migrate!(child, references: references) }
+        node.each { |child| migrate_tree!(child, references: references) }
       end
     end
 
-    private
-
     def migrate_viewmodel!(_view_name, _version, _view_hash, _references)
       raise RuntimeError.new('abstract method')
+    end
+
+    def garbage_collect_references!(serialization)
+      return unless serialization.has_key?('references')
+
+      roots      = serialization.except('references')
+      references = serialization['references']
+
+      root_refs      = collect_references(roots)
+      reference_refs = collect_references(references)
+
+      loop do
+        changed = false
+
+        references.keep_if do |ref, _val|
+          present = root_refs.include?(ref) || reference_refs.include?(ref)
+          changed = true unless present
+          present
+        end
+
+        break unless changed
+
+        reference_refs = collect_references(references)
+      end
+    end
+
+    def collect_references(tree, acc = Set.new)
+      case tree
+      when Hash
+        if tree.size == 1 && (ref = tree[ViewModel::REFERENCE_ATTRIBUTE])
+          acc << ref
+        else
+          tree.each_value { |t| collect_references(t, acc) }
+        end
+      when Array
+        tree.each { |t| collect_references(t, acc) }
+      end
+
+      acc
     end
   end
 

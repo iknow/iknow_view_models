@@ -122,7 +122,7 @@ class ViewModel::ActiveRecord
 
       if migration_versions.present?
         migrator = ViewModel::DownMigrator.new(migration_versions)
-        migrator.migrate!([data, refs], references: refs)
+        migrator.migrate!({ 'data' => data, 'references' => refs })
       end
 
       [data, refs]
