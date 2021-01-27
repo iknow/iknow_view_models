@@ -11,33 +11,17 @@ class ViewModel::GarbageCollectionTest < ActiveSupport::TestCase
 
   # Generate a viewmodel-serialization alike from a minimal structure
   # @param [Hash<Symbol, Array<Symbol>] structure mapping from id to referenced ids
-  # @param [Array<Symbol>] data_ids list of ids of data elements
-  def mock_serialization(structure, data_ids)
-    data_ids = data_ids.to_set
-
+  # @param [Hash<Symbol, Array<Symbol>] data_ids list of ids of data elements
+  def mock_serialization(data_skeleton, refs_skeleton)
     data       = []
     references = {}
 
-    structure.each do |id, referred|
-      referred.each do |referred_id|
-        if data_ids.include?(referred_id)
-          raise "Invalid test: Element '#{id}' refers to '#{referred_id}', which is also in data"
-        end
-        references[referred_id] ||= {}
-      end
+    generate(data_skeleton) do |id, body|
+      data << body
+    end
 
-      generated = {
-        ViewModel::ID_ATTRIBUTE => id,
-        :children               => referred.map do |referred_id|
-          { ViewModel::REFERENCE_ATTRIBUTE => referred_id }
-        end
-      }
-
-      if data_ids.include?(id)
-        data << generated
-      else
-        references[id] = generated
-      end
+    generate(refs_skeleton) do |id, body|
+      references[id] = body
     end
 
     {
@@ -46,8 +30,20 @@ class ViewModel::GarbageCollectionTest < ActiveSupport::TestCase
     }
   end
 
-  def retained_ids(structure, roots)
-    serialization = mock_serialization(structure, roots)
+  def generate(skeleton)
+    skeleton.each do |id, referred|
+      yield id, ({
+        ViewModel::ID_ATTRIBUTE => id,
+        :children               => referred.map do |referred_id|
+          { ViewModel::REFERENCE_ATTRIBUTE => referred_id }
+        end
+      })
+    end
+  end
+
+  def retained_ids(data_skeleton, refs_skeleton)
+    serialization = mock_serialization(data_skeleton, refs_skeleton)
+    puts serialization
     ViewModel::GarbageCollection.garbage_collect_references!(serialization)
     Set.new(
       (serialization['data'].map { |x| x[ViewModel::ID_ATTRIBUTE] }) +
@@ -58,28 +54,28 @@ class ViewModel::GarbageCollectionTest < ActiveSupport::TestCase
   it 'keeps all roots' do
     assert_equal(
       Set.new([:a, :b, :c]),
-      retained_ids({ a: [], b: [], c: [] }, [:a, :b, :c])
+      retained_ids({ a: [], b: [], c: [] }, {})
     )
   end
 
   it 'keeps a list' do
     assert_equal(
       Set.new([:a, :b, :c, :d]),
-      retained_ids({ a: [:b], b: [:c], c: [:d] }, [:a]),
+      retained_ids({ a: [:b], b: [:c], c: [:d] }, { d: [] }),
     )
   end
 
   it 'keeps a child with a removed reference' do
     assert_equal(
       Set.new([:a, :z]),
-      retained_ids({ a: [:z], b: [:z] }, [:a]),
+      retained_ids({ a: [:z], }, { b: [:z], z: [] }),
     )
   end
 
   it 'prunes a list at the head' do
     assert_equal(
       Set.new([:a]),
-      retained_ids({ a: [], b: [:c], c: [:d] }, [:a]),
+      retained_ids({ a: [], }, { b: [:c], c: [:d], d: [] }),
     )
   end
 end
