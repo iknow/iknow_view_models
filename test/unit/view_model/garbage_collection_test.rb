@@ -43,7 +43,6 @@ class ViewModel::GarbageCollectionTest < ActiveSupport::TestCase
 
   def retained_ids(data_skeleton, refs_skeleton)
     serialization = mock_serialization(data_skeleton, refs_skeleton)
-    puts serialization
     ViewModel::GarbageCollection.garbage_collect_references!(serialization)
     Set.new(
       (serialization['data'].map { |x| x[ViewModel::ID_ATTRIBUTE] }) +
@@ -61,7 +60,7 @@ class ViewModel::GarbageCollectionTest < ActiveSupport::TestCase
   it 'keeps a list' do
     assert_equal(
       Set.new([:a, :b, :c, :d]),
-      retained_ids({ a: [:b], b: [:c], c: [:d] }, { d: [] }),
+      retained_ids({ a: [:b], }, { b: [:c], c: [:d], d: [] }),
     )
   end
 
