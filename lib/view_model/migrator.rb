@@ -2,6 +2,8 @@
 
 class ViewModel
   class Migrator
+    EXCLUDE_FROM_MIGRATION = '_exclude_from_migration'
+
     class << self
       def migrated_deep_schema_version(viewmodel_class, required_versions, include_referenced: true)
         deep_schema_version = viewmodel_class.deep_schema_version(include_referenced: include_referenced)
@@ -34,11 +36,23 @@ class ViewModel
       end
     end
 
-    def migrate!(node, references:)
+    def migrate!(serialization)
+      migrate_tree!(serialization, references: serialization['references'] || {})
+      GarbageCollection.garbage_collect_references!(serialization)
+    end
+
+    private
+
+    def migrate_tree!(node, references:)
       case node
       when Hash
         if (type = node[ViewModel::TYPE_ATTRIBUTE])
           version = node[ViewModel::VERSION_ATTRIBUTE]
+
+          # We allow subtrees to be excluded from migration. This is used
+          # internally to permit stub references that are not a full
+          # serialization of the referenced type: see ViewModel::Cache.
+          return if node[EXCLUDE_FROM_MIGRATION]
 
           if migrate_viewmodel!(type, version, node, references)
             node[ViewModel::MIGRATED_ATTRIBUTE] = true
@@ -46,14 +60,12 @@ class ViewModel
         end
 
         node.each_value do |child|
-          migrate!(child, references: references)
+          migrate_tree!(child, references: references)
         end
       when Array
-        node.each { |child| migrate!(child, references: references) }
+        node.each { |child| migrate_tree!(child, references: references) }
       end
     end
-
-    private
 
     def migrate_viewmodel!(_view_name, _version, _view_hash, _references)
       raise RuntimeError.new('abstract method')

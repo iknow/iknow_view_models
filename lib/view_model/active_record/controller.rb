@@ -71,7 +71,7 @@ module ViewModel::ActiveRecord::Controller
     super.tap do |update_hash, refs|
       if migration_versions.present?
         migrator = ViewModel::UpMigrator.new(migration_versions)
-        migrator.migrate!([update_hash, refs], references: refs)
+        migrator.migrate!({ 'data' => update_hash, 'references' => refs })
       end
     end
   end
@@ -84,7 +84,7 @@ module ViewModel::ActiveRecord::Controller
       if migration_versions.present?
         tree = jbuilder.attributes!
         migrator = ViewModel::DownMigrator.new(migration_versions)
-        migrator.migrate!(tree, references: tree['references'])
+        migrator.migrate!(tree)
       end
     end
   end

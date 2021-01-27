@@ -141,10 +141,10 @@ module ViewModelSpecHelpers
     end
   end
 
-  module ParentAndBelongsToChildWithMigration
+  module ParentAndChildMigrations
     extend ActiveSupport::Concern
-    include ViewModelSpecHelpers::ParentAndBelongsToChild
-    def model_attributes
+  
+  def model_attributes
       super.merge(
         schema: ->(t) { t.integer :new_field, default: 1, null: false },
         viewmodel: ->(_v) {
@@ -204,6 +204,12 @@ module ViewModelSpecHelpers
           end
         })
     end
+  end
+
+  module ParentAndBelongsToChildWithMigration
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    include ViewModelSpecHelpers::ParentAndChildMigrations
   end
 
   module ParentAndSharedBelongsToChild
