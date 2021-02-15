@@ -340,12 +340,15 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
     case
     when association_data.through?
-      # associated here are join_table models; we need to get the far side out
+      # associated here are join-table models; we need to get the far side out
+      join_models = associated
+
       if association_data.direct_viewmodel._list_member?
-        associated.order(association_data.direct_viewmodel._list_attribute_name)
+        attr = association_data.direct_viewmodel._list_attribute_name
+        join_models = join_models.sort_by { |j| j[attr] }
       end
 
-      associated.map do |through_model|
+      join_models.map do |through_model|
         model = through_model.public_send(association_data.indirect_reflection.name)
         association_data.viewmodel_class_for_model!(model.class).new(model)
       end

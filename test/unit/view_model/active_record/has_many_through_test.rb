@@ -101,8 +101,10 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     @tag1, @tag2, @tag3 = (1..3).map { |x| Tag.create!(name: "tag#{x}") }
 
     @parent1 = Parent.create(name: 'p1',
-                             parents_tags: [ParentsTag.new(tag: @tag1, position: 1.0),
-                                            ParentsTag.new(tag: @tag2, position: 2.0),])
+                             parents_tags: [
+                               ParentsTag.new(tag: @tag2, position: 2.0),
+                               ParentsTag.new(tag: @tag1, position: 1.0),
+                             ])
 
     enable_logging!
   end
