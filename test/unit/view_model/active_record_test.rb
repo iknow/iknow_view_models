@@ -416,6 +416,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       @list = List.new(child: List.new(child: nil))
     end
 
+    def test_list_eager_includes
+      expected_includes = 3.times.inject(nil) { |x| DeepPreloader::Spec.new({ 'child' => x }) }
+      assert_equal(expected_includes, ListView.eager_includes)
+    end
+
     def test_deserialize_context
       view = {
         '_type' => 'List',

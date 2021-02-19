@@ -182,9 +182,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
 
     # Constructs a preload specification of the required models for
-    # serializing/deserializing this view.
-    def eager_includes(serialize_context: new_serialize_context, include_referenced: true)
+    # serializing/deserializing this view. Cycles in the schema will be broken
+    # after two layers of eager loading.
+    def eager_includes(serialize_context: new_serialize_context, include_referenced: true, vm_path: [])
       association_specs = {}
+
+      return nil if vm_path.count(self) > 2
+
+      child_path = vm_path + [self]
       _members.each do |assoc_name, association_data|
         next unless association_data.is_a?(AssociationData)
         next if association_data.external?
@@ -201,7 +206,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
         case
         when association_data.through?
           viewmodel = association_data.direct_viewmodel
-          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
 
         when !include_referenced && association_data.referenced?
           children = nil # Load up to the root viewmodel, but no further
@@ -210,13 +215,13 @@ class ViewModel::ActiveRecord < ViewModel::Record
           children_by_klass = {}
           association_data.viewmodel_classes.each do |vm_class|
             klass = vm_class.model_class.name
-            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
+            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
           end
           children = DeepPreloader::PolymorphicSpec.new(children_by_klass)
 
         else
           viewmodel = association_data.viewmodel_class
-          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced)
+          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
         end
 
         association_specs[association_data.direct_reflection.name.to_s] = children
