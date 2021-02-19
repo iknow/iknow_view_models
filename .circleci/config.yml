@@ -111,6 +111,11 @@ workflows:
           ruby-version: "2.7"
           pg-version: "12"
           gemfile: gemfiles/rails_6_0.gemfile
+      - test:
+          name: 'ruby 2.7 rails 6.1 pg 12'
+          ruby-version: "2.7"
+          pg-version: "12"
+          gemfile: gemfiles/rails_6_1.gemfile
       - publish:
           filters:
             branches:
