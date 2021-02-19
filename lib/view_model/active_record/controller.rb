@@ -76,7 +76,7 @@ module ViewModel::ActiveRecord::Controller
     end
   end
 
-  def prerender_viewmodel(*)
+  def prerender_viewmodel(...)
     super do |jbuilder|
       yield(jbuilder) if block_given?
 

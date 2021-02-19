@@ -24,8 +24,8 @@ class ViewModel::TraversalContext
 
   delegate :access_control, :callbacks, to: :shared_context
 
-  def self.new_child(*args)
-    self.allocate.tap { |c| c.initialize_as_child(*args) }
+  def self.new_child(...)
+    self.allocate.tap { |c| c.initialize_as_child(...) }
   end
 
   def initialize(shared_context: nil, **shared_context_params)
