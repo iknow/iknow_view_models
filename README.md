@@ -1,6 +1,6 @@
 # IknowViewModels
 
-[![Build Status](https://travis-ci.org/iknow/iknow_view_models.svg?branch=master)](https://travis-ci.org/iknow/iknow_view_models)
+[![Build Status](https://circleci.com/gh/iknow/iknow_view_models.svg?style=svg)](https://circleci.com/gh/iknow/iknow_view_models/)
 
 ViewModels provide a means of encapsulating a collection of related data and specifying its JSON serialization.
 
