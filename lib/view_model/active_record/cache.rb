@@ -11,6 +11,30 @@ class ViewModel::ActiveRecord::Cache
 
   attr_reader :viewmodel_class
 
+  class << self
+    def render_viewmodels_from_cache(viewmodels, migration_versions: {}, locked: false, serialize_context: nil)
+      if viewmodels.empty?
+        return [], {}
+      end
+
+      ids = viewmodels.map(&:id)
+      # ideally the roots wouldn't have to all be the same type
+      viewmodel_class = viewmodels.first.class
+      serialize_context ||= viewmodel_class.new_serialize_context
+
+      render_from_cache(viewmodel_class, ids,
+                        initial_viewmodels: viewmodels,
+                        migration_versions: migration_versions,
+                        locked: locked,
+                        serialize_context: serialize_context)
+    end
+
+    def render_from_cache(viewmodel_class, ids, initial_viewmodels: nil, migration_versions: {}, locked: false, serialize_context: viewmodel_class.new_serialize_context)
+      worker = CacheWorker.new(migration_versions: migration_versions, serialize_context: serialize_context)
+      worker.render_from_cache(viewmodel_class, ids, initial_viewmodels: initial_viewmodels, locked: locked)
+    end
+  end
+
   # If cache_group: is specified, it must be a group of a single key: `:id`
   def initialize(viewmodel_class, cache_group: nil)
     @viewmodel_class = viewmodel_class
@@ -35,71 +59,17 @@ class ViewModel::ActiveRecord::Cache
     @cache_group.invalidate_cache_group
   end
 
+  # @deprecated Replaced by class methods
   def fetch_by_viewmodel(viewmodels, migration_versions: {}, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
     ids = viewmodels.map(&:id)
     fetch(ids, initial_viewmodels: viewmodels, migration_versions: migration_versions, locked: locked, serialize_context: serialize_context)
   end
 
+  # @deprecated Replaced by class methods
   def fetch(ids, initial_viewmodels: nil, migration_versions: {}, locked: false, serialize_context: @viewmodel_class.new_serialize_context)
-    data_serializations = Array.new(ids.size)
-    worker = CacheWorker.new(migration_versions: migration_versions, serialize_context: serialize_context)
-
-    # If initial root viewmodels were provided, visit them to ensure that they
-    # are visible. Other than this, no traversal callbacks are performed, as a
-    # view may be resolved from the cache without ever loading its viewmodel.
-    # Note that if unlocked, these views will be reloaded as part of obtaining a
-    # share lock. If the visibility of this viewmodel can change due to edits,
-    # it is necessary to obtain a lock before calling `fetch`.
-    initial_viewmodels&.each do |v|
-      serialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeVisit, v)
-      serialize_context.run_callback(ViewModel::Callbacks::Hook::AfterVisit, v)
-    end
-
-    # Collect input array positions for each id, allowing duplicates
-    positions = ids.each_with_index.with_object({}) do |(id, i), h|
-      (h[id] ||= []) << i
-    end
-
-    # Fetch duplicates only once
-    ids = positions.keys
-
-    # Load existing serializations from the cache
-    cached_serializations = worker.load_from_cache(self, ids)
-    cached_serializations.each do |id, data|
-      positions[id].each do |idx|
-        data_serializations[idx] = data
-      end
-    end
-
-    # Resolve and serialize missing views
-    missing_ids = ids.to_set.subtract(cached_serializations.keys)
-
-    # If initial viewmodels have been locked, we can serialize them for cache
-    #  misses.
-    available_viewmodels =
-      if locked
-        initial_viewmodels&.each_with_object({}) do |vm, h|
-          h[vm.id] = vm if missing_ids.include?(vm.id)
-        end
-      end
-
-    @viewmodel_class.transaction do
-      # Load remaining views and serialize
-      viewmodels = worker.find_and_preload_viewmodels(@viewmodel_class, missing_ids.to_a,
-                                                      available_viewmodels: available_viewmodels)
-
-      loaded_serializations = worker.serialize_and_cache(viewmodels)
-      loaded_serializations.each do |id, data|
-        positions[id].each do |idx|
-          data_serializations[idx] = data
-        end
-      end
-
-      # Resolve references
-      worker.resolve_references!
-
-      return data_serializations, worker.resolved_references
-    end
+    self.class.render_from_cache(@viewmodel_class, ids,
+                                 initial_viewmodels: initial_viewmodels, locked: locked,
+                                 migration_versions: migration_versions, serialize_context: serialize_context)
   end
 
   class CacheWorker
@@ -109,11 +79,78 @@ class ViewModel::ActiveRecord::Cache
     attr_reader :migration_versions, :serialize_context, :resolved_references
 
     def initialize(migration_versions:, serialize_context:)
-      @worklist                = {}
-      @resolved_references     = {}
+      @worklist                = {} # Hash[type_name, Hash[id, WorklistEntry]]
+      @resolved_references     = {} # Hash[refname, json]
       @migration_versions      = migration_versions
       @migrated_cache_versions = {}
       @serialize_context       = serialize_context
+    end
+
+    def render_from_cache(viewmodel_class, ids, initial_viewmodels: nil, locked: false)
+      viewmodel_class.transaction do
+        root_serializations = Array.new(ids.size)
+
+        # Collect input array positions for each id, allowing duplicates
+        positions = ids.each_with_index.with_object({}) do |(id, i), h|
+          (h[id] ||= []) << i
+        end
+
+        # If duplicates are specified, fetch each only once
+        ids = positions.keys
+
+        ids_to_render = ids.to_set
+
+        if viewmodel_class < CacheableView
+          # Load existing serializations from the cache
+          cached_serializations = load_from_cache(viewmodel_class.viewmodel_cache, ids)
+          cached_serializations.each do |id, data|
+            positions[id].each do |idx|
+              root_serializations[idx] = data
+            end
+          end
+
+          ids_to_render.subtract(cached_serializations.keys)
+
+          # If initial root viewmodels were provided, call hooks on any
+          # viewmodels which were rendered from the cache to ensure that the
+          # root is visible (in isolation). Other than this, no traversal
+          # callbacks are performed for cache-rendered views. This particularly
+          # requires care for references: if a visible view may refer to
+          # non-visible cacheable views, those referenced views will not be
+          # access control checked.
+          initial_viewmodels&.each do |v|
+            next unless cached_serializations.has_key?(v.id)
+            serialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeVisit, v)
+            serialize_context.run_callback(ViewModel::Callbacks::Hook::AfterVisit, v)
+          end
+        end
+
+        # Render remaining views. If initial viewmodels have been locked, we may
+        # use them to serialize from, otherwise we must reload with share lock
+        # in find_and_preload.
+        available_viewmodels =
+          if locked
+            initial_viewmodels&.each_with_object({}) do |vm, h|
+              h[vm.id] = vm if ids_to_render.include?(vm.id)
+            end
+          end
+
+        viewmodels = find_and_preload_viewmodels(viewmodel_class, ids_to_render.to_a,
+                                                 available_viewmodels: available_viewmodels)
+
+        loaded_serializations = serialize_and_cache(viewmodels)
+
+        loaded_serializations.each do |id, data|
+          positions[id].each do |idx|
+            root_serializations[idx] = data
+          end
+        end
+
+        # recursively resolve referenced views
+        self.resolve_references!
+
+        [root_serializations, self.resolved_references]
+      end
     end
 
     def resolve_references!

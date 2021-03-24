@@ -135,8 +135,8 @@ class ViewModel::ActiveRecord
       [data, refs]
     end
 
-    def fetch_with_cache
-      viewmodel_class.viewmodel_cache.fetch([root.id], migration_versions: migration_versions)
+    def fetch_with_cache(**rest)
+      ViewModel::ActiveRecord::Cache.render_from_cache(viewmodel_class, [root.id], migration_versions: migration_versions, **rest)
     end
 
     def serialize_with_cache
@@ -206,6 +206,19 @@ class ViewModel::ActiveRecord
 
       describe 'without migrations' do
         include BehavesLikeACache
+
+        it 'returns the right serialization with provided initial viewmodel' do
+          fetched_result = parse_result(fetch_with_cache(initial_viewmodels: [root_view]))
+
+          value(fetched_result).must_equal(serialize_from_database)
+        end
+
+        it 'returns the right serialization with provided locked initial viewmodel' do
+          locked_root_view = viewmodel_class.new(model_class.lock("FOR SHARE").find(root.id))
+          fetched_result = parse_result(fetch_with_cache(initial_viewmodels: [locked_root_view], locked: true))
+
+          value(fetched_result).must_equal(serialize_from_database)
+        end
       end
 
       describe 'with migrations' do
@@ -337,8 +350,8 @@ class ViewModel::ActiveRecord
             [data, refs]
           end
 
-          def fetch_with_cache
-            viewmodel_class.viewmodel_cache.fetch([root.id, root2.id])
+          def fetch_with_cache(**rest)
+            ViewModel::ActiveRecord::Cache.render_from_cache(viewmodel_class, [root.id, root2.id], **rest)
           end
 
           it 'merges matching shared references between cache hits and misses' do
@@ -376,8 +389,8 @@ class ViewModel::ActiveRecord
     end
 
     describe 'when fetched by viewmodel' do
-      def fetch_with_cache
-        viewmodel_class.viewmodel_cache.fetch_by_viewmodel([root_view])
+      def fetch_with_cache(**rest)
+        ViewModel::ActiveRecord::Cache.render_viewmodels_from_cache([root_view], **rest)
       end
 
       include CacheableParentAndChildren

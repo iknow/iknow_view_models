@@ -39,14 +39,6 @@ module ViewModel::ActiveRecord::Cache::CacheableView
     def viewmodel_cache
       @viewmodel_cache
     end
-
-    def serialize_from_cache(views, migration_versions: {}, locked: false, serialize_context:)
-      plural = views.is_a?(Array)
-      views = Array.wrap(views)
-      json_views, json_refs = viewmodel_cache.fetch_by_viewmodel(views, locked: locked, migration_versions: migration_versions, serialize_context: serialize_context)
-      json_views = json_views.first unless plural
-      return json_views, json_refs
-    end
   end
 
   # Clear the cache if the view or its nested children were changed during
