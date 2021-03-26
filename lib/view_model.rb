@@ -173,6 +173,17 @@ class ViewModel
       Jbuilder.new { |json| serialize(viewmodel, json, serialize_context: serialize_context) }.attributes!
     end
 
+    def serialize_from_cache(views, migration_versions: {}, locked: false, serialize_context:)
+      plural = views.is_a?(Array)
+      views = Array.wrap(views)
+
+      json_views, json_refs = ViewModel::ActiveRecord::Cache.render_viewmodels_from_cache(
+                    views, locked: locked, migration_versions: migration_versions, serialize_context: serialize_context)
+
+      json_views = json_views.first unless plural
+      return json_views, json_refs
+    end
+
     def encode_json(value)
       # Jbuilder#encode no longer uses MultiJson, but instead calls `.to_json`. In
       # the context of ActiveSupport, we don't want this, because AS replaces the
