@@ -808,6 +808,39 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_match(/Removed entities must have only _type and id fields/, ex.message)
   end
 
+  def test_functional_update_move
+    c1_id, c2_id, c3_id = @model1.children.pluck(:id)
+    c4_id, c5_id = @model2.children.pluck(:id)
+
+    remove_fupdate = build_fupdate do
+      remove([{ '_type' => 'Child', 'id' => c2_id }])
+    end
+
+    append_fupdate = build_fupdate do
+      append([{ '_type' => 'Child', 'id' => c2_id }])
+    end
+
+    move_view = [
+      {
+        '_type' => 'Model',
+        'id'       => @model1.id,
+        'children' => remove_fupdate
+      },
+      {
+        '_type' => 'Model',
+        'id'       => @model2.id,
+        'children' => append_fupdate
+      }
+    ]
+
+    viewmodel_class.deserialize_from_view(move_view)
+    @model1.reload
+    @model2.reload
+
+    assert_equal([c1_id, c3_id], @model1.children.pluck(:id))
+    assert_equal([c4_id, c5_id, c2_id], @model2.children.pluck(:id))
+  end
+
   def test_functional_update_update_success
     c1_id, c2_id, c3_id = @model1.children.pluck(:id)
 
