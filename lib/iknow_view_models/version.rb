@@ -1,5 +1,5 @@
 # frozen_string_literal: true
 
 module IknowViewModels
-  VERSION = '3.2.14'
+  VERSION = '3.3.0'
 end
