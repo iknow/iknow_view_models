@@ -20,15 +20,15 @@ module ViewModel::ActiveRecord::SingularNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def show_associated(scope: nil, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
-    show_association(scope: scope, serialize_context: serialize_context, &block)
+  def show_associated(scope: nil, serialize_context: new_serialize_context, lock_owner: nil, &block)
+    show_association(scope: scope, serialize_context: serialize_context, lock_owner: lock_owner, &block)
   end
 
-  def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
-    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
+  def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil, &block)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
   end
 
-  def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context)
+  def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner)
   end
 end

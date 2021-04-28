@@ -22,23 +22,23 @@ module ViewModel::ActiveRecord::CollectionNestedController
   extend ActiveSupport::Concern
   include ViewModel::ActiveRecord::NestedControllerBase
 
-  def index_associated(scope: nil, serialize_context: new_serialize_context, &block)
-    show_association(scope: scope, serialize_context: serialize_context, &block)
+  def index_associated(scope: nil, serialize_context: new_serialize_context, lock_owner: nil, &block)
+    show_association(scope: scope, serialize_context: serialize_context, lock_owner: lock_owner, &block)
   end
 
   # Deserialize items of the associated type and associate them with the owner,
   # replacing previously associated items.
-  def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
-    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
+  def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil, &block)
+    write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
   end
 
-  def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
-    destroy_association(true, serialize_context: serialize_context, deserialize_context: deserialize_context)
+  def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    destroy_association(true, serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner)
   end
 
   # Deserialize items of the associated type and append them to the owner's
   # collection.
-  def append(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def append(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     assoc_view = nil
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
@@ -50,7 +50,7 @@ module ViewModel::ActiveRecord::CollectionNestedController
         raise ViewModel::DeserializationError::InvalidSyntax.new('Can not provide both `before` and `after` anchors for a collection append')
       end
 
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
 
       assoc_view = owner_view.append_associated(association_name,
                                                 update_hash,
@@ -69,9 +69,9 @@ module ViewModel::ActiveRecord::CollectionNestedController
     assoc_view
   end
 
-  def disassociate(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def disassociate(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
       owner_view.delete_associated(association_name, viewmodel_id, type: viewmodel_class, deserialize_context: deserialize_context)
       render_viewmodel(nil)
     end
