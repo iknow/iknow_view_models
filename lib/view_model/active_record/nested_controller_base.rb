@@ -9,10 +9,10 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
   protected
 
-  def show_association(scope: nil, serialize_context: new_serialize_context)
+  def show_association(scope: nil, serialize_context: new_serialize_context, lock_owner: nil)
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         # Association manipulation methods construct child contexts internally
         associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
@@ -27,12 +27,12 @@ module ViewModel::ActiveRecord::NestedControllerBase
     associated_views
   end
 
-  def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     association_view = nil
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
 
       association_view = owner_view.replace_associated(association_name, update_hash,
                                                        references: refs,
@@ -49,7 +49,11 @@ module ViewModel::ActiveRecord::NestedControllerBase
     association_view
   end
 
-  def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+  def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    if lock_owner
+      owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
+    end
+
     empty_update = collection ? [] : nil
     owner_viewmodel.deserialize_from_view(owner_update_hash(empty_update),
                                           deserialize_context: deserialize_context)
