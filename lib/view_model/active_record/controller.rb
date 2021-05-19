@@ -22,7 +22,7 @@ module ViewModel::ActiveRecord::Controller
   def show(scope: nil, viewmodel_class: self.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     view = nil
     pre_rendered = viewmodel_class.transaction do
-      view = viewmodel_class.find(viewmodel_id, scope: scope, serialize_context: serialize_context)
+      view = viewmodel_class.find(viewmodel_id, scope: scope)
       view = yield(view) if block_given?
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
@@ -33,7 +33,7 @@ module ViewModel::ActiveRecord::Controller
   def index(scope: nil, viewmodel_class: self.viewmodel_class, serialize_context: new_serialize_context(viewmodel_class: viewmodel_class))
     views = nil
     pre_rendered = viewmodel_class.transaction do
-      views = viewmodel_class.load(scope: scope, serialize_context: serialize_context)
+      views = viewmodel_class.load(scope: scope)
       views = yield(views) if block_given?
       prerender_viewmodel(views, serialize_context: serialize_context)
     end
@@ -47,7 +47,7 @@ module ViewModel::ActiveRecord::Controller
     view = nil
     pre_rendered = viewmodel_class.transaction do
       view = viewmodel_class.deserialize_from_view(update_hash, references: refs, deserialize_context: deserialize_context)
-      ViewModel.preload_for_serialization(view, serialize_context: serialize_context)
+      ViewModel.preload_for_serialization(view)
       view = yield(view) if block_given?
       prerender_viewmodel(view, serialize_context: serialize_context)
     end
@@ -57,7 +57,7 @@ module ViewModel::ActiveRecord::Controller
 
   def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
     viewmodel_class.transaction do
-      view = viewmodel_class.find(viewmodel_id, eager_include: false, serialize_context: serialize_context)
+      view = viewmodel_class.find(viewmodel_id, eager_include: false)
       view.destroy!(deserialize_context: deserialize_context)
     end
     render_viewmodel(nil)

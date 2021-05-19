@@ -135,7 +135,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
 
     ## Load instances of the viewmodel by id(s)
-    def find(id_or_ids, scope: nil, lock: nil, eager_include: true, serialize_context: new_serialize_context)
+    def find(id_or_ids, scope: nil, lock: nil, eager_include: true)
       find_scope = self.model_class.all
       find_scope = find_scope.order(:id).lock(lock) if lock
       find_scope = find_scope.merge(scope) if scope
@@ -152,19 +152,19 @@ class ViewModel::ActiveRecord < ViewModel::Record
         end
 
         vms = models.map { |m| self.new(m) }
-        ViewModel.preload_for_serialization(vms, lock: lock, serialize_context: serialize_context) if eager_include
+        ViewModel.preload_for_serialization(vms, lock: lock) if eager_include
         vms
       end
     end
 
     ## Load instances of the viewmodel by scope
     ## TODO: is this too much of a encapsulation violation?
-    def load(scope: nil, eager_include: true, lock: nil, serialize_context: new_serialize_context)
+    def load(scope: nil, eager_include: true, lock: nil)
       load_scope = self.model_class.all
       load_scope = load_scope.lock(lock) if lock
       load_scope = load_scope.merge(scope) if scope
       vms = load_scope.map { |model| self.new(model) }
-      ViewModel.preload_for_serialization(vms, lock: lock, serialize_context: serialize_context) if eager_include
+      ViewModel.preload_for_serialization(vms, lock: lock) if eager_include
       vms
     end
 
@@ -184,7 +184,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
     # Constructs a preload specification of the required models for
     # serializing/deserializing this view. Cycles in the schema will be broken
     # after two layers of eager loading.
-    def eager_includes(serialize_context: new_serialize_context, include_referenced: true, vm_path: [])
+    def eager_includes(include_referenced: true, vm_path: [])
       association_specs = {}
 
       return nil if vm_path.count(self) > 2
@@ -194,19 +194,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
         next unless association_data.is_a?(AssociationData)
         next if association_data.external?
 
-        child_context =
-          if self.synthetic
-            serialize_context
-          elsif association_data.referenced?
-            serialize_context.for_references
-          else
-            serialize_context.for_child(nil, association_name: assoc_name)
-          end
-
         case
         when association_data.through?
           viewmodel = association_data.direct_viewmodel
-          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
+          children = viewmodel.eager_includes(include_referenced: include_referenced, vm_path: child_path)
 
         when !include_referenced && association_data.referenced?
           children = nil # Load up to the root viewmodel, but no further
@@ -215,13 +206,13 @@ class ViewModel::ActiveRecord < ViewModel::Record
           children_by_klass = {}
           association_data.viewmodel_classes.each do |vm_class|
             klass = vm_class.model_class.name
-            children_by_klass[klass] = vm_class.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
+            children_by_klass[klass] = vm_class.eager_includes(include_referenced: include_referenced, vm_path: child_path)
           end
           children = DeepPreloader::PolymorphicSpec.new(children_by_klass)
 
         else
           viewmodel = association_data.viewmodel_class
-          children = viewmodel.eager_includes(serialize_context: child_context, include_referenced: include_referenced, vm_path: child_path)
+          children = viewmodel.eager_includes(include_referenced: include_referenced, vm_path: child_path)
         end
 
         association_specs[association_data.direct_reflection.name.to_s] = children
