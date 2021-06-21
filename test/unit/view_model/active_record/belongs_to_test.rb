@@ -168,26 +168,61 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
 
   class GCTests < ActiveSupport::TestCase
     include ARVMTestUtilities
-    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    include ViewModelSpecHelpers::Base
 
     def model_attributes
       super.merge(
         schema: ->(t) do
+          t.integer :destroyed_child_id
           t.integer :deleted_child_id
           t.integer :ignored_child_id
+          t.foreign_key :children, column: :destroyed_child_id
+          t.foreign_key :children, column: :deleted_child_id
+          t.foreign_key :children, column: :ignored_child_id
         end,
         model: ->(_m) do
-          belongs_to :deleted_child, class_name: Child.name, dependent: :delete
-          belongs_to :ignored_child, class_name: Child.name
+          belongs_to :destroyed_child, class_name: Child.name, inverse_of: :destroyed_model, dependent: :destroy
+          belongs_to :deleted_child,   class_name: Child.name, inverse_of: :deleted_model,   dependent: :delete
+          belongs_to :ignored_child,   class_name: Child.name, inverse_of: :ignored_model
         end,
         viewmodel: ->(_v) do
-          associations :deleted_child, :ignored_child
+          associations :destroyed_child, :deleted_child, :ignored_child
         end)
     end
 
-    # test belongs_to garbage collection - dependent: delete_all
-    def test_gc_dependent_delete_all
+    def child_attributes
+      super.merge(
+        model: ->(_m) do
+          has_one :destroyed_model, class_name: 'Model', inverse_of: :destroyed_child, foreign_key: 'destroyed_child_id'
+          has_one :deleted_model, class_name: 'Model', inverse_of: :deleted_child, foreign_key: 'deleted_child_id'
+          has_one :ignored_model, class_name: 'Model', inverse_of: :ignored_child, foreign_key: 'ignored_child_id'
+        end)
+    end
+
+    def viewmodel_class
+      child_viewmodel_class
+      super
+    end
+
+    # test belongs_to garbage collection - dependent: destroy
+    def test_gc_dependent_destroy
+      model = model_class.create(destroyed_child: Child.new(name: 'one'))
+
+      old_child = model.destroyed_child
+
+      alter_by_view!(ModelView, model) do |ov, _refs|
+        ov['destroyed_child'] = { '_type' => 'Child', 'name' => 'two' }
+      end
+
+      assert_equal('two', model.destroyed_child.name)
+      refute_equal(old_child, model.destroyed_child)
+      assert(Child.where(id: old_child.id).blank?)
+    end
+
+    # test belongs_to garbage collection - dependent: delete
+    def test_gc_dependent_delete
       model = model_class.create(deleted_child: Child.new(name: 'one'))
+
       old_child = model.deleted_child
 
       alter_by_view!(ModelView, model) do |ov, _refs|
