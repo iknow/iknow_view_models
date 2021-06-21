@@ -339,7 +339,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
       # associated here are join-table models; we need to get the far side out
       join_models = associated
 
-      if association_data.direct_viewmodel._list_member?
+      if association_data.ordered?
         attr = association_data.direct_viewmodel._list_attribute_name
         join_models = join_models.sort_by { |j| j[attr] }
       end
@@ -350,11 +350,16 @@ class ViewModel::ActiveRecord < ViewModel::Record
       end
 
     when association_data.collection?
-      associated_viewmodel_class = association_data.viewmodel_class
-      associated_viewmodels = associated.map { |x| associated_viewmodel_class.new(x) }
-      if associated_viewmodel_class._list_member?
+      associated_viewmodels = associated.map do |x|
+        associated_viewmodel_class = association_data.viewmodel_class_for_model!(x.class)
+        associated_viewmodel_class.new(x)
+      end
+
+      # If any associated type is a list member, they must all be
+      if association_data.ordered?
         associated_viewmodels.sort_by!(&:_list_attribute)
       end
+
       associated_viewmodels
 
     else

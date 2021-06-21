@@ -16,6 +16,8 @@ module ViewModel::ActiveRecord::AssociationManipulation
       associated_viewmodel = association_data.viewmodel_class
       direct_viewmodel     = association_data.direct_viewmodel
     else
+      raise ArgumentError.new('Polymorphic STI relationships not supported yet') if association_data.viewmodel_classes.size > 1
+
       associated_viewmodel = association.klass.try { |k| association_data.viewmodel_class_for_model!(k) }
       direct_viewmodel     = associated_viewmodel
     end
@@ -116,6 +118,8 @@ module ViewModel::ActiveRecord::AssociationManipulation
             direct_viewmodel_class = association_data.direct_viewmodel
             root_update_data, referenced_update_data = construct_indirect_append_updates(association_data, subtree_hashes, references)
           else
+            raise ArgumentError.new('Polymorphic STI relationships not supported yet') if association_data.viewmodel_classes.size > 1
+
             direct_viewmodel_class = association_data.viewmodel_class
             root_update_data, referenced_update_data = construct_direct_append_updates(association_data, subtree_hashes, references)
           end
@@ -238,6 +242,8 @@ module ViewModel::ActiveRecord::AssociationManipulation
           direct_viewmodel = association_data.direct_viewmodel
           association_scope = association_scope.where(association_data.indirect_reflection.foreign_key => associated_id)
         else
+          raise ArgumentError.new('Polymorphic STI relationships not supported yet') if association_data.viewmodel_classes.size > 1
+
           # viewmodel type for current association: nil in case of empty polymorphic association
           direct_viewmodel = association.klass.try { |k| association_data.viewmodel_class_for_model!(k) }
 
