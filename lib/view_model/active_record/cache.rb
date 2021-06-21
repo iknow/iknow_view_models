@@ -196,7 +196,7 @@ class ViewModel::ActiveRecord::Cache
     # {id=>serialized_view}. Any references encountered are added to the
     # worklist.
     def load_from_cache(viewmodel_cache, ids)
-      cached_serializations = viewmodel_cache.load(ids, migrated_cache_version(viewmodel_cache), serialize_context: serialize_context)
+      cached_serializations = viewmodel_cache.load(ids, migrated_cache_version(viewmodel_cache))
 
       cached_serializations.each_with_object({}) do |(id, cached_serialization), result|
         add_refs_to_worklist(cached_serialization[:ref_cache])
@@ -255,8 +255,7 @@ class ViewModel::ActiveRecord::Cache
         if viewmodel.class < CacheableView
           cacheable_references = referenced_viewmodels.transform_values { |vm| cacheable_reference(vm) }
           target_cache = viewmodel.class.viewmodel_cache
-          target_cache.store(viewmodel.id, migrated_cache_version(target_cache), data_serialization, cacheable_references,
-                             serialize_context: serialize_context)
+          target_cache.store(viewmodel.id, migrated_cache_version(target_cache), data_serialization, cacheable_references)
         end
 
         result[viewmodel.id] = data_serialization
@@ -279,15 +278,13 @@ class ViewModel::ActiveRecord::Cache
       if ids.present?
         found = viewmodel_class.find(ids,
                                      eager_include: false,
-                                     lock: 'FOR SHARE',
-                                     serialize_context: serialize_context)
+                                     lock: 'FOR SHARE')
         viewmodels.concat(found)
       end
 
       ViewModel.preload_for_serialization(viewmodels,
                                           include_referenced: false,
-                                          lock: 'FOR SHARE',
-                                          serialize_context: serialize_context)
+                                          lock: 'FOR SHARE')
 
       viewmodels
     end
@@ -335,12 +332,12 @@ class ViewModel::ActiveRecord::Cache
   end
 
   # Save the provided serialization and reference data in the cache
-  def store(id, migration_version, data_serialization, ref_cache, serialize_context:)
+  def store(id, migration_version, data_serialization, ref_cache)
     key = key_for(id, migration_version)
     cache_for(migration_version).write(key, { data: data_serialization, ref_cache: ref_cache })
   end
 
-  def load(ids, migration_version, serialize_context:)
+  def load(ids, migration_version)
     keys = ids.map { |id| key_for(id, migration_version) }
     results = cache_for(migration_version).read_multi(keys)
     results.transform_keys! { |key| id_for(key) }

@@ -12,10 +12,10 @@ module ViewModel::ActiveRecord::NestedControllerBase
   def show_association(scope: nil, serialize_context: new_serialize_context, lock_owner: nil)
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         # Association manipulation methods construct child contexts internally
-        associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
+        associated_views = owner_view.load_associated(association_name, scope: scope)
 
         associated_views = yield(associated_views) if block_given?
 
@@ -32,7 +32,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
+      owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
 
       association_view = owner_view.replace_associated(association_name, update_hash,
                                                        references: refs,
@@ -40,7 +40,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         child_context = owner_view.context_for_child(association_name, context: serialize_context)
-        ViewModel.preload_for_serialization(association_view, serialize_context: child_context)
+        ViewModel.preload_for_serialization(association_view)
         association_view = yield(association_view) if block_given?
         prerender_viewmodel(association_view, serialize_context: child_context)
       end
@@ -51,7 +51,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
   def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     if lock_owner
-      owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner, serialize_context: serialize_context)
+      owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
     end
 
     empty_update = collection ? [] : nil

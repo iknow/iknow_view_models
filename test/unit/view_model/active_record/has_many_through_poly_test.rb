@@ -118,7 +118,7 @@ class ViewModel::ActiveRecord::HasManyThroughPolyTest < ActiveSupport::TestCase
   def test_loading_batching
     context = ParentView.new_serialize_context
     log_queries do
-      parent_views = ParentView.load(serialize_context: context)
+      parent_views = ParentView.load
       serialize(parent_views, serialize_context: context)
     end
 

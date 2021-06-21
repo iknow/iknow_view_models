@@ -134,7 +134,7 @@ class ViewModel
     # If this viewmodel represents an AR model, what associations does it make
     # use of? Returns a includes spec appropriate for DeepPreloader, either as
     # AR-style nested hashes or DeepPreloader::Spec.
-    def eager_includes(serialize_context: new_serialize_context, include_referenced: true)
+    def eager_includes(include_referenced: true)
       {}
     end
 
@@ -267,10 +267,10 @@ class ViewModel
       Base64.urlsafe_encode64(hash, padding: false)
     end
 
-    def preload_for_serialization(viewmodels, serialize_context: new_serialize_context, include_referenced: true, lock: nil)
+    def preload_for_serialization(viewmodels, include_referenced: true, lock: nil)
       Array.wrap(viewmodels).group_by(&:class).each do |type, views|
         DeepPreloader.preload(views.map(&:model),
-                              type.eager_includes(serialize_context: serialize_context, include_referenced: include_referenced),
+                              type.eager_includes(include_referenced: include_referenced),
                               lock: lock)
       end
     end
@@ -354,8 +354,8 @@ class ViewModel
     context.for_child(self, association_name: member_name)
   end
 
-  def preload_for_serialization(lock: nil, serialize_context: self.class.new_serialize_context)
-    ViewModel.preload_for_serialization([self], lock: lock, serialize_context: serialize_context)
+  def preload_for_serialization(lock: nil)
+    ViewModel.preload_for_serialization([self], lock: lock)
   end
 
   def ==(other)
