@@ -102,11 +102,18 @@ class ViewModel
   class DownMigrator < Migrator
     private
 
-    def migrate_viewmodel!(view_name, _, view_hash, references)
+    def migrate_viewmodel!(view_name, source_version, view_hash, references)
       path = @paths[view_name]
       return false unless path
 
-      required_version, _current_version = @versions[view_name]
+      # In a serialized output, the source version should always be the present
+      # and the current version, unless already modified by a parent migration
+      required_version, current_version = @versions[view_name]
+      return false if source_version == required_version
+
+      unless source_version == current_version
+        raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
+      end
 
       path.reverse_each do |migration|
         migration.down(view_hash, references)
