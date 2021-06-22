@@ -494,7 +494,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       let(:callback) { CallbackCrasher.new }
 
       it 'raises the callback error' do
-        proc { serialize(vm) }.must_raise(Crash)
+        _(-> { serialize(vm) }).must_raise(Crash)
       end
 
       describe 'with an access control that rejects' do
@@ -503,7 +503,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
         end
 
         it 'fails access control first' do
-          proc { serialize(vm) }.must_raise(ViewModel::AccessControlError)
+          _(-> { serialize(vm) }).must_raise(ViewModel::AccessControlError)
         end
 
         describe 'and a view-mutating callback that crashes' do
@@ -514,7 +514,7 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
           let(:callback) { MutatingCrasher.new }
 
           it 'raises the callback error first' do
-            proc { serialize(vm) }.must_raise(Crash)
+            _(-> { serialize(vm) }).must_raise(Crash)
           end
         end
       end
