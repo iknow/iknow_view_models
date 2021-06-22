@@ -801,7 +801,7 @@ class ViewModel::ActiveRecord
         ReferencedCollectionMember.new(indirect_viewmodel_ref, direct_vm)
       end
 
-      if direct_viewmodel_class._list_member?
+      if association_data.ordered?
         previous_members.sort_by!(&:position)
       end
 
@@ -867,7 +867,7 @@ class ViewModel::ActiveRecord
         viewmodel.association_changed!(association_data.association_name)
       end
 
-      if direct_viewmodel_class._list_member?
+      if association_data.ordered?
         ActsAsManualList.update_positions(target_collection.members)
       end
 

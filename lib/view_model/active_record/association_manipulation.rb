@@ -22,7 +22,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
       direct_viewmodel     = associated_viewmodel
     end
 
-    if direct_viewmodel._list_member?
+    if association_data.ordered?
       association_scope = association_scope.order(direct_viewmodel._list_attribute_name)
     end
 
@@ -131,7 +131,7 @@ module ViewModel::ActiveRecord::AssociationManipulation
           update_context.root_updates.each { |update| update.reparent_to = new_parent }
 
           # Set place in list.
-          if direct_viewmodel_class._list_member?
+          if association_data.ordered?
             new_positions = select_append_positions(association_data,
                                                     direct_viewmodel_class._list_attribute_name,
                                                     update_context.root_updates.count,
