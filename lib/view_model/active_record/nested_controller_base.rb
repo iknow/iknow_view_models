@@ -15,7 +15,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
       ViewModel::Callbacks.wrap_serialize(owner_view, context: serialize_context) do
         # Association manipulation methods construct child contexts internally
-        associated_views = owner_view.load_associated(association_name, scope: scope)
+        associated_views = owner_view.load_associated(association_name, scope: scope, serialize_context: serialize_context)
 
         associated_views = yield(associated_views) if block_given?
 
