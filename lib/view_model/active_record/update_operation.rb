@@ -450,14 +450,13 @@ class ViewModel::ActiveRecord
       parent_data = ParentData.new(association_data.direct_reflection.inverse_of, viewmodel)
 
       # load children already attached to this model
-      child_viewmodel_class = association_data.viewmodel_class
-
       previous_child_viewmodels =
         model.public_send(association_data.direct_reflection.name).map do |child_model|
+          child_viewmodel_class = association_data.viewmodel_class_for_model!(child_model.class)
           child_viewmodel_class.new(child_model)
         end
 
-      if child_viewmodel_class._list_member?
+      if association_data.ordered?
         previous_child_viewmodels.sort_by!(&:_list_attribute)
       end
 
@@ -604,7 +603,7 @@ class ViewModel::ActiveRecord
       # need to be updated anyway since their parent pointer will change.
       new_positions = Array.new(resolved_children.length)
 
-      if association_data.viewmodel_class._list_member?
+      if association_data.ordered?
         set_position = ->(index, pos) { new_positions[index] = pos }
 
         get_previous_position = ->(index) do
@@ -802,7 +801,7 @@ class ViewModel::ActiveRecord
         ReferencedCollectionMember.new(indirect_viewmodel_ref, direct_vm)
       end
 
-      if direct_viewmodel_class._list_member?
+      if association_data.ordered?
         previous_members.sort_by!(&:position)
       end
 
@@ -868,7 +867,7 @@ class ViewModel::ActiveRecord
         viewmodel.association_changed!(association_data.association_name)
       end
 
-      if direct_viewmodel_class._list_member?
+      if association_data.ordered?
         ActsAsManualList.update_positions(target_collection.members)
       end
 

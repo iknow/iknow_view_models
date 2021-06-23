@@ -898,6 +898,131 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_match(/Duplicate functional update targets\b.*\bChild\b/, ex.message)
   end
 
+  describe 'sti polymorphic children' do
+    def setup
+      child_viewmodel_class
+      dog_viewmodel_class
+      cat_viewmodel_class
+      enable_logging!
+    end
+
+    def child_attributes
+      super().merge(schema: ->(t) do
+                      t.string :type, null: false
+                      t.integer :dog_number
+                      t.integer :cat_number
+                    end)
+    end
+
+    def subject_association_features
+      { viewmodels: [:Dog, :Cat] }
+    end
+
+    def dog_viewmodel_class
+      @dog_viewmodel_class ||= define_viewmodel_class(:Dog, namespace: namespace, viewmodel_base: viewmodel_base, model_base: child_model_class) do
+        define_model {}
+        define_viewmodel do
+          attribute :dog_number
+          acts_as_list :position
+        end
+      end
+    end
+
+    def cat_viewmodel_class
+      @cat_viewmodel_class ||= define_viewmodel_class(:Cat, namespace: namespace, viewmodel_base: viewmodel_base, model_base: child_model_class) do
+        define_model {}
+        define_viewmodel do
+          attribute :cat_number
+          acts_as_list :position
+        end
+      end
+    end
+
+    def new_model
+      model_class.new(name: 'p', children: [Dog.new(position: 1, dog_number: 1), Cat.new(position: 2, cat_number: 2)])
+    end
+
+    it 'creates the model structure' do
+      m = create_model!
+      m.reload
+      assert(m.is_a?(Model))
+      children = m.children.order(:position)
+      assert_equal(2, children.size)
+      assert_kind_of(Dog, children[0])
+      assert_kind_of(Cat, children[1])
+    end
+
+    it 'serializes' do
+      model = create_model!
+      view = serialize(ModelView.new(model))
+      expected_view = {
+        'id' => 1, '_type' => 'Model', '_version' => 1, 'name' => 'p',
+        'children' => [
+          { 'id' => 1, '_type' => 'Dog', '_version' => 1, 'dog_number' => 1 },
+          { 'id' => 2, '_type' => 'Cat', '_version' => 1, 'cat_number' => 2 },
+        ]
+      }
+      assert_equal(expected_view, view)
+    end
+
+    it 'creates from view' do
+      view = {
+        '_type' => 'Model',
+        'name' => 'p',
+        'children' => [
+          { '_type' => 'Dog', 'dog_number' => 1 },
+          { '_type' => 'Cat', 'cat_number' => 2 },
+        ]
+      }
+
+      pv = ModelView.deserialize_from_view(view)
+      p = pv.model
+
+      assert(!p.changed?)
+      assert(!p.new_record?)
+
+      assert_equal('p', p.name)
+
+      children = p.children.order(:position)
+
+      assert_equal(2, children.size)
+      assert_kind_of(Dog, children[0])
+      assert_equal(1, children[0].dog_number)
+      assert_kind_of(Cat, children[1])
+      assert_equal(2, children[1].cat_number)
+    end
+
+    it 'updates with reordering' do
+      model = create_model!
+
+      alter_by_view!(ModelView, model) do |view, _refs|
+        view['children'].reverse!
+      end
+
+      children = model.children.order(:position)
+      assert_equal(2, children.size)
+      assert_kind_of(Cat, children[0])
+      assert_equal(2, children[0].cat_number)
+      assert_kind_of(Dog, children[1])
+      assert_equal(1, children[1].dog_number)
+    end
+
+    it 'functional updates' do
+      model = create_model!
+
+      alter_by_view!(ModelView, model) do |view, refs|
+        view['children'] = build_fupdate do
+          append([{ '_type' => 'Cat', 'cat_number' => 100 }])
+        end
+      end
+
+      assert_equal(3, model.children.size)
+      new_child = model.children.order(:position).last
+      assert_kind_of(Cat, new_child)
+      assert_equal(100, new_child.cat_number)
+    end
+  end
+
   describe 'owned reference children' do
     def child_attributes
       super.merge(viewmodel: ->(_v) { root! })

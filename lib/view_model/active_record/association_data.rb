@@ -196,6 +196,21 @@ class ViewModel::ActiveRecord::AssociationData
     viewmodel_classes.first
   end
 
+  def ordered?
+    @ordered ||=
+      if through?
+        direct_viewmodel._list_member?
+      else
+        list_members = viewmodel_classes.map { |c| c._list_member? }.uniq
+
+        if list_members.size > 1
+          raise ArgumentError.new('Inconsistent associated views: mixed list membership')
+        end
+
+        list_members[0]
+      end
+  end
+
   def through?
     @indirect_association_name.present?
   end
