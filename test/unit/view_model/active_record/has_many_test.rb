@@ -972,7 +972,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
         'children' => [
           { '_type' => 'Dog', 'dog_number' => 1 },
           { '_type' => 'Cat', 'cat_number' => 2 },
-        ]
+        ],
       }
 
       pv = ModelView.deserialize_from_view(view)
@@ -1010,7 +1010,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     it 'functional updates' do
       model = create_model!
 
-      alter_by_view!(ModelView, model) do |view, refs|
+      alter_by_view!(ModelView, model) do |view, _refs|
         view['children'] = build_fupdate do
           append([{ '_type' => 'Cat', 'cat_number' => 100 }])
         end
@@ -1020,6 +1020,18 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       new_child = model.children.order(:position).last
       assert_kind_of(Cat, new_child)
       assert_equal(100, new_child.cat_number)
+    end
+
+    it 'calculates eager_includes' do
+      includes = viewmodel_class.eager_includes
+      expected = DeepPreloader::Spec.new(
+        'children' => DeepPreloader::PolymorphicSpec.new(
+          {
+            'Dog' => DeepPreloader::Spec.new,
+            'Cat' => DeepPreloader::Spec.new,
+          }))
+
+      assert_equal(includes, expected)
     end
   end
 

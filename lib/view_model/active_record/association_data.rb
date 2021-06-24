@@ -127,7 +127,9 @@ class ViewModel::ActiveRecord::AssociationData
   end
 
   def polymorphic?
-    target_reflection.polymorphic?
+    # STI polymorphism isn't shown on the association reflection, so in that
+    # case we have to infer it by having multiple target viewmodel types.
+    target_reflection.polymorphic? || viewmodel_classes.size > 1
   end
 
   # The side of the immediate association that holds the pointer.
