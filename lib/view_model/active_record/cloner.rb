@@ -52,22 +52,23 @@ class ViewModel::ActiveRecord::Cloner
           new_associated = associated
         else
           # Otherwise descend into the child, and attach the result
-          vm_class =
-            case
-            when association_data.through?
-              # descend into the synthetic join table viewmodel
-              association_data.direct_viewmodel
-            when association_data.collection?
-              association_data.viewmodel_class
-            else
-              association_data.viewmodel_class_for_model!(associated.class)
-            end
+          build_vm = ->(model) do
+            vm_class =
+              if association_data.through?
+                # descend into the synthetic join table viewmodel
+                association_data.direct_viewmodel
+              else
+                association_data.viewmodel_class_for_model!(model.class)
+              end
+
+            vm_class.new(model)
+          end
 
           new_associated =
             if ViewModel::Utils.array_like?(associated)
-              associated.map { |m| clone(vm_class.new(m)) }.compact
+              associated.map { |m| clone(build_vm.(m)) }.compact
             else
-              clone(vm_class.new(associated))
+              clone(build_vm.(associated))
             end
         end
       end

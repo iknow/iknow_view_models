@@ -75,8 +75,13 @@ module ViewModel::Controller
   protected
 
   def parse_viewmodel_updates
-    update_hash = _extract_update_data(params.fetch(:data))
-    refs        = _extract_param_hash(params.fetch(:references, {}))
+    data_param = params.fetch(:data) do
+      raise ViewModel::Error.new(status: 400, detail: "Missing 'data' parameter")
+    end
+    refs_param = params.fetch(:references, {})
+
+    update_hash = _extract_update_data(data_param)
+    refs        = _extract_param_hash(refs_param)
 
     return update_hash, refs
   end

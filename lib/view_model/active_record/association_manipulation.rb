@@ -395,10 +395,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
   def check_association_type!(association_data, type)
     if type && !association_data.accepts?(type)
       raise ViewModel::SerializationError.new(
-              "Type error: association '#{direct_reflection.name}' can't refer to viewmodel #{type.view_name}")
+              "Type error: association '#{association_data.association_name}' can't refer to viewmodel #{type.view_name}")
     elsif association_data.polymorphic? && !type
       raise ViewModel::SerializationError.new(
-              "Need to specify target viewmodel type for polymorphic association '#{direct_reflection.name}'")
+              "Need to specify target viewmodel type for polymorphic association '#{association_data.association_name}'")
     end
   end
 end
