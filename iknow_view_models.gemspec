@@ -8,7 +8,7 @@ Gem::Specification.new do |spec|
   spec.name          = 'iknow_view_models'
   spec.version       = IknowViewModels::VERSION
   spec.authors       = ['iKnow Team']
-  spec.email         = ['edge@iknow.jp']
+  spec.email         = ['systems@iknow.jp']
   spec.summary       = 'ViewModels provide a means of encapsulating a collection of related data and specifying its JSON serialization.'
   spec.description   = ''
   spec.homepage      = 'https://github.com/iknow/cerego_view_models'
