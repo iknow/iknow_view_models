@@ -3,6 +3,8 @@
 # Mix-in for VM::ActiveRecord providing direct manipulation of
 # directly-associated entities. Avoids loading entire collections.
 module ViewModel::ActiveRecord::AssociationManipulation
+  extend ActiveSupport::Concern
+
   def load_associated(association_name, scope: nil, eager_include: true, serialize_context: self.class.new_serialize_context)
     association_data = self.class._association_data(association_name)
     direct_reflection = association_data.direct_reflection
@@ -49,49 +51,74 @@ module ViewModel::ActiveRecord::AssociationManipulation
     end
   end
 
-  # Replace the current member(s) of an association with the provided hash(es).
+  # Replace the current member(s) of an association with the provided
+  # hash(es).  Only mentioned member(s) will be returned.
+  #
+  # This interface deals with associations directly where reasonable,
+  # with the notable exception of referenced+shared associations. That
+  # is to say, that owned associations should be presented in the form
+  # of direct update hashes, regardless of their
+  # referencing. Reference and shared associations are excluded to
+  # ensure that the update hash for a shared entity is unique, and
+  # that edits may only be specified once.
   def replace_associated(association_name, update_hash, references: {}, deserialize_context: self.class.new_deserialize_context)
-    association_data = self.class._association_data(association_name)
+    _updated_parent, changed_children =
+      self.class.replace_associated_bulk(
+        association_name,
+        { self.id => update_hash },
+        references: references,
+        deserialize_context: deserialize_context
+      ).first
 
-    if association_data.referenced?
-      is_fupdate =
-        association_data.collection? &&
-        update_hash.is_a?(Hash) &&
-        update_hash[ViewModel::ActiveRecord::TYPE_ATTRIBUTE] == ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE
+    changed_children
+  end
 
-      if is_fupdate
-        update_hash[ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE].each_with_index do |action, i|
-          action_type_name = action[ViewModel::ActiveRecord::TYPE_ATTRIBUTE]
-          if action_type_name == ViewModel::ActiveRecord::FunctionalUpdate::Remove::NAME
-            # Remove actions are always type/id refs; others need to be translated to proper refs
-            next
-          end
+  class_methods do
+    # Replace the current member(s) of an association with the provided
+    # hash(es) for many viewmodels.  Only mentioned members will be returned.
+    #
+    # This is an interim implementation that requires loading the contents of
+    # all collections into memory and filtering for the mentioned entities,
+    # even for functional updates.  This is in contrast to append_associated,
+    # which only operates on the new entities.
+    def replace_associated_bulk(association_name, updates_by_parent_id, references:, deserialize_context: self.class.new_deserialize_context)
+      association_data = _association_data(association_name)
 
-          association_references = convert_updates_to_references(
-            action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE],
-            key: "#{action_type_name}_#{i}")
-          references.merge!(association_references)
-          action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE] =
-            association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
-        end
-      else
-        update_hash = ViewModel::Utils.wrap_one_or_many(update_hash) do |sh|
-          association_references = convert_updates_to_references(sh, key: 'replace')
-          references.merge!(association_references)
-          association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+      if association_data.referenced? && association_data.owned?
+        updates_by_parent_id.transform_values!.with_index do |update_hash, index|
+          add_reference_indirection(
+            update_hash,
+            association_data: association_data,
+            references:       references,
+            key:              "replace-associated-bulk-#{index}",
+          )
         end
       end
+
+      touched_ids = updates_by_parent_id.each_with_object({}) do |(parent_id, update_hash), acc|
+        acc[parent_id] =
+          mentioned_children(
+            update_hash,
+            references:       references,
+            association_data: association_data,
+          ).to_set
+      end
+
+      root_update_hashes = updates_by_parent_id.map do |parent_id, update_hash|
+        {
+          ViewModel::ID_ATTRIBUTE   => parent_id,
+          ViewModel::TYPE_ATTRIBUTE => view_name,
+          association_name.to_s     => update_hash,
+        }
+      end
+
+      root_update_viewmodels = deserialize_from_view(
+        root_update_hashes, references: references, deserialize_context: deserialize_context)
+
+      root_update_viewmodels.each_with_object({}) do |updated, acc|
+        acc[updated] = updated._read_association_touched(association_name, touched_ids: touched_ids.fetch(updated.id))
+      end
     end
-
-    root_update_hash = {
-      ViewModel::ID_ATTRIBUTE   => self.id,
-      ViewModel::TYPE_ATTRIBUTE => self.class.view_name,
-      association_name.to_s     => update_hash,
-    }
-
-    root_update_viewmodel = self.class.deserialize_from_view(root_update_hash, references: references, deserialize_context: deserialize_context)
-
-    root_update_viewmodel._read_association(association_name)
   end
 
   # Create or update members of a associated collection. For an ordered
@@ -313,7 +340,10 @@ module ViewModel::ActiveRecord::AssociationManipulation
     indirect_update_data, referenced_update_data = ViewModel::ActiveRecord::UpdateData.parse_hashes(subtree_hashes, references)
 
     # Convert associated update data to references
-    indirect_references = convert_updates_to_references(indirect_update_data, key: 'indirect_append')
+    indirect_references =
+      self.class.convert_updates_to_references(
+        indirect_update_data, key: 'indirect_append')
+
     referenced_update_data.merge!(indirect_references)
 
     # Find any existing models for the direct association: need to re-use any
@@ -350,12 +380,6 @@ module ViewModel::ActiveRecord::AssociationManipulation
     end
 
     return direct_update_data, referenced_update_data
-  end
-
-  def convert_updates_to_references(indirect_update_data, key:)
-    indirect_update_data.each.with_index.with_object({}) do |(update, i), indirect_references|
-      indirect_references["__#{key}_ref_#{i}"] = update
-    end
   end
 
   # TODO: this functionality could reasonably be extracted into `acts_as_manual_list`.
@@ -399,6 +423,130 @@ module ViewModel::ActiveRecord::AssociationManipulation
     elsif association_data.polymorphic? && !type
       raise ViewModel::SerializationError.new(
               "Need to specify target viewmodel type for polymorphic association '#{association_data.association_name}'")
+    end
+  end
+
+  class_methods do
+    def convert_updates_to_references(indirect_update_data, key:)
+      indirect_update_data.each.with_index.with_object({}) do |(update, i), indirect_references|
+        indirect_references["__#{key}_ref_#{i}"] = update
+      end
+    end
+
+    def add_reference_indirection(update_hash, association_data:, references:, key:)
+      raise ArgumentError.new('Not a referenced association') unless association_data.referenced?
+
+      is_fupdate =
+        association_data.collection? &&
+          update_hash.is_a?(Hash) &&
+          update_hash[ViewModel::ActiveRecord::TYPE_ATTRIBUTE] == ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE
+
+      if is_fupdate
+        update_hash[ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE].each_with_index do |action, i|
+          action_type_name = action[ViewModel::ActiveRecord::TYPE_ATTRIBUTE]
+          if action_type_name == ViewModel::ActiveRecord::FunctionalUpdate::Remove::NAME
+            # Remove actions are always type/id refs; others need to be translated to proper refs
+            next
+          end
+
+          association_references = convert_updates_to_references(
+            action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE],
+            key: "#{key}_#{action_type_name}_#{i}")
+          references.merge!(association_references)
+          action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE] =
+            association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+        end
+
+        update_hash
+      else
+        ViewModel::Utils.wrap_one_or_many(update_hash) do |sh|
+          association_references = convert_updates_to_references(sh, key: "#{key}_replace")
+          references.merge!(association_references)
+          association_references.each_key.map { |ref| { ViewModel::REFERENCE_ATTRIBUTE => ref } }
+        end
+      end
+    end
+
+    # Traverses literals and fupdates to return referenced children.
+    #
+    # Runs before the main parser, so must be defensive
+    def each_child_hash(assoc_update, association_data:)
+      return enum_for(__method__, assoc_update, association_data: association_data) unless block_given?
+
+      is_fupdate =
+        association_data.collection? &&
+          assoc_update.is_a?(Hash) &&
+          assoc_update[ViewModel::ActiveRecord::TYPE_ATTRIBUTE] == ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE
+
+      if is_fupdate
+        assoc_update.fetch(ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE).each do |action|
+          action_type_name = action[ViewModel::ActiveRecord::TYPE_ATTRIBUTE]
+          if action_type_name.nil?
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+              "Functional update missing '#{ViewModel::ActiveRecord::TYPE_ATTRIBUTE}'"
+            )
+          end
+
+          if action_type_name == ViewModel::ActiveRecord::FunctionalUpdate::Remove::NAME
+            # Remove actions are not considered children of the action.
+            next
+          end
+
+          values = action.fetch(ViewModel::ActiveRecord::VALUES_ATTRIBUTE) {
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+              "Functional update missing '#{ViewModel::ActiveRecord::VALUES_ATTRIBUTE}'"
+            )
+          }
+          values.each { |x| yield x }
+        end
+      else
+        ViewModel::Utils.wrap_one_or_many(assoc_update) do |assoc_updates|
+          assoc_updates.each { |u| yield u }
+        end
+      end
+    end
+
+    # Collects the ids of children that are mentioned in the update data.
+    #
+    # Runs before the main parser, so must be defensive.
+    def mentioned_children(assoc_update, references:, association_data:)
+      return enum_for(__method__, assoc_update, references: references, association_data: association_data) unless block_given?
+
+      each_child_hash(assoc_update, association_data: association_data).each do |child_hash|
+        unless child_hash.is_a?(Hash)
+          raise ViewModel::DeserializationError::InvalidSyntax.new(
+            "Expected update hash, received: #{child_hash}"
+          )
+        end
+
+        if association_data.referenced?
+          ref_handle = child_hash.fetch(ViewModel::REFERENCE_ATTRIBUTE) {
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+              "Reference hash missing '#{ViewModel::REFERENCE_ATTRIBUTE}'"
+            )
+          }
+
+          ref_update_hash = references.fetch(ref_handle) {
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+              "Reference '#{ref_handle}' does not exist in references"
+            )
+          }
+
+          unless ref_update_hash.is_a?(Hash)
+            raise ViewModel::DeserializationError::InvalidSyntax.new(
+              "Expected update hash, received: #{child_hash}"
+            )
+          end
+
+          if (id = ref_update_hash[ViewModel::ID_ATTRIBUTE])
+            yield id
+          end
+        else
+          if (id = child_hash[ViewModel::ID_ATTRIBUTE])
+            yield id
+          end
+        end
+      end
     end
   end
 end

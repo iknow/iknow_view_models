@@ -187,7 +187,20 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
         it 'traverses as expected in replace_associated' do
           ctx = vm_deserialize_context(viewmodel_class)
           replacement = subject_association.collection? ? [new_child_hash] : new_child_hash
-          vm.replace_associated(subject_association_name, replacement, deserialize_context: ctx)
+          references = {}
+
+          # Referenced collections need to be presented as is, _except_ for when they're owned,
+          # as this is special cased in replace_associated (+_bulk) for convenience.
+          if subject_association.referenced? && !subject_association.owned?
+            replacement = ViewModel::Utils.wrap_one_or_many(replacement) do |replacements|
+              replacements.map!.with_index do |update, index|
+                references["ref#{index}"] = update
+                { ViewModel::REFERENCE_ATTRIBUTE => "ref#{index}" }
+              end
+            end
+          end
+
+          vm.replace_associated(subject_association_name, replacement, references: references, deserialize_context: ctx)
 
           expected = expected_parent_details
           expected = expected.merge(expected_children_details) unless subject_association.referenced?

@@ -438,19 +438,24 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     pv = ParentView.new(@parent1)
     context = ParentView.new_deserialize_context
 
-    nc = pv.replace_associated(:tags,
-                               [{ '_type' => 'Tag', 'name' => 'new_tag' }],
-                               deserialize_context: context)
+    data = [{ ViewModel::REFERENCE_ATTRIBUTE => 'tag1' }]
+    references = { 'tag1' => { '_type' => 'Tag', 'name' => 'new_tag' } }
+
+    updated = pv.replace_associated(:tags,
+      data, references: references,
+      deserialize_context: context)
+
+    post_children = ParentView.new(Parent.find(@parent1.id))._read_association(:tags)
 
     expected_edit_checks = [pv.to_reference,
-                            *nc.map(&:to_reference),]
+                            *post_children.map(&:to_reference),]
 
     assert_contains_exactly(expected_edit_checks,
                             context.valid_edit_refs)
 
-    assert_equal(1, nc.size)
-    assert(nc[0].is_a?(TagView))
-    assert_equal('new_tag', nc[0].name)
+    assert_equal(1, updated.size)
+    assert(updated[0].is_a?(TagView))
+    assert_equal('new_tag', updated[0].name)
 
     @parent1.reload
     assert_equal(['new_tag'], tags(@parent1).map(&:name))
@@ -467,13 +472,19 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     tag2 = @tag2
 
     update = build_fupdate do
-      append([{ '_type' => 'Tag', 'name' => 'new_tag' }])
+      append([{ViewModel::REFERENCE_ATTRIBUTE => 'ref_new_tag'}])
       remove([{ '_type' => 'Tag', 'id' => tag2.id }])
-      update([{ '_type' => 'Tag', 'id' => tag1.id, 'name' => 'renamed tag1' }])
+      update([{ViewModel::REFERENCE_ATTRIBUTE => 'ref_tag1'}])
     end
 
-    nc = pv.replace_associated(:tags, update, deserialize_context: context)
-    new_tag = nc.detect { |t| t.name == 'new_tag' }
+    references = {
+      'ref_new_tag' => { '_type' => 'Tag', 'name' => 'new_tag' },
+      'ref_tag1' => { '_type' => 'Tag', 'id' => tag1.id, 'name' => 'renamed tag1' },
+    }
+
+    updated = pv.replace_associated(:tags, update, references: references, deserialize_context: context)
+    post_children = ParentView.new(Parent.find(@parent1.id))._read_association(:tags)
+    new_tag = post_children.detect { |t| t.name == 'new_tag' }
 
     expected_edit_checks = [ViewModel::Reference.new(ParentView, @parent1.id),
                             ViewModel::Reference.new(TagView, @tag1.id),
@@ -482,7 +493,12 @@ class ViewModel::ActiveRecord::HasManyThroughTest < ActiveSupport::TestCase
     assert_contains_exactly(expected_edit_checks,
                             context.valid_edit_refs)
 
-    assert_equal(2, nc.size)
+    assert_equal(2, post_children.size)
+    assert_equal(2, update.size)
+    assert_contains_exactly(
+      ['new_tag', 'renamed tag1'],
+      updated.map(&:name),
+    )
 
     @parent1.reload
     assert_equal(['renamed tag1', 'new_tag'], tags(@parent1).map(&:name))

@@ -368,6 +368,52 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
   end
 
+  # Rails 6.1 introduced "previously_new_record?", but this library still
+  # supports activerecord >= 5.0. This is an approximation.
+  def self.model_previously_new?(model)
+    if (id_changes = model.saved_change_to_id)
+      old_id, _new_id = id_changes
+      return true if old_id.nil?
+    end
+    false
+  end
+
+  # Helper to return entities that were part of the last deserialization. The
+  # interface is complex due to the data requirements, and the implementation is
+  # inefficient.
+  #
+  # Intended to be used by replace_associated style methods which may touch very
+  # large collections that must not be returned fully. Since the collection is
+  # not being returned, order is also ignored.
+  def _read_association_touched(association_name, touched_ids:)
+    association_data = self.class._association_data(association_name)
+
+    associated = model.public_send(association_data.direct_reflection.name)
+    return nil if associated.nil?
+
+    case
+    when association_data.through?
+      # associated here are join-table models; we need to get the far side out
+      associated.map do |through_model|
+        model = through_model.public_send(association_data.indirect_reflection.name)
+
+        next unless self.class.model_previously_new?(through_model) || touched_ids.include?(model.id)
+
+        association_data.viewmodel_class_for_model!(model.class).new(model)
+      end.reject(&:nil?)
+    when association_data.collection?
+      associated.map do |model|
+        next unless self.class.model_previously_new?(model) || touched_ids.include?(model.id)
+
+        association_data.viewmodel_class_for_model!(model.class).new(model)
+      end.reject(&:nil?)
+    else
+      # singleton always touched by definition
+      model = associated
+      association_data.viewmodel_class_for_model!(model.class).new(model)
+    end
+  end
+
   def _serialize_association(association_name, json, serialize_context:)
     associated = self.public_send(association_name)
     association_data = self.class._association_data(association_name)
