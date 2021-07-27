@@ -268,7 +268,6 @@ module ControllerTestControllers
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :children
     end
 
     Class.new(DummyController) do |_c|
@@ -276,7 +275,6 @@ module ControllerTestControllers
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :label
     end
 
     Class.new(DummyController) do |_c|
@@ -284,7 +282,6 @@ module ControllerTestControllers
       include ViewModel::ActiveRecord::Controller
       include CallbackTracing
       self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :target
     end
   end
 

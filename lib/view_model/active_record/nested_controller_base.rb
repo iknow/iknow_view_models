@@ -78,22 +78,16 @@ module ViewModel::ActiveRecord::NestedControllerBase
     parse_param(id_param_name, **default)
   end
 
-  included do
-    delegate :owner_viewmodel, :association_name, to: 'self.class'
+  def owner_viewmodel_class_for_name(name)
+    ViewModel::Registry.for_view_name(name)
   end
 
-  class_methods do
-    attr_accessor :owner_viewmodel, :association_name
+  def owner_viewmodel
+    name = params.fetch(:owner_viewmodel) { raise ArgumentError.new("No owner viewmodel present") }
+    owner_viewmodel_class_for_name(name.to_s.camelize)
+  end
 
-    def nested_in(owner, as:)
-      unless owner.is_a?(Class) && owner < ViewModel::Record
-        owner = ViewModel::Registry.for_view_name(owner.to_s.camelize)
-      end
-
-      self.owner_viewmodel = owner
-      raise ArgumentError.new("Could not find owner ViewModel class '#{owner_name}'") if owner_viewmodel.nil?
-
-      self.association_name = as
-    end
+  def association_name
+    params.fetch(:association_name) { raise ArgumentError.new('No association name from routes') }
   end
 end

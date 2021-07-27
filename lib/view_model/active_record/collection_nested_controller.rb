@@ -3,8 +3,7 @@
 require 'view_model/active_record/nested_controller_base'
 
 # Controller mixin for accessing a root ViewModel which can be accessed in a
-# collection by a parent model. Enabled by calling `nested_in :parent, as:
-# :children` on the viewmodel controller
+# collection by a parent model.
 
 # Contributes the following routes:
 # PUT    /parents/:parent_id/children            #append  -- deserialize (possibly existing) children and append to collection

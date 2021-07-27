@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 # Controller mixin for accessing a root ViewModel which can be accessed
-# individually by a parent model. Enabled by calling `nested_in :parent, as:
-# :child` on the viewmodel controller
+# individually by a parent model.
 
 # Contributes the following routes:
 # POST   /parents/:parent_id/child   #create_associated  -- deserialize (possibly existing) child, replacing existing child

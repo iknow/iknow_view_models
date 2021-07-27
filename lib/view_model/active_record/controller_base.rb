@@ -102,15 +102,28 @@ module ActionDispatch
         def arvm_resources(resource_name, options = {}, &block)
           except             = options.delete(:except) { [] }
           add_shallow_routes = options.delete(:add_shallow_routes) { true }
+          defaults           = options.delete(:defaults) { {} }
 
           nested = shallow_nesting_depth > 0
+
+          association_name = options.delete(:association_name) { resource_name.to_s }
+          owner_viewmodel  = options.delete(:owner_viewmodel) do
+            if nested
+              parent_resource.name.to_s.singularize.camelize
+            end
+          end
+
+          defaults = {
+            association_name: association_name,
+            owner_viewmodel: owner_viewmodel,
+          }.merge(defaults)
 
           only_routes = []
           only_routes += [:create] unless nested
           only_routes += [:show, :destroy] if add_shallow_routes
           only_routes -= except
 
-          resources resource_name, shallow: true, only: only_routes, **options do
+          resources resource_name, shallow: true, only: only_routes, defaults: defaults, **options do
             instance_eval(&block) if block_given?
 
             if nested
@@ -149,16 +162,29 @@ module ActionDispatch
         def arvm_resource(resource_name, options = {}, &block)
           except             = options.delete(:except) { [] }
           add_shallow_routes = options.delete(:add_shallow_routes) { true }
+          defaults           = options.delete(:defaults) { {} }
 
           only_routes = []
-          is_shallow = false
-          resource resource_name, shallow: true, only: only_routes, **options do
-            is_shallow = shallow_nesting_depth > 1
+          nested = shallow_nesting_depth > 0
+
+          association_name = options.delete(:association_name) { resource_name.to_s }
+          owner_viewmodel  = options.delete(:owner_viewmodel) do
+            if nested
+              parent_resource.name.to_s.singularize.camelize
+            end
+          end
+
+          defaults = {
+            association_name: association_name,
+            owner_viewmodel: owner_viewmodel,
+          }.merge(defaults)
+
+          resource resource_name, shallow: true, only: only_routes, defaults: defaults, **options do
             instance_eval(&block) if block_given?
 
             name_route = { as: '' } # Only one route may take the name
 
-            if is_shallow
+            if nested
               post('',   action: :create_associated,  **name_route.extract!(:as)) unless except.include?(:create)
               get('',    action: :show_associated,    **name_route.extract!(:as)) unless except.include?(:show)
               delete('', action: :destroy_associated, **name_route.extract!(:as)) unless except.include?(:destroy)
@@ -170,7 +196,7 @@ module ActionDispatch
           end
 
           # singularly nested resources provide collection accessors at the top level
-          if is_shallow && add_shallow_routes
+          if nested && add_shallow_routes
             resources resource_name.to_s.pluralize, shallow: true, only: [:show, :destroy] - except do
               shallow_scope do
                 collection do
