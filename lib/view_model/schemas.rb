@@ -39,6 +39,50 @@ class ViewModel::Schemas
 
   VIEWMODEL_REFERENCE = JsonSchema.parse!(VIEWMODEL_REFERENCE_SCHEMA)
 
+  BULK_UPDATE_SCHEMA =
+    {
+      'type'                 => 'object',
+      'description'          => 'bulk update collection',
+      'properties'           => {
+        ViewModel::TYPE_ATTRIBUTE => {
+          'type' => 'string',
+          'enum' => [ViewModel::BULK_UPDATE_TYPE],
+        },
+
+        ViewModel::BULK_UPDATES_ATTRIBUTE => {
+          'type'  => 'array',
+          'items' => {
+            'type'                 => 'object',
+            'properties'           => {
+              ViewModel::ID_ATTRIBUTE => ID_SCHEMA,
+
+              # These will be checked by the main deserialize operation. Any operations on the data
+              # before the main serialization must do its own checking of the presented update data.
+
+              ViewModel::BULK_UPDATE_ATTRIBUTE => {
+                'oneOf' => [
+                  { 'type' => 'array' },
+                  { 'type' => 'object' },
+                ]
+              },
+            },
+            'additionalProperties' => false,
+            'required'             => [
+              ViewModel::ID_ATTRIBUTE,
+              ViewModel::BULK_UPDATE_ATTRIBUTE,
+            ],
+          },
+        }
+      },
+      'additionalProperties' => false,
+      'required'             => [
+        ViewModel::TYPE_ATTRIBUTE,
+        ViewModel::BULK_UPDATES_ATTRIBUTE,
+      ],
+    }.freeze
+
+  BULK_UPDATE = JsonSchema.parse!(BULK_UPDATE_SCHEMA)
+
   def self.verify_schema!(schema, value)
     valid, errors = schema.validate(value)
     unless valid

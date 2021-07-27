@@ -12,6 +12,10 @@ class ViewModel
   VERSION_ATTRIBUTE   = '_version'
   NEW_ATTRIBUTE       = '_new'
 
+  BULK_UPDATE_TYPE       = '_bulk_update'
+  BULK_UPDATES_ATTRIBUTE = 'updates'
+  BULK_UPDATE_ATTRIBUTE  = 'update'
+
   # Migrations leave a metadata attribute _migrated on any views that they
   # alter. This attribute is accessible as metadata when deserializing migrated
   # input, and is included in the output serialization sent to clients.

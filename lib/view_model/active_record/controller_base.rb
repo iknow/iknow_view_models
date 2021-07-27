@@ -123,6 +123,13 @@ module ActionDispatch
           only_routes += [:show, :destroy] if add_shallow_routes
           only_routes -= except
 
+          # Bulk replace
+          if nested && !except.include?(:replace_bulk)
+            collection do
+              post resource_name, controller: resource_name, action: :replace_bulk, as: nil, defaults: defaults
+            end
+          end
+
           resources resource_name, shallow: true, only: only_routes, defaults: defaults, **options do
             instance_eval(&block) if block_given?
 
@@ -178,6 +185,12 @@ module ActionDispatch
             association_name: association_name,
             owner_viewmodel: owner_viewmodel,
           }.merge(defaults)
+
+          if nested && !except.include?(:create_associated_bulk)
+            collection do
+              post resource_name, controller: resource_name, action: :create_associated_bulk, as: nil, defaults: defaults
+            end
+          end
 
           resource resource_name, shallow: true, only: only_routes, defaults: defaults, **options do
             instance_eval(&block) if block_given?

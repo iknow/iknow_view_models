@@ -27,6 +27,10 @@ module ViewModel::ActiveRecord::SingularNestedController
     write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
   end
 
+  def create_associated_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association_bulk(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
+  end
+
   def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     destroy_association(false, serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner)
   end

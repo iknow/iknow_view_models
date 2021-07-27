@@ -7,6 +7,40 @@ require 'view_model/active_record/controller_base'
 module ViewModel::ActiveRecord::NestedControllerBase
   extend ActiveSupport::Concern
 
+  class ParentProxyModel < ViewModel
+    # Prevent this from appearing in hooks
+    self.synthetic = true
+
+    attr_reader :parent, :association_data, :changed_children
+
+    def initialize(parent, association_data, changed_children)
+      @parent = parent
+      @association_data = association_data
+      @changed_children = changed_children
+    end
+
+    def serialize(json, serialize_context:)
+      ViewModel::Callbacks.wrap_serialize(parent, context: serialize_context) do
+        child_context = parent.context_for_child(association_data.association_name, context: serialize_context)
+
+        json.set!(ViewModel::ID_ATTRIBUTE, parent.id)
+        json.set!(ViewModel::BULK_UPDATE_ATTRIBUTE) do
+          if association_data.referenced? && !association_data.owned?
+            if association_data.collection?
+              json.array!(changed_children) do |child|
+                ViewModel.serialize_as_reference(child, json, serialize_context: child_context)
+              end
+            else
+              ViewModel.serialize_as_reference(changed_children, json, serialize_context: child_context)
+            end
+          else
+            ViewModel.serialize(changed_children, json, serialize_context: child_context)
+          end
+        end
+      end
+    end
+  end
+
   protected
 
   def show_association(scope: nil, serialize_context: new_serialize_context, lock_owner: nil)
@@ -48,6 +82,45 @@ module ViewModel::ActiveRecord::NestedControllerBase
     render_json_string(pre_rendered)
     association_view
   end
+
+  def write_association_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    updated_by_parent_viewmodel = nil
+
+    association_data = owner_viewmodel._association_data(association_name)
+
+    pre_rendered = owner_viewmodel.transaction do
+      updates_by_parent_id, references = parse_bulk_update
+
+      updated_by_parent_viewmodel =
+        owner_viewmodel.replace_associated_bulk(
+          association_name,
+          updates_by_parent_id,
+          references:          references,
+          deserialize_context: deserialize_context,
+        )
+
+      views = updated_by_parent_viewmodel.flat_map { |_parent_viewmodel, updated_views| Array.wrap(updated_views) }
+
+      ViewModel.preload_for_serialization(views)
+
+      updated_by_parent_viewmodel = yield(updated_by_parent_viewmodel) if block_given?
+
+      return_updates = updated_by_parent_viewmodel.map do |owner_view, updated_views|
+        ParentProxyModel.new(owner_view, association_data, updated_views)
+      end
+
+      return_structure = {
+        ViewModel::TYPE_ATTRIBUTE         => ViewModel::BULK_UPDATE_TYPE,
+        ViewModel::BULK_UPDATES_ATTRIBUTE => return_updates,
+      }
+
+      prerender_viewmodel(return_structure, serialize_context: serialize_context)
+    end
+
+    render_json_string(pre_rendered)
+    updated_by_parent_viewmodel
+  end
+
 
   def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     if lock_owner

@@ -31,6 +31,10 @@ module ViewModel::ActiveRecord::CollectionNestedController
     write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
   end
 
+  def replace_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association_bulk(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
+  end
+
   def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     destroy_association(true, serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner)
   end

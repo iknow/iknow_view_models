@@ -84,14 +84,19 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     end
   end
 
+  def make_parent(name: 'p', child_names: ['c1', 'c2'])
+    Parent.create(
+      name:     'p',
+      children: child_names.each_with_index.map { |c, pos|
+        Child.new(name: "c#{pos + 1}", position: (pos + 1).to_f)
+      },
+      label: Label.new,
+      target: Target.new)
+  end
+
   def setup
     super
-    @parent = Parent.create(name: 'p',
-                            children: [Child.new(name: 'c1', position: 1.0),
-                                       Child.new(name: 'c2', position: 2.0),],
-                            label: Label.new,
-                            target: Target.new)
-
+    @parent = make_parent
     @parent_view = ParentView.new(@parent)
 
     enable_logging!
@@ -439,6 +444,51 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
   end
 
+  def test_nested_collection_replace_bulk
+    other_parent = make_parent(name: 'p_other', child_names: ['other_c1', 'other_c2'])
+
+    old_children = other_parent.children + @parent.children
+
+    data = {
+      '_type' => '_bulk_update',
+      'updates' => [
+        {
+          'id' => @parent.id,
+          'update' => [
+            { '_type' => 'Child', 'name' => 'newc1' },
+            { '_type' => 'Child', 'name' => 'newc2' },],
+        },
+        {
+          'id' => other_parent.id,
+          'update' => [
+            { '_type' => 'Child', 'name' => 'other_newc1' },
+            { '_type' => 'Child', 'name' => 'other_newc2' },],
+        }
+      ],
+    }
+
+    childcontroller = ChildController.new(params: {
+      owner_viewmodel:  'parent',
+      association_name: 'children',
+      data:             data,
+    })
+
+    childcontroller.invoke(:replace_bulk)
+
+    assert_equal(200, childcontroller.status, childcontroller.hash_response)
+
+    @parent.reload
+    other_parent.reload
+
+    assert_equal(%w[newc1 newc2], @parent.children.order(:position).pluck(:name))
+    assert_equal(%w[other_newc1 other_newc2], other_parent.children.order(:position).pluck(:name))
+
+    assert_predicate(Child.where(id: old_children.map(&:id)), :empty?)
+
+    assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
+  end
+
+
   def test_nested_collection_disassociate_one
     old_child = @parent.children.first
     childcontroller = ChildController.new(params: {
@@ -659,5 +709,182 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal('new label', old_label.text)
     assert_equal({ 'data' => LabelView.new(old_label).to_hash },
                  labelcontroller.hash_response)
+  end
+
+  def test_nested_singular_replace_bulk
+    other_parent = make_parent(name: 'p_other', child_names: ['other_c1', 'other_c2'])
+
+    label       = @parent.label
+    other_label = other_parent.label
+
+    data = {
+      '_type'   => '_bulk_update',
+      'updates' => [
+        {
+          'id'     => @parent.id,
+          'update' => {
+            '_type' => 'Label',
+            'id'    => @parent.label.id,
+            'text'  => 'parent, new label text'
+          }
+        },
+        {
+          'id'     => other_parent.id,
+          'update' => {
+            '_type' => 'Label',
+            'id'    => other_parent.label.id,
+            'text'  => 'other parent, new label text'
+          }
+        }
+      ],
+    }
+
+    labelcontroller = LabelController.new(params: {
+      owner_viewmodel:  'parent',
+      association_name: 'label',
+      data:             data,
+    })
+
+    labelcontroller.invoke(:create_associated_bulk)
+
+    label.reload
+    other_label.reload
+
+    assert_equal('parent, new label text', label.text)
+    assert_equal('other parent, new label text', other_label.text)
+
+    response = labelcontroller.hash_response
+    response['data']['updates'].sort_by! { |x| x.fetch('id') }
+
+    assert_equal(
+      {
+        'data' => {
+          '_type' => '_bulk_update',
+          'updates' => [
+            {
+              'id'     => @parent.id,
+              'update' => LabelView.new(label).to_hash,
+            },
+            {
+              'id'     => other_parent.id,
+              'update' => LabelView.new(other_label).to_hash,
+            },
+          ].sort_by { |x| x.fetch('id') }
+        }
+      },
+      response,
+    )
+  end
+
+  # Singular shared
+
+  def test_nested_shared_singular_replace_bulk
+    data = {
+      '_type' => '_bulk_update',
+      'updates' => [
+        {
+          'id' => @parent.id,
+          'update' => { '_ref' => 'new_cat' },
+        }
+      ]
+    }
+
+    references = {
+      'new_cat' => {
+        '_type' => 'Category',
+        '_new' => true,
+        'name' => 'cat name'
+      }
+    }
+
+    category_controller = CategoryController.new(params: {
+      owner_viewmodel:  'parent',
+      association_name: 'category',
+      data:             data,
+      references:       references,
+    })
+
+    category_controller.invoke(:replace_bulk)
+
+    response = category_controller.hash_response
+
+    data, references = response.values_at('data', 'references')
+    ref_key = references.keys.first
+
+    assert_equal(
+      {
+        '_type'   => '_bulk_update',
+        'updates' => [{
+          'id'     => @parent.id,
+          'update' => { '_ref' => ref_key }
+        }],
+      },
+      data,
+    )
+
+    @parent.reload
+
+    assert_equal(
+      {
+        ref_key => CategoryView.new(@parent.category).to_hash,
+      },
+      references,
+    )
+  end
+
+  # Collection shared
+
+  def test_nested_shared_collection_replace_bulk
+    data = {
+      '_type' => '_bulk_update',
+      'updates' => [
+        {
+          'id' => @parent.id,
+          'update' => [{ '_ref' => 'new_tag' }],
+        }
+      ]
+    }
+
+    references = {
+      'new_tag' => {
+        '_type' => 'Tag',
+        '_new' => true,
+        'name' => 'tag name'
+      }
+    }
+
+    tags_controller = TagController.new(params: {
+      owner_viewmodel:  'parent',
+      association_name: 'tags',
+      data:             data,
+      references:       references,
+    })
+
+    tags_controller.invoke(:replace_bulk)
+
+    response = tags_controller.hash_response
+
+    data, references = response.values_at('data', 'references')
+    ref_key = references.keys.first
+
+    assert_equal(
+      {
+        '_type'   => '_bulk_update',
+        'updates' => [{
+          'id'     => @parent.id,
+          'update' => [{ '_ref' => ref_key }]
+        }],
+      },
+      data,
+    )
+
+    @parent.reload
+
+    assert_equal(
+      {
+        ref_key => TagView.new(@parent.parent_tags.first.tag).to_hash,
+      },
+      references,
+    )
   end
 end

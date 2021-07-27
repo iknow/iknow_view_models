@@ -80,6 +80,7 @@ module ControllerTestModels
         has_one    :target,   dependent: :destroy, inverse_of: :parent
         belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
         belongs_to :category
+        has_many   :parent_tags
       end
       define_viewmodel do
         root!
@@ -90,6 +91,7 @@ module ControllerTestModels
         association  :children
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
         association  :category, external: true
+        association :tags, through: :parent_tags, external: true
 
         migrates from: 1, to: 2 do
           up do |view, _refs|
@@ -103,6 +105,31 @@ module ControllerTestModels
           end
         end
       end
+    end
+
+    build_viewmodel(:Tag) do
+      define_schema do |t|
+        t.string :name, null: false
+      end
+      define_model do
+        has_many :parent_tags
+      end
+      define_viewmodel do
+        root!
+        attributes :name
+      end
+    end
+
+    build_viewmodel(:ParentTag) do
+      define_schema do |t|
+        t.references :parent, foreign_key: true
+        t.references :tag, foreign_key: true
+      end
+      define_model do
+        belongs_to :parent
+        belongs_to :tag
+      end
+      no_viewmodel
     end
 
     build_viewmodel(:Child) do
@@ -253,40 +280,30 @@ module CallbackTracing
 end
 
 module ControllerTestControllers
+  CONTROLLER_NAMES = [
+    :ParentController,
+    :ChildController,
+    :LabelController,
+    :TargetController,
+    :CategoryController,
+    :TagController,
+  ]
+
   def before_all
     super
 
-    Class.new(DummyController) do |_c|
-      Object.const_set(:ParentController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:ChildController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:LabelController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:TargetController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
+    CONTROLLER_NAMES.each do |name|
+      Class.new(DummyController) do |_c|
+        Object.const_set(name, self)
+        include ViewModel::ActiveRecord::Controller
+        include CallbackTracing
+        self.access_control = ViewModel::AccessControl::Open
+      end
     end
   end
 
   def after_all
-    [:ParentController, :ChildController, :LabelController, :TargetController].each do |name|
+    CONTROLLER_NAMES.each do |name|
       Object.send(:remove_const, name)
     end
     ActiveSupport::Dependencies::Reference.clear!
