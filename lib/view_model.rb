@@ -27,6 +27,14 @@ class ViewModel
     attr_reader   :view_aliases
     attr_writer   :view_name
 
+    # Boolean to indicate if the viewmodel is synthetic. Synthetic
+    # viewmodels are nearly-invisible glue. They're full viewmodels,
+    # but do not participate in hooks or registration. For example, a
+    # join table connecting A and B through T has a synthetic
+    # viewmodel T to represent the join model, but the external
+    # interface is a relationship of A to a list of Bs.
+    attr_accessor :synthetic
+
     def inherited(subclass)
       super
       subclass.initialize_as_viewmodel

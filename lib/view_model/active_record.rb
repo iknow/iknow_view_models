@@ -35,13 +35,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   class << self
     attr_reader   :_list_attribute_name
-    attr_accessor :synthetic
 
     delegate :transaction, to: :model_class
-
-    def should_register?
-      super && !synthetic
-    end
 
     # Specifies that the model backing this viewmodel is a member of an
     # `acts_as_manual_list` collection.

@@ -35,7 +35,7 @@ class ViewModel::Record < ViewModel
 
     # Should this class be registered in the viewmodel registry
     def should_register?
-      !abstract_class && !unregistered
+      !abstract_class && !unregistered && !synthetic
     end
 
     # Specifies an attribute from the model to be serialized in this view
