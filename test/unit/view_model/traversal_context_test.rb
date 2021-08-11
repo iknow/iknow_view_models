@@ -189,8 +189,9 @@ class ViewModel::TraversalContextTest < ActiveSupport::TestCase
           replacement = subject_association.collection? ? [new_child_hash] : new_child_hash
           references = {}
 
-          # Referenced collections need to be presented as is, _except_ for when they're owned,
-          # as this is special cased in replace_associated (+_bulk) for convenience.
+          # Referenced collections need to be presented as is, _except_ for when they're owned, as
+          # this is special cased in NestedControllerBase#write_association (+_bulk) for
+          # convenience.
           if subject_association.referenced? && !subject_association.owned?
             replacement = ViewModel::Utils.wrap_one_or_many(replacement) do |replacements|
               replacements.map!.with_index do |update, index|

@@ -1300,7 +1300,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       it 'replaces children' do
         view = create_viewmodel!
         view.replace_associated(:children,
-                                [{ '_type' => 'Child', 'name' => 'newchildname' }])
+          [{ '_ref' => 'the_child' }],
+          references: { 'the_child' => { '_type' => 'Child', 'name' => 'newchildname' } }
+        )
 
         view.model.reload
 

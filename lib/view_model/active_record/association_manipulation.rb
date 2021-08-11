@@ -84,17 +84,6 @@ module ViewModel::ActiveRecord::AssociationManipulation
     def replace_associated_bulk(association_name, updates_by_parent_id, references:, deserialize_context: self.class.new_deserialize_context)
       association_data = _association_data(association_name)
 
-      if association_data.referenced? && association_data.owned?
-        updates_by_parent_id.transform_values!.with_index do |update_hash, index|
-          add_reference_indirection(
-            update_hash,
-            association_data: association_data,
-            references:       references,
-            key:              "replace-associated-bulk-#{index}",
-          )
-        end
-      end
-
       touched_ids = updates_by_parent_id.each_with_object({}) do |(parent_id, update_hash), acc|
         acc[parent_id] =
           mentioned_children(

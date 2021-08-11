@@ -61,10 +61,27 @@ module ViewModel::ActiveRecord::NestedControllerBase
     associated_views
   end
 
+  # This method always takes direct update hashes, and returns
+  # viewmodels directly.
+  #
+  # There's no multi membership, so when viewing the children of a
+  # single parent each child can only appear once. This means it's
+  # safe to use update hashes directly.
   def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     association_view = nil
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
+
+      association_data = owner_viewmodel._association_data(association_name)
+      if association_data.referenced?
+        update_hash =
+          ViewModel::ActiveRecord.add_reference_indirection(
+            update_hash,
+            association_data: association_data,
+            references:       refs,
+            key:              'write-association',
+          )
+      end
 
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
 
@@ -83,6 +100,14 @@ module ViewModel::ActiveRecord::NestedControllerBase
     association_view
   end
 
+  # This method takes direct update hashes for owned associations, and
+  # reference hashes for shared associations. The return value matches
+  # the input structure.
+  #
+  # If an association is referenced and owned, each child may only
+  # appear once so each is guaranteed to have a unique update
+  # hash. This means it's only safe to use update hashes directly in
+  # this case.
   def write_association_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
     updated_by_parent_viewmodel = nil
 
@@ -90,6 +115,17 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
     pre_rendered = owner_viewmodel.transaction do
       updates_by_parent_id, references = parse_bulk_update
+
+      if association_data.referenced? && association_data.owned?
+        updates_by_parent_id.transform_values!.with_index do |update_hash, index|
+          ViewModel::ActiveRecord.add_reference_indirection(
+            update_hash,
+            association_data: association_data,
+            references:       references,
+            key:              "write-association-bulk-#{index}",
+          )
+        end
+      end
 
       updated_by_parent_viewmodel =
         owner_viewmodel.replace_associated_bulk(
