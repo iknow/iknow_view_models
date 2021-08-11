@@ -13,7 +13,12 @@ require 'acts_as_manual_list'
 
 # models for ARVM controller test
 module ControllerTestModels
-  def build_controller_test_models
+  def build_controller_test_models(externalize: [])
+    unsupported_externals = externalize - [:label, :target, :child]
+    unless unsupported_externals.empty?
+      raise ArgumentError.new("build_controller_test_models cannot externalize: #{unsupported_externals.join(", ")}")
+    end
+
     build_viewmodel(:Label) do
       define_schema do |t|
         t.string :text
@@ -23,6 +28,7 @@ module ControllerTestModels
         has_one :target
       end
       define_viewmodel do
+        root! if externalize.include?(:label)
         attributes :text
       end
     end
@@ -85,8 +91,9 @@ module ControllerTestModels
         self.schema_version = 2
 
         attributes   :name
-        associations :label, :target
-        association  :children
+        association  :target, external: externalize.include?(:target)
+        association  :label, external: externalize.include?(:label)
+        association  :children, external: externalize.include?(:child)
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
         association  :category, external: true
         association :tags, through: :parent_tags, external: true
@@ -147,6 +154,7 @@ module ControllerTestModels
         validates :age, numericality: { less_than: 42 }, allow_nil: true
       end
       define_viewmodel do
+        root! if externalize.include?(:child)
         attributes :name, :age
         acts_as_list :position
       end
@@ -163,6 +171,7 @@ module ControllerTestModels
         belongs_to :label, dependent: :destroy
       end
       define_viewmodel do
+        root! if externalize.include?(:target)
         attributes :text
         association :label
       end

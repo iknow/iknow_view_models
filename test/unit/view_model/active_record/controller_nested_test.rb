@@ -18,7 +18,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
   def before_all
     super
 
-    build_controller_test_models
+    build_controller_test_models(externalize: [:label, :child, :target])
   end
 
   def setup
@@ -330,24 +330,24 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
   end
 
   def test_nested_singular_destroy_from_parent
-    old_label = @parent.label
+    old_target = @parent.target
 
-    labelcontroller = LabelController.new(params: {
+    targetcontroller = TargetController.new(params: {
       owner_viewmodel:  'parent',
-      association_name: 'label',
+      association_name: 'target',
       parent_id:        @parent.id,
     })
-    labelcontroller.invoke(:destroy_associated)
+    targetcontroller.invoke(:destroy_associated)
 
     @parent.reload
 
-    assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
-    assert_equal({ 'data' => nil }, labelcontroller.hash_response)
+    assert_equal(200, targetcontroller.status, targetcontroller.hash_response)
+    assert_equal({ 'data' => nil }, targetcontroller.hash_response)
 
-    assert_nil(@parent.label)
-    assert_predicate(Label.where(id: old_label.id), :empty?)
+    assert_nil(@parent.target)
+    assert_predicate(Target.where(id: old_target.id), :empty?)
 
-    assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
+    assert_all_hooks_nested_inside_parent_hook(targetcontroller.hook_trace)
   end
 
   def test_nested_singular_update_from_parent
@@ -421,8 +421,8 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
   def test_nested_singular_replace_bulk
     other_parent = make_parent(name: 'p_other', child_names: ['other_c1', 'other_c2'])
 
-    label       = @parent.label
-    other_label = other_parent.label
+    target       = @parent.target
+    other_target = other_parent.target
 
     data = {
       '_type'   => '_bulk_update',
@@ -430,37 +430,39 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
         {
           'id'     => @parent.id,
           'update' => {
-            '_type' => 'Label',
-            'id'    => @parent.label.id,
-            'text'  => 'parent, new label text'
+            '_type' => 'Target',
+            'id'    => @parent.target.id,
+            'text'  => 'parent, new target text'
           }
         },
         {
           'id'     => other_parent.id,
           'update' => {
-            '_type' => 'Label',
-            'id'    => other_parent.label.id,
-            'text'  => 'other parent, new label text'
+            '_type' => 'Target',
+            'id'    => other_parent.target.id,
+            'text'  => 'other parent, new target text'
           }
         }
       ],
     }
 
-    labelcontroller = LabelController.new(params: {
+    targetcontroller = TargetController.new(params: {
       owner_viewmodel:  'parent',
-      association_name: 'label',
+      association_name: 'target',
       data:             data,
     })
 
-    labelcontroller.invoke(:create_associated_bulk)
+    targetcontroller.invoke(:create_associated_bulk)
 
-    label.reload
-    other_label.reload
+    assert_equal(200, targetcontroller.status, targetcontroller.hash_response)
 
-    assert_equal('parent, new label text', label.text)
-    assert_equal('other parent, new label text', other_label.text)
+    target.reload
+    other_target.reload
 
-    response = labelcontroller.hash_response
+    assert_equal('parent, new target text', target.text)
+    assert_equal('other parent, new target text', other_target.text)
+
+    response = targetcontroller.hash_response
     response['data']['updates'].sort_by! { |x| x.fetch('id') }
 
     assert_equal(
@@ -470,11 +472,11 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
           'updates' => [
             {
               'id'     => @parent.id,
-              'update' => LabelView.new(label).to_hash,
+              'update' => TargetView.new(target).to_hash,
             },
             {
               'id'     => other_parent.id,
-              'update' => LabelView.new(other_label).to_hash,
+              'update' => TargetView.new(other_target).to_hash,
             },
           ].sort_by { |x| x.fetch('id') }
         }

@@ -44,6 +44,8 @@ module ViewModel::ActiveRecord::NestedControllerBase
   protected
 
   def show_association(scope: nil, serialize_context: new_serialize_context, lock_owner: nil)
+    require_external_referenced_association!
+
     associated_views = nil
     pre_rendered = owner_viewmodel.transaction do
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
@@ -68,20 +70,19 @@ module ViewModel::ActiveRecord::NestedControllerBase
   # single parent each child can only appear once. This means it's
   # safe to use update hashes directly.
   def write_association(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    require_external_referenced_association!
+
     association_view = nil
     pre_rendered = owner_viewmodel.transaction do
       update_hash, refs = parse_viewmodel_updates
 
-      association_data = owner_viewmodel._association_data(association_name)
-      if association_data.referenced?
-        update_hash =
-          ViewModel::ActiveRecord.add_reference_indirection(
-            update_hash,
-            association_data: association_data,
-            references:       refs,
-            key:              'write-association',
-          )
-      end
+      update_hash =
+        ViewModel::ActiveRecord.add_reference_indirection(
+          update_hash,
+          association_data: association_data,
+          references:       refs,
+          key:              'write-association',
+        )
 
       owner_view = owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
 
@@ -109,14 +110,14 @@ module ViewModel::ActiveRecord::NestedControllerBase
   # hash. This means it's only safe to use update hashes directly in
   # this case.
   def write_association_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
-    updated_by_parent_viewmodel = nil
+    require_external_referenced_association!
 
-    association_data = owner_viewmodel._association_data(association_name)
+    updated_by_parent_viewmodel = nil
 
     pre_rendered = owner_viewmodel.transaction do
       updates_by_parent_id, references = parse_bulk_update
 
-      if association_data.referenced? && association_data.owned?
+      if association_data.owned?
         updates_by_parent_id.transform_values!.with_index do |update_hash, index|
           ViewModel::ActiveRecord.add_reference_indirection(
             update_hash,
@@ -159,6 +160,8 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
 
   def destroy_association(collection, serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)
+    require_external_referenced_association!
+
     if lock_owner
       owner_viewmodel.find(owner_viewmodel_id, eager_include: false, lock: lock_owner)
     end
@@ -170,7 +173,7 @@ module ViewModel::ActiveRecord::NestedControllerBase
   end
 
   def association_data
-    owner_viewmodel._association_data(association_name)
+    @association_data ||= owner_viewmodel._association_data(association_name)
   end
 
   def owner_update_hash(update)
@@ -198,5 +201,11 @@ module ViewModel::ActiveRecord::NestedControllerBase
 
   def association_name
     params.fetch(:association_name) { raise ArgumentError.new('No association name from routes') }
+  end
+
+  def require_external_referenced_association!
+    unless association_data.referenced? && association_data.external?
+      raise ArgumentError.new("Expected referenced external association: '#{association_name}'")
+    end
   end
 end
