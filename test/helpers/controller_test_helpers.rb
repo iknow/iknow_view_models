@@ -13,9 +13,7 @@ require 'acts_as_manual_list'
 
 # models for ARVM controller test
 module ControllerTestModels
-  def before_all
-    super
-
+  def build_controller_test_models
     build_viewmodel(:Label) do
       define_schema do |t|
         t.string :text
@@ -169,6 +167,16 @@ module ControllerTestModels
         association :label
       end
     end
+  end
+
+  def make_parent(name: 'p', child_names: ['c1', 'c2'])
+    Parent.create(
+      name:     name,
+      children: child_names.each_with_index.map { |c, pos|
+        Child.new(name: "c#{pos + 1}", position: (pos + 1).to_f)
+      },
+      label: Label.new,
+      target: Target.new)
   end
 end
 

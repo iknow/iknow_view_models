@@ -192,4 +192,69 @@ module ARVMTestUtilities
   def build_fupdate(attrs = {}, &block)
     FupdateBuilder.new.build!(&block).merge(attrs)
   end
+
+  def each_hook_span(trace)
+    return enum_for(:each_hook_span, trace) unless block_given?
+
+    hook_nesting = []
+
+    trace.each_with_index do |t, i|
+      case t.hook
+      when ViewModel::Callbacks::Hook::OnChange,
+        ViewModel::Callbacks::Hook::BeforeValidate
+        # ignore
+      when ViewModel::Callbacks::Hook::BeforeVisit,
+        ViewModel::Callbacks::Hook::BeforeDeserialize
+        hook_nesting.push([t, i])
+
+      when ViewModel::Callbacks::Hook::AfterVisit,
+        ViewModel::Callbacks::Hook::AfterDeserialize
+        (nested_top, nested_index) = hook_nesting.pop
+
+        unless nested_top.hook.name == t.hook.name.sub(/^After/, 'Before')
+          raise "Invalid nesting, processing '#{t.hook.name}', expected matching '#{nested_top.hook.name}'"
+        end
+
+        unless nested_top.view == t.view
+          raise "Invalid nesting, processing '#{t.hook.name}', " \
+                  "expected viewmodel '#{t.view}' to match '#{nested_top.view}'"
+        end
+
+        yield t.view, (nested_index..i), t.hook.name.sub(/^After/, '')
+
+      else
+        raise 'Unexpected hook type'
+      end
+    end
+  end
+
+  def show_span(view, range, hook)
+    "#{view.class.name}(#{view.id}) #{range} #{hook}"
+  end
+
+  def enclosing_hooks(spans, inner_range)
+    spans.select do |_view, range, _hook|
+      inner_range != range && range.cover?(inner_range.min) && range.cover?(inner_range.max)
+    end
+  end
+
+  def assert_all_hooks_nested_inside_parent_hook(trace)
+    spans = each_hook_span(trace).to_a
+
+    spans.reject { |view, _range, _hook| view.class == ParentView }.each do |view, range, hook|
+      enclosing_spans = enclosing_hooks(spans, range)
+
+      enclosing_parent_hook = enclosing_spans.detect do |other_view, _other_range, other_hook|
+        other_hook == hook && other_view.class == ParentView
+      end
+
+      next if enclosing_parent_hook
+
+      self_str      = show_span(view, range, hook)
+      enclosing_str = enclosing_spans.map { |ov, ora, oh| show_span(ov, ora, oh) }.join("\n")
+      assert_not_nil(
+        enclosing_parent_hook,
+        "Invalid nesting of hook: #{self_str}\nEnclosing hooks:\n#{enclosing_str}")
+    end
+  end
 end
