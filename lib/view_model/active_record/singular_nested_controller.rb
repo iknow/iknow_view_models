@@ -1,8 +1,7 @@
 # frozen_string_literal: true
 
 # Controller mixin for accessing a root ViewModel which can be accessed
-# individually by a parent model. Enabled by calling `nested_in :parent, as:
-# :child` on the viewmodel controller
+# individually by a parent model.
 
 # Contributes the following routes:
 # POST   /parents/:parent_id/child   #create_associated  -- deserialize (possibly existing) child, replacing existing child
@@ -26,6 +25,10 @@ module ViewModel::ActiveRecord::SingularNestedController
 
   def create_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil, &block)
     write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
+  end
+
+  def create_associated_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association_bulk(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
   end
 
   def destroy_associated(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)

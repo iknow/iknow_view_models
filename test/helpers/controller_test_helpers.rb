@@ -13,8 +13,11 @@ require 'acts_as_manual_list'
 
 # models for ARVM controller test
 module ControllerTestModels
-  def before_all
-    super
+  def build_controller_test_models(externalize: [])
+    unsupported_externals = externalize - [:label, :target, :child]
+    unless unsupported_externals.empty?
+      raise ArgumentError.new("build_controller_test_models cannot externalize: #{unsupported_externals.join(", ")}")
+    end
 
     build_viewmodel(:Label) do
       define_schema do |t|
@@ -25,6 +28,7 @@ module ControllerTestModels
         has_one :target
       end
       define_viewmodel do
+        root! if externalize.include?(:label)
         attributes :text
       end
     end
@@ -80,16 +84,19 @@ module ControllerTestModels
         has_one    :target,   dependent: :destroy, inverse_of: :parent
         belongs_to :poly, polymorphic: true, dependent: :destroy, inverse_of: :parent
         belongs_to :category
+        has_many   :parent_tags
       end
       define_viewmodel do
         root!
         self.schema_version = 2
 
         attributes   :name
-        associations :label, :target
-        association  :children
+        association  :target, external: externalize.include?(:target)
+        association  :label, external: externalize.include?(:label)
+        association  :children, external: externalize.include?(:child)
         association  :poly, viewmodels: [:PolyOne, :PolyTwo]
         association  :category, external: true
+        association :tags, through: :parent_tags, external: true
 
         migrates from: 1, to: 2 do
           up do |view, _refs|
@@ -103,6 +110,31 @@ module ControllerTestModels
           end
         end
       end
+    end
+
+    build_viewmodel(:Tag) do
+      define_schema do |t|
+        t.string :name, null: false
+      end
+      define_model do
+        has_many :parent_tags
+      end
+      define_viewmodel do
+        root!
+        attributes :name
+      end
+    end
+
+    build_viewmodel(:ParentTag) do
+      define_schema do |t|
+        t.references :parent, foreign_key: true
+        t.references :tag, foreign_key: true
+      end
+      define_model do
+        belongs_to :parent
+        belongs_to :tag
+      end
+      no_viewmodel
     end
 
     build_viewmodel(:Child) do
@@ -122,6 +154,7 @@ module ControllerTestModels
         validates :age, numericality: { less_than: 42 }, allow_nil: true
       end
       define_viewmodel do
+        root! if externalize.include?(:child)
         attributes :name, :age
         acts_as_list :position
       end
@@ -138,10 +171,21 @@ module ControllerTestModels
         belongs_to :label, dependent: :destroy
       end
       define_viewmodel do
+        root! if externalize.include?(:target)
         attributes :text
         association :label
       end
     end
+  end
+
+  def make_parent(name: 'p', child_names: ['c1', 'c2'])
+    Parent.create(
+      name:     name,
+      children: child_names.each_with_index.map { |c, pos|
+        Child.new(name: "c#{pos + 1}", position: (pos + 1).to_f)
+      },
+      label: Label.new,
+      target: Target.new)
   end
 end
 
@@ -253,43 +297,30 @@ module CallbackTracing
 end
 
 module ControllerTestControllers
+  CONTROLLER_NAMES = [
+    :ParentController,
+    :ChildController,
+    :LabelController,
+    :TargetController,
+    :CategoryController,
+    :TagController,
+  ]
+
   def before_all
     super
 
-    Class.new(DummyController) do |_c|
-      Object.const_set(:ParentController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:ChildController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :children
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:LabelController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :label
-    end
-
-    Class.new(DummyController) do |_c|
-      Object.const_set(:TargetController, self)
-      include ViewModel::ActiveRecord::Controller
-      include CallbackTracing
-      self.access_control = ViewModel::AccessControl::Open
-      nested_in :parent, as: :target
+    CONTROLLER_NAMES.each do |name|
+      Class.new(DummyController) do |_c|
+        Object.const_set(name, self)
+        include ViewModel::ActiveRecord::Controller
+        include CallbackTracing
+        self.access_control = ViewModel::AccessControl::Open
+      end
     end
   end
 
   def after_all
-    [:ParentController, :ChildController, :LabelController, :TargetController].each do |name|
+    CONTROLLER_NAMES.each do |name|
       Object.send(:remove_const, name)
     end
     ActiveSupport::Dependencies::Reference.clear!

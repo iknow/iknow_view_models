@@ -181,7 +181,7 @@ module ViewModel::Callbacks
     # ARVM synthetic views are considered part of their association and as such
     # are not visited by callbacks. Eligibility exclusion is intended to be
     # library-internal: subclasses should not attempt to extend this.
-    view.is_a?(ViewModel::ActiveRecord) && view.class.synthetic
+    view.is_a?(ViewModel) && view.class.synthetic
   end
 
   def self.wrap_serialize(viewmodel, context:)

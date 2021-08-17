@@ -195,8 +195,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       update([{ '_type' => 'Child', 'id' => old_children.first.id, 'name' => 'renamed p1c1' }])
     end
 
-    nc = pv.replace_associated(:children, update, deserialize_context: context)
-    new_child = nc.detect { |c| c.name == 'new_child' }
+    updated = pv.replace_associated(:children, update, deserialize_context: context)
+    new_child = updated.detect { |c| c.name == 'new_child' }
 
     expected_edit_checks = [pv.to_reference,
                             ViewModel::Reference.new(child_viewmodel_class, new_child.id),
@@ -206,8 +206,11 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert_contains_exactly(expected_edit_checks,
                             context.valid_edit_refs)
 
-    assert_equal(3, nc.size)
-    assert_equal('renamed p1c1', nc[0].name)
+    assert_equal(2, updated.size)
+    assert_contains_exactly(
+      ['renamed p1c1', 'new_child'],
+      updated.map(&:name),
+    )
 
     @model1.reload
     assert_equal(['renamed p1c1', 'p1c2', 'new_child'], @model1.children.order(:position).map(&:name))
@@ -1297,7 +1300,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       it 'replaces children' do
         view = create_viewmodel!
         view.replace_associated(:children,
-                                [{ '_type' => 'Child', 'name' => 'newchildname' }])
+          [{ '_ref' => 'the_child' }],
+          references: { 'the_child' => { '_type' => 'Child', 'name' => 'newchildname' } }
+        )
 
         view.model.reload
 

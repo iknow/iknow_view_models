@@ -3,8 +3,7 @@
 require 'view_model/active_record/nested_controller_base'
 
 # Controller mixin for accessing a root ViewModel which can be accessed in a
-# collection by a parent model. Enabled by calling `nested_in :parent, as:
-# :children` on the viewmodel controller
+# collection by a parent model.
 
 # Contributes the following routes:
 # PUT    /parents/:parent_id/children            #append  -- deserialize (possibly existing) children and append to collection
@@ -30,6 +29,10 @@ module ViewModel::ActiveRecord::CollectionNestedController
   # replacing previously associated items.
   def replace(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil, &block)
     write_association(serialize_context: serialize_context, deserialize_context: deserialize_context, lock_owner: lock_owner, &block)
+  end
+
+  def replace_bulk(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, &block)
+    write_association_bulk(serialize_context: serialize_context, deserialize_context: deserialize_context, &block)
   end
 
   def disassociate_all(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context, lock_owner: nil)

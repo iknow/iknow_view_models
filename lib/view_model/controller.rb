@@ -86,6 +86,23 @@ module ViewModel::Controller
     return update_hash, refs
   end
 
+  def parse_bulk_update
+    data, references = parse_viewmodel_updates
+
+    ViewModel::Schemas.verify_schema!(ViewModel::Schemas::BULK_UPDATE, data)
+
+    updates_by_parent =
+      data.fetch(ViewModel::BULK_UPDATES_ATTRIBUTE).each_with_object({}) do |parent_update, acc|
+        parent_id = parent_update.fetch(ViewModel::ID_ATTRIBUTE)
+        update    = parent_update.fetch(ViewModel::BULK_UPDATE_ATTRIBUTE)
+
+        acc[parent_id] = update
+      end
+
+    return updates_by_parent, references
+  end
+
+
   private
 
   def _extract_update_data(data)

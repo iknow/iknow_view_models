@@ -12,6 +12,10 @@ class ViewModel
   VERSION_ATTRIBUTE   = '_version'
   NEW_ATTRIBUTE       = '_new'
 
+  BULK_UPDATE_TYPE       = '_bulk_update'
+  BULK_UPDATES_ATTRIBUTE = 'updates'
+  BULK_UPDATE_ATTRIBUTE  = 'update'
+
   # Migrations leave a metadata attribute _migrated on any views that they
   # alter. This attribute is accessible as metadata when deserializing migrated
   # input, and is included in the output serialization sent to clients.
@@ -26,6 +30,14 @@ class ViewModel
     attr_accessor :schema_version
     attr_reader   :view_aliases
     attr_writer   :view_name
+
+    # Boolean to indicate if the viewmodel is synthetic. Synthetic
+    # viewmodels are nearly-invisible glue. They're full viewmodels,
+    # but do not participate in hooks or registration. For example, a
+    # join table connecting A and B through T has a synthetic
+    # viewmodel T to represent the join model, but the external
+    # interface is a relationship of A to a list of Bs.
+    attr_accessor :synthetic
 
     def inherited(subclass)
       super
