@@ -178,6 +178,35 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           end
         end
       end
+
+      describe 'with a functional update' do
+        # note that this wouldn't actually be deserializable as child is not a collection
+        def subject_data
+          data = super()
+          data['child'] = wrap_with_fupdate(data['child'])
+          data
+        end
+
+        def expected_result
+          data = super()
+          data['data']['child'] = wrap_with_fupdate(data['data']['child'])
+          data
+        end
+
+        def wrap_with_fupdate(child)
+          # The 'after' and remove shouldn't get changed in migration, even though it has _type: Child
+          build_fupdate do
+            append([child], after: { '_type' => 'Child', 'id' => 9999 })
+            update([child.deep_merge('id' => 8888)])
+            remove([{ '_type' => 'Child', 'id' => 7777 }])
+          end
+        end
+
+        it 'migrates' do
+          migrate!
+          assert_equal(expected_result, subject)
+        end
+      end
     end
   end
 

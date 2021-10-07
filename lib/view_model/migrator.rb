@@ -75,6 +75,32 @@ class ViewModel
   class UpMigrator < Migrator
     private
 
+    def migrate_tree!(node, references:)
+      if node.is_a?(Hash) && node[ViewModel::TYPE_ATTRIBUTE] == ViewModel::ActiveRecord::FUNCTIONAL_UPDATE_TYPE
+        migrate_functional_update!(node, references: references)
+      else
+        super
+      end
+    end
+
+    NESTED_FUPDATE_TYPES = ['append', 'update'].freeze
+
+    # The functional update structure uses `_type` internally with a
+    # context-dependent meaning. Retrospectively this was a poor choice, but we
+    # need to account for it here.
+    def migrate_functional_update!(node, references:)
+      actions = node[ViewModel::ActiveRecord::ACTIONS_ATTRIBUTE]
+      actions&.each do |action|
+        action_type = action[ViewModel::TYPE_ATTRIBUTE]
+        next unless NESTED_FUPDATE_TYPES.include?(action_type)
+
+        values = action[ViewModel::ActiveRecord::VALUES_ATTRIBUTE]
+        values&.each do |value|
+          migrate_tree!(value, references: references)
+        end
+      end
+    end
+
     def migrate_viewmodel!(view_name, source_version, view_hash, references)
       path = @paths[view_name]
       return false unless path
