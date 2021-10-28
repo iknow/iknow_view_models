@@ -14,9 +14,9 @@ class ViewModel::ActiveRecord
       def release!
         model = viewmodel.model
         case association_data.direct_reflection.options[:dependent]
-        when :delete
+        when :delete, :delete_all
           model.delete
-        when :destroy
+        when :destroy, :destroy_async
           model.destroy
         end
       end
