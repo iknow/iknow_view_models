@@ -93,7 +93,7 @@ class ViewModel::Record < ViewModel
 
         if metadata.schema_version && !self.accepts_schema_version?(metadata.schema_version)
           raise ViewModel::DeserializationError::SchemaVersionMismatch.new(
-                  self, version, ViewModel::Reference.new(self, metadata.id))
+                  self, metadata.schema_version, ViewModel::Reference.new(self, metadata.id))
         end
 
         viewmodel = resolve_viewmodel(metadata, view_hash, deserialize_context: deserialize_context)
