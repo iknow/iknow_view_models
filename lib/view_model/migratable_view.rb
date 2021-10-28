@@ -34,14 +34,36 @@ module ViewModel::MigratableView
       end
     end
 
+    protected
+
+    def migration_class(from, to)
+      @migration_classes.fetch([from, to]) do
+        raise ViewModel::Migration::NoPathError.new(self, from, to)
+      end
+    end
+
     private
 
     # Define a migration on this viewmodel
-    def migrates(from:, to:, &block)
+    def migrates(from:, to:, inherit: nil, at: nil, &block)
       @migrations_lock.synchronize do
-        builder = ViewModel::Migration::Builder.new
+        migration_superclass =
+          if inherit
+            raise ArgumentError.new('Must provide inherit version') unless at
+
+            inherit.migration_class(at - 1, at)
+          else
+            ViewModel::Migration
+          end
+
+        builder = ViewModel::Migration::Builder.new(migration_superclass)
         builder.instance_exec(&block)
-        @migration_classes[[from, to]] = builder.build!
+
+        migration_class = builder.build!
+
+        const_set(:"Migration_#{from}_To_#{to}", migration_class)
+        @migration_classes[[from, to]] = migration_class
+
         @realized_migration_paths = false
       end
     end

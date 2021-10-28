@@ -206,6 +206,55 @@ module ViewModelSpecHelpers
     end
   end
 
+  module SingleWithInheritedMigration
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::Base
+
+    def migration_bearing_viewmodel_class
+      define_viewmodel_class(
+        :MigrationBearingView,
+        namespace: namespace,
+        viewmodel_base: viewmodel_base,
+        model_base: model_base,
+        spec: ViewModel::TestHelpers::ARVMBuilder::Spec.new(
+          schema: ->(_) {},
+          model: ->(_) {},
+          viewmodel: ->(v) {
+            root!
+            self.schema_version = 2
+            migrates from: 1, to: 2 do
+              down do |view, _refs|
+                view['inherited_base'] = 'present'
+              end
+            end
+          }))
+    end
+
+    def model_attributes
+      migration_bearing_viewmodel_class = self.migration_bearing_viewmodel_class
+
+      super.merge(
+        schema: ->(t) { t.integer :new_field, default: 1, null: false },
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+
+          attribute :new_field
+
+          migrates from: 1, to: 2, inherit: migration_bearing_viewmodel_class, at: 2 do
+            down do |view, refs|
+              super(view, refs)
+              view.delete('new_field')
+            end
+
+            up do |view, refs|
+              view.delete('inherited_base')
+              view['new_field'] = 100
+            end
+          end
+        })
+    end
+  end
+
   module ParentAndBelongsToChildWithMigration
     extend ActiveSupport::Concern
     include ViewModelSpecHelpers::ParentAndBelongsToChild

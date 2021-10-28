@@ -15,13 +15,14 @@ class ViewModel::Migration
 
   # Tiny DSL for defining migration classes
   class Builder
-    def initialize
+    def initialize(superclass = ViewModel::Migration)
+      @superclass = superclass
       @up_block = nil
       @down_block = nil
     end
 
     def build!
-      migration = Class.new(ViewModel::Migration)
+      migration = Class.new(@superclass)
       migration.define_method(:up, &@up_block) if @up_block
       migration.define_method(:down, &@down_block) if @down_block
       migration

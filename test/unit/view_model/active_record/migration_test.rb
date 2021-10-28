@@ -210,6 +210,69 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     end
   end
 
+  describe 'inherited migrations' do
+    include ViewModelSpecHelpers::SingleWithInheritedMigration
+
+    def new_model
+      model_class.new(name: 'm1')
+    end
+
+    let(:migration_versions) { { viewmodel_class => 1 } }
+
+    let(:v1_serialization_data) do
+      {
+        ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+        ViewModel::VERSION_ATTRIBUTE => 1,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'inherited_base' => 'present',
+      }
+    end
+
+    let(:v1_serialization_references) { {} }
+
+    let(:v1_serialization) do
+      {
+        'data' => v1_serialization_data,
+        'references' => v1_serialization_references,
+      }
+    end
+
+    describe 'downwards' do
+      let(:migrator) { down_migrator }
+      let(:subject) { current_serialization.deep_dup }
+      let(:expected_result) do
+        v1_serialization.deep_merge({ 'data' => { ViewModel::MIGRATED_ATTRIBUTE => true } })
+      end
+
+      it 'migrates' do
+        migrate!
+        assert_equal(expected_result, subject)
+      end
+    end
+
+    describe 'upwards' do
+      let(:migrator) { up_migrator }
+      let(:subject) { v1_serialization.deep_dup }
+
+      let(:expected_result) do
+        current_serialization.deep_merge(
+          {
+            'data' => {
+              ViewModel::MIGRATED_ATTRIBUTE => true,
+              'new_field' => 100,
+            },
+          },
+        )
+      end
+
+      it 'migrates' do
+        migrate!
+        assert_equal(expected_result, subject)
+      end
+    end
+  end
+
   describe 'garbage collection' do
     include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 
