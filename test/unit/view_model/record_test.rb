@@ -198,6 +198,13 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         assert_equal('unknown', ex.attribute)
       end
 
+      it 'rejects unknown versions' do
+        view = default_view.merge(ViewModel::VERSION_ATTRIBUTE => 100)
+        ex = assert_raises(ViewModel::DeserializationError::SchemaVersionMismatch) do
+          viewmodel_class.deserialize_from_view(view, deserialize_context: create_context)
+        end
+      end
+
       it 'edit checks when creating empty' do
         vm = viewmodel_class.deserialize_from_view(view_base, deserialize_context: create_context)
         refute(default_model.equal?(vm.model), 'returned model was the same')
