@@ -365,6 +365,11 @@ class ViewModel::Record < ViewModel
       end
 
       model.public_send("#{attr_data.model_attr_name}=", value)
+
+    elsif new_model?
+      # Record attribute_changed for mutable values asserted on a new model, even where
+      # they match the ActiveRecord default.
+      attribute_changed!(vm_attr_name) unless attr_data.read_only? && !attr_data.write_once?
     end
 
     if attr_data.using_viewmodel?
