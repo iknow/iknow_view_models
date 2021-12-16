@@ -359,12 +359,15 @@ class ViewModel::Record < ViewModel
 
       attribute_changed!(vm_attr_name)
 
-      if attr_data.using_viewmodel? && !value.nil?
-        # Extract model from target viewmodel(s) to attach to our model
-        value = attr_data.map_value(value) { |vm| vm.model }
-      end
+      model_value =
+        if attr_data.using_viewmodel? && !value.nil?
+          # Extract model from target viewmodel(s) to attach to our model
+          attr_data.map_value(value) { |vm| vm.model }
+        else
+          value
+        end
 
-      model.public_send("#{attr_data.model_attr_name}=", value)
+      model.public_send("#{attr_data.model_attr_name}=", model_value)
 
     elsif new_model?
       # Record attribute_changed for mutable values asserted on a new model, even where
