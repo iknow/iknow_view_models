@@ -57,11 +57,30 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     let(:model_body)     { nil }
     let(:viewmodel_body) { nil }
 
+    # Generate an ActiveModel-like keyword argument constructor.
+    def generate_model_constructor(model_class, model_defaults)
+      args = model_class.members
+      params = args.map do |arg_name|
+        "#{arg_name}: self.class.__constructor_default(:#{arg_name})"
+      end
+
+      <<-SRC
+        def initialize(#{params.join(", ")})
+          super(#{args.join(", ")})
+        end
+      SRC
+    end
+
     let(:model_class) do
       mb = model_body
-      Struct.new(*attributes.keys) do
-        class_eval(&mb) if mb
-      end
+      mds = model_defaults
+
+      model = Struct.new(*attributes.keys)
+      constructor = generate_model_constructor(model, mds)
+      model.class_eval(constructor)
+      model.define_singleton_method(:__constructor_default) { |name| mds[name] }
+      model.class_eval(&mb) if mb
+      model
     end
 
     let(:viewmodel_class) do
@@ -96,21 +115,39 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
     end
 
-    let(:default_values) { {} }
-    let(:default_view_values) { default_values }
-    let(:default_model_values) { default_values }
+    # Default values for each model attribute, nil if absent
+    let(:model_defaults) { {} }
 
-    let(:default_view) do
-      attribute_names.each_with_object(view_base.dup) do |(model_attr_name, vm_attr_name), view|
-        view[vm_attr_name] = default_view_values.fetch(vm_attr_name.to_sym, model_attr_name)
-      end
+    # attribute values used to instantiate the subject model and subject view (if not overridden)
+    let(:subject_attributes) { {} }
+
+    # attribute values used to instantiate the subject model
+    let(:subject_model_attributes) { subject_attributes }
+
+    # attribute values used to deserialize the subject view: these are expected to
+    # deserialize to create a model equal to subject_model
+    let(:subject_view_attributes) { subject_attributes }
+
+    # Subject model to compare with or deserialize into
+    let(:subject_model) do
+      model_class.new(**subject_model_attributes)
     end
 
-    let(:default_model) do
-      attr_values = attribute_names.map do |model_attr_name, _vm_attr_name|
-        default_model_values.fetch(model_attr_name.to_sym, model_attr_name)
+    # View that when deserialized into a new model will be equal to subject_model
+    let(:subject_view) do
+      view_base.merge(subject_view_attributes.stringify_keys)
+    end
+
+    # The expected result of serializing subject_model (depends on subject_view corresponding to subject_model)
+    let(:expected_view) do
+      view = subject_view.dup
+      attribute_names.each do |model_attr_name, vm_attr_name|
+        unless view.has_key?(vm_attr_name)
+          expected_value = subject_model_attributes.fetch(model_attr_name) { model_defaults[model_attr_name] }
+          view[vm_attr_name] = expected_value
+        end
       end
-      model_class.new(*attr_values)
+      view
     end
 
     let(:access_control) { TestAccessControl.new(true, true, true) }
@@ -118,7 +155,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     let(:create_context) { TestDeserializeContext.new(access_control: access_control) }
 
     # Prime our simplistic `resolve_viewmodel` with the desired models to update
-    let(:update_context) { TestDeserializeContext.new(targets: [default_model], access_control: access_control) }
+    let(:update_context) { TestDeserializeContext.new(targets: [subject_model], access_control: access_control) }
 
     def assert_edited(vm, **changes)
       ref = vm.to_reference
@@ -139,9 +176,9 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       def self.included(base)
         base.instance_eval do
           it 'can deserialize to a new model' do
-            vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: create_context)
-            assert_equal(default_model, vm.model)
-            refute(default_model.equal?(vm.model))
+            vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: create_context)
+            assert_equal(subject_model, vm.model)
+            refute(subject_model.equal?(vm.model))
 
             all_view_attrs = attribute_names.map { |_mname, vname| vname }
             assert_edited(vm, new: true, changed_attributes: all_view_attrs)
@@ -154,8 +191,8 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       def self.included(base)
         base.instance_eval do
           it 'can deserialize to existing model with no changes' do
-            vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
-            assert(default_model.equal?(vm.model))
+            vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: update_context)
+            assert(subject_model.equal?(vm.model))
 
             assert_unchanged(vm)
           end
@@ -167,8 +204,8 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       def self.included(base)
         base.instance_eval do
           it 'can serialize to the expected view' do
-            h = viewmodel_class.new(default_model).to_hash
-            assert_equal(default_view, h)
+            h = viewmodel_class.new(subject_model).to_hash
+            assert_equal(expected_view, h)
           end
         end
       end
@@ -176,22 +213,24 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
     describe 'with simple attribute' do
       let(:attributes) { { simple: {} } }
+      let(:subject_attributes) { { simple: "simple" } }
+
       include CanSerialize
       include CanDeserializeToNew
       include CanDeserializeToExisting
 
       it 'can be updated' do
-        new_view = default_view.merge('simple' => 'changed')
+        update_view = subject_view.merge('simple' => 'changed')
 
-        vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+        vm = viewmodel_class.deserialize_from_view(update_view, deserialize_context: update_context)
 
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        assert_equal('changed', default_model.simple)
+        assert(subject_model.equal?(vm.model), 'returned model was not the same')
+        assert_equal('changed', subject_model.simple)
         assert_edited(vm, changed_attributes: [:simple])
       end
 
       it 'rejects unknown attributes' do
-        view = default_view.merge('unknown' => 'illegal')
+        view = subject_view.merge('unknown' => 'illegal')
         ex = assert_raises(ViewModel::DeserializationError::UnknownAttribute) do
           viewmodel_class.deserialize_from_view(view, deserialize_context: create_context)
         end
@@ -199,7 +238,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
 
       it 'rejects unknown versions' do
-        view = default_view.merge(ViewModel::VERSION_ATTRIBUTE => 100)
+        view = subject_view.merge(ViewModel::VERSION_ATTRIBUTE => 100)
         ex = assert_raises(ViewModel::DeserializationError::SchemaVersionMismatch) do
           viewmodel_class.deserialize_from_view(view, deserialize_context: create_context)
         end
@@ -207,13 +246,15 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
       it 'edit checks when creating empty' do
         vm = viewmodel_class.deserialize_from_view(view_base, deserialize_context: create_context)
-        refute(default_model.equal?(vm.model), 'returned model was the same')
+        refute(subject_model.equal?(vm.model), 'returned model was the same')
         assert_edited(vm, new: true)
       end
     end
 
     describe 'with validated simple attribute' do
       let(:attributes) { { validated: {} } }
+      let(:subject_attributes) { { validated: "validated" } }
+
       let(:viewmodel_body) do
         ->(_x) do
           def validate!
@@ -229,10 +270,10 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       include CanDeserializeToExisting
 
       it 'rejects update when validation fails' do
-        new_view = default_view.merge('validated' => 'naughty')
+        update_view = subject_view.merge('validated' => 'naughty')
 
         ex = assert_raises(ViewModel::DeserializationError::Validation) do
-          viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+          viewmodel_class.deserialize_from_view(update_view, deserialize_context: update_context)
         end
         assert_equal('validated', ex.attribute)
         assert_equal('was naughty', ex.reason)
@@ -241,16 +282,16 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
     describe 'with renamed attribute' do
       let(:attributes) { { modelname: { as: :viewname } } }
-      let(:default_model_values) { { modelname: 'value' } }
-      let(:default_view_values)  { { viewname: 'value' } }
+      let(:subject_model_attributes) { { modelname: 'value' } }
+      let(:subject_view_attributes)  { { viewname: 'value' } }
 
       include CanSerialize
       include CanDeserializeToNew
       include CanDeserializeToExisting
 
       it 'makes attributes available on their new names' do
-        value(default_model.modelname).must_equal('value')
-        vm = viewmodel_class.new(default_model)
+        value(subject_model.modelname).must_equal('value')
+        vm = viewmodel_class.new(subject_model)
         value(vm.viewname).must_equal('value')
       end
     end
@@ -258,15 +299,15 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
     describe 'with formatted attribute' do
       let(:attributes) { { moment: { format: IknowParams::Serializer::Time } } }
       let(:moment) { 1.week.ago.change(usec: 0) }
-      let(:default_model_values) { { moment: moment } }
-      let(:default_view_values)  { { moment: moment.iso8601 } }
+      let(:subject_model_attributes) { { moment: moment } }
+      let(:subject_view_attributes)  { { moment: moment.iso8601 } }
 
       include CanSerialize
       include CanDeserializeToNew
       include CanDeserializeToExisting
 
       it 'raises correctly on an unparseable value' do
-        bad_view = default_view.tap { |v| v['moment'] = 'not a timestamp' }
+        bad_view = subject_view.merge('moment' => 'not a timestamp')
         ex = assert_raises(ViewModel::DeserializationError::Validation) do
           viewmodel_class.deserialize_from_view(bad_view, deserialize_context: create_context)
         end
@@ -275,7 +316,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
 
       it 'raises correctly on an undeserializable value' do
-        bad_model = default_model.tap { |m| m.moment = 2.7 }
+        bad_model = subject_model.tap { |m| m.moment = 2.7 }
         ex = assert_raises(ViewModel::SerializationError) do
           viewmodel_class.new(bad_model).to_hash
         end
@@ -285,36 +326,51 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
 
     describe 'with read-only attribute' do
       let(:attributes) { { read_only: { read_only: true } } }
+      let(:model_defaults) { { read_only: 'immutable' } }
+      let(:subject_attributes) { { read_only: 'immutable' } }
 
-      include CanSerialize
-      include CanDeserializeToExisting
+      describe 'asserting the default' do
+        include CanSerialize
+        include CanDeserializeToExisting
 
-      it 'deserializes to new without the attribute' do
-        new_view = default_view.tap { |v| v.delete('read_only') }
-        vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: create_context)
-        refute(default_model.equal?(vm.model))
-        assert_nil(vm.model.read_only)
-        assert_edited(vm, new: true)
+        it 'deserializes to new with the attribute' do
+          vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: create_context)
+          assert_equal(subject_model, vm.model)
+          refute(subject_model.equal?(vm.model))
+          assert_edited(vm, new: true)
+        end
+
+        it 'deserializes to new without the attribute' do
+          new_view = subject_view.tap { |v| v.delete('read_only') }
+          vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: create_context)
+          assert_equal(subject_model, vm.model)
+          refute(subject_model.equal?(vm.model))
+          assert_edited(vm, new: true)
+        end
       end
 
-      it 'rejects deserialize from new' do
-        ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
-          viewmodel_class.deserialize_from_view(default_view, deserialize_context: create_context)
-        end
-        assert_equal('read_only', ex.attribute)
-      end
+      describe 'attempting a change' do
+        let(:update_view) { subject_view.merge('read_only' => 'attempted change') }
 
-      it 'rejects update if changed' do
-        new_view = default_view.merge('read_only' => 'written')
-        ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
-          viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
+        it 'rejects deserialize from new' do
+          ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
+            viewmodel_class.deserialize_from_view(update_view, deserialize_context: create_context)
+          end
+          assert_equal('read_only', ex.attribute)
         end
-        assert_equal('read_only', ex.attribute)
+
+        it 'rejects update' do
+          ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
+            viewmodel_class.deserialize_from_view(update_view, deserialize_context: update_context)
+          end
+          assert_equal('read_only', ex.attribute)
+        end
       end
     end
 
     describe 'with read-only write-once attribute' do
       let(:attributes) { { write_once: { read_only: true, write_once: true } } }
+      let(:subject_attributes) { { write_once: 'frozen' } }
       let(:model_body) do
         ->(_x) do
           # For the purposes of testing, we assume a record is new and can be
@@ -330,7 +386,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       include CanDeserializeToExisting
 
       it 'rejects change to attribute' do
-        new_view = default_view.merge('write_once' => 'written')
+        new_view = subject_view.merge('write_once' => 'written')
         ex = assert_raises(ViewModel::DeserializationError::ReadOnlyAttribute) do
           viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
         end
@@ -338,10 +394,33 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
     end
 
+    describe 'with unspecified attributes falling back to the model default' do
+      let(:attributes) { { value: {} } }
+      let(:model_defaults) { { value: 5 } }
+      let(:subject_view_attributes)  { { } }
+      let(:subject_model_attributes) { { value: 5 } }
+
+      it 'can deserialize to a new model' do
+        vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: create_context)
+        assert_equal(subject_model, vm.model)
+        refute(subject_model.equal?(vm.model))
+        assert_edited(vm, new: true, changed_attributes: [])
+      end
+    end
+
+    describe 'with model defaults being asserted' do
+      let(:attributes) { { value: {} } }
+      let(:model_defaults) { { value: 5 } }
+      let(:subject_attributes) { { value: 5 } }
+
+      include CanDeserializeToNew
+    end
+
     describe 'with custom serialization' do
       let(:attributes)           { { overridden: {} } }
-      let(:default_view_values)  { { overridden: 10 } }
-      let(:default_model_values) { { overridden: 5 } }
+      let(:subject_model_attributes) { { overridden: 5 } }
+      let(:subject_view_attributes)  { { overridden: 10 } }
+
       let(:viewmodel_body) do
         ->(_x) do
           def serialize_overridden(json, serialize_context:)
@@ -351,7 +430,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
           def deserialize_overridden(value, references:, deserialize_context:)
             before_value = model.overridden
             model.overridden = value.try { |v| Integer(v) / 2 }
-            attribute_changed!(:overridden) unless before_value == model.overridden
+            attribute_changed!(:overridden) unless !new_model? && before_value == model.overridden
           end
         end
       end
@@ -361,12 +440,12 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       include CanDeserializeToExisting
 
       it 'can be updated' do
-        new_view = default_view.merge('overridden' => '20')
+        new_view = subject_view.merge('overridden' => '20')
 
         vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
 
-        assert(default_model.equal?(vm.model), 'returned model was not the same')
-        assert_equal(10, default_model.overridden)
+        assert(subject_model.equal?(vm.model), 'returned model was not the same')
+        assert_equal(10, subject_model.overridden)
 
         assert_edited(vm, changed_attributes: [:overridden])
       end
@@ -398,77 +477,102 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       end
 
       describe 'with nested viewmodel' do
-        let(:default_nested_model) { nested_model_class.new('member') }
-        let(:default_nested_view)  { view_base.merge('_type' => 'Nested', 'member' => 'member') }
+        let(:subject_nested_model) { nested_model_class.new('member') }
+        let(:subject_nested_view)  { view_base.merge('_type' => 'Nested', 'member' => 'member') }
 
         let(:attributes) { { simple: {}, nested: { using: nested_viewmodel_class } } }
 
-        let(:default_view_values)  { { nested: default_nested_view } }
-        let(:default_model_values) { { nested: default_nested_model } }
+        let(:subject_view_attributes)  { { nested: subject_nested_view } }
+        let(:subject_model_attributes) { { nested: subject_nested_model } }
 
         let(:update_context) do
-          TestDeserializeContext.new(targets: [default_model, default_nested_model],
-                                     access_control: access_control)
+          TestDeserializeContext.new(
+            targets: [subject_model, subject_nested_model],
+            access_control: access_control)
         end
 
         include CanSerialize
-        include CanDeserializeToNew
+
+        it 'can deserialize to a new model' do
+          vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: create_context)
+          assert_equal(subject_model, vm.model)
+          refute(subject_model.equal?(vm.model))
+
+          assert_equal(subject_nested_model, vm.model.nested)
+          refute(subject_nested_model.equal?(vm.model.nested))
+
+          assert_edited(vm, new: true, changed_attributes: ['nested'], changed_nested_children: true)
+        end
+
         include CanDeserializeToExisting
 
         it 'can update the nested value' do
-          new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
+          new_view = subject_view.merge('nested' => subject_nested_view.merge('member' => 'changed'))
 
           vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
 
-          assert(default_model.equal?(vm.model), 'returned model was not the same')
-          assert(default_nested_model.equal?(vm.model.nested), 'returned nested model was not the same')
+          assert(subject_model.equal?(vm.model), 'returned model was not the same')
+          assert(subject_nested_model.equal?(vm.model.nested), 'returned nested model was not the same')
 
-          assert_equal('changed', default_model.nested.member)
+          assert_equal('changed', subject_model.nested.member)
 
           assert_unchanged(vm)
+
+          # The parent is itself not `changed?`, but it must record that its children are
+          change = access_control.all_changes(vm.to_reference)[0]
+          assert_equal(ViewModel::Changes.new(changed_nested_children: true), change)
+
           assert_edited(vm.nested, changed_attributes: [:member])
         end
 
         it 'can replace the nested value' do
           # The value will be unified if it is different after deserialization
-          new_view = default_view.merge('nested' => default_nested_view.merge('member' => 'changed'))
+          new_view = subject_view.merge('nested' => subject_nested_view.merge('member' => 'changed'))
 
-          partial_update_context = TestDeserializeContext.new(targets: [default_model],
+          partial_update_context = TestDeserializeContext.new(targets: [subject_model],
                                                               access_control: access_control)
 
           vm = viewmodel_class.deserialize_from_view(new_view, deserialize_context: partial_update_context)
 
-          assert(default_model.equal?(vm.model), 'returned model was not the same')
-          refute(default_nested_model.equal?(vm.model.nested), 'returned nested model was the same')
+          assert(subject_model.equal?(vm.model), 'returned model was not the same')
+          refute(subject_nested_model.equal?(vm.model.nested), 'returned nested model was the same')
 
-          assert_edited(vm, new: false, changed_attributes: [:nested])
+          assert_edited(vm, new: false, changed_attributes: [:nested], changed_nested_children: true)
           assert_edited(vm.nested, new: true, changed_attributes: [:member])
         end
       end
 
       describe 'with array of nested viewmodel' do
-        let(:default_nested_model_1) { nested_model_class.new('member1') }
-        let(:default_nested_view_1)  { view_base.merge('_type' => 'Nested', 'member' => 'member1') }
+        let(:subject_nested_model_1) { nested_model_class.new('member1') }
+        let(:subject_nested_view_1)  { view_base.merge('_type' => 'Nested', 'member' => 'member1') }
 
-        let(:default_nested_model_2) { nested_model_class.new('member2') }
-        let(:default_nested_view_2)  { view_base.merge('_type' => 'Nested', 'member' => 'member2') }
+        let(:subject_nested_model_2) { nested_model_class.new('member2') }
+        let(:subject_nested_view_2)  { view_base.merge('_type' => 'Nested', 'member' => 'member2') }
 
         let(:attributes) { { simple: {}, nested: { using: nested_viewmodel_class, array: true } } }
 
-        let(:default_view_values)  { { nested: [default_nested_view_1, default_nested_view_2] } }
-        let(:default_model_values) { { nested: [default_nested_model_1, default_nested_model_2] } }
+        let(:subject_view_attributes)  { { nested: [subject_nested_view_1, subject_nested_view_2] } }
+        let(:subject_model_attributes) { { nested: [subject_nested_model_1, subject_nested_model_2] } }
 
         let(:update_context) {
-          TestDeserializeContext.new(targets: [default_model, default_nested_model_1, default_nested_model_2],
+          TestDeserializeContext.new(targets: [subject_model, subject_nested_model_1, subject_nested_model_2],
                                      access_control: access_control)
         }
 
         include CanSerialize
-        include CanDeserializeToNew
+
+        it 'can deserialize to a new model' do
+          vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: create_context)
+          assert_equal(subject_model, vm.model)
+          refute(subject_model.equal?(vm.model))
+
+          assert_edited(vm, new: true, changed_attributes: ['nested'], changed_nested_children: true)
+        end
+
         include CanDeserializeToExisting
 
         it 'rejects change to attribute' do
-          new_view = default_view.merge('nested' => 'terrible')
+          new_view = subject_view.merge('nested' => 'terrible')
           ex = assert_raises(ViewModel::DeserializationError::InvalidAttributeType) do
             viewmodel_class.deserialize_from_view(new_view, deserialize_context: update_context)
           end
@@ -478,32 +582,37 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         end
 
         it 'can edit a nested value' do
-          default_view['nested'][0]['member'] = 'changed'
-          vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
-          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          subject_view['nested'][0]['member'] = 'changed'
+          vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: update_context)
+          assert(subject_model.equal?(vm.model), 'returned model was not the same')
           assert_equal(2, vm.model.nested.size)
-          assert(default_nested_model_1.equal?(vm.model.nested[0]))
-          assert(default_nested_model_2.equal?(vm.model.nested[1]))
+          assert(subject_nested_model_1.equal?(vm.model.nested[0]))
+          assert(subject_nested_model_2.equal?(vm.model.nested[1]))
 
           assert_unchanged(vm)
+
+          # The parent is itself not `changed?`, but it must record that its children are
+          change = access_control.all_changes(vm.to_reference)[0]
+          assert_equal(ViewModel::Changes.new(changed_nested_children: true), change)
+
           assert_edited(vm.nested[0], changed_attributes: [:member])
         end
 
         it 'can append a nested value' do
-          default_view['nested'] << view_base.merge('_type' => 'Nested', 'member' => 'member3')
+          subject_view['nested'] << view_base.merge('_type' => 'Nested', 'member' => 'member3')
 
-          vm = viewmodel_class.deserialize_from_view(default_view, deserialize_context: update_context)
+          vm = viewmodel_class.deserialize_from_view(subject_view, deserialize_context: update_context)
 
-          assert(default_model.equal?(vm.model), 'returned model was not the same')
+          assert(subject_model.equal?(vm.model), 'returned model was not the same')
           assert_equal(3, vm.model.nested.size)
-          assert(default_nested_model_1.equal?(vm.model.nested[0]))
-          assert(default_nested_model_2.equal?(vm.model.nested[1]))
+          assert(subject_nested_model_1.equal?(vm.model.nested[0]))
+          assert(subject_nested_model_2.equal?(vm.model.nested[1]))
 
           vm.model.nested.each_with_index do |nvm, i|
             assert_equal("member#{i + 1}", nvm.member)
           end
 
-          assert_edited(vm, changed_attributes: [:nested])
+          assert_edited(vm, changed_attributes: [:nested], changed_nested_children: true)
           assert_edited(vm.nested[2], new: true, changed_attributes: [:member])
         end
       end

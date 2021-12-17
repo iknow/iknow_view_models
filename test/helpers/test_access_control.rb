@@ -13,6 +13,7 @@ class TestAccessControl < ViewModel::AccessControl
     @editable_checks   = []
     @visible_checks    = []
     @valid_edit_checks = []
+    @changes           = []
   end
 
   # Collect
@@ -31,6 +32,17 @@ class TestAccessControl < ViewModel::AccessControl
   def visible_check(traversal_env)
     @visible_checks << traversal_env.view.to_reference
     ViewModel::AccessControl::Result.new(@can_view)
+  end
+
+  def record_deserialize_changes(ref, changes)
+    @changes << [ref, changes]
+  end
+
+  # Collect all changes on after_deserialize, to allow inspecting changes that
+  # didn't result in `changed?`
+  after_deserialize do
+    ref = view.to_reference
+    record_deserialize_changes(ref, changes)
   end
 
   # Query (also see attr_accessors)
@@ -54,5 +66,11 @@ class TestAccessControl < ViewModel::AccessControl
 
   def was_edited?(ref)
     all_valid_edit_changes(ref).present?
+  end
+
+  def all_changes(ref)
+    @changes
+      .select { |cref, _changes| cref == ref }
+      .map    { |_cref, changes| changes }
   end
 end
