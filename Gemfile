@@ -11,5 +11,5 @@ gem 'rubocop-iknow'
 gem 'minitest-ci'
 
 # Override gemspec for development version preferences
-gem 'activerecord',  '~> 6.0.0'
-gem 'activesupport', '~> 6.0.0'
+gem 'activerecord',  '~> 7.0.0'
+gem 'activesupport', '~> 7.0.0'

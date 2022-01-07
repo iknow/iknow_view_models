@@ -65,8 +65,11 @@ class ViewModel::TestHelpers::ARVMBuilder
     ActiveRecord::Base.connection.execute("DROP TABLE IF EXISTS #{name.underscore.pluralize} CASCADE")
     namespace.send(:remove_const, name)
     namespace.send(:remove_const, viewmodel_name) if viewmodel
+
     # prevent cached old class from being used to resolve associations
-    ActiveSupport::Dependencies::Reference.clear!
+    if ActiveSupport::VERSION::MAJOR < 7
+      ActiveSupport::Dependencies::Reference.clear!
+    end
   end
 
   private
