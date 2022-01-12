@@ -121,6 +121,11 @@ workflows:
           ruby-version: "3.0"
           pg-version: "12"
           gemfile: gemfiles/rails_6_1.gemfile
+      - test:
+          name: 'ruby 3.0 rails 7.0 pg 12'
+          ruby-version: "3.0"
+          pg-version: "12"
+          gemfile: gemfiles/rails_7_0.gemfile
       - publish:
           filters:
             branches:

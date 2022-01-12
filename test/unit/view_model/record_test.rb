@@ -472,7 +472,11 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       def teardown
         Object.send(:remove_const, :Nested)
         Object.send(:remove_const, :NestedView)
-        ActiveSupport::Dependencies::Reference.clear!
+
+        if ActiveSupport::VERSION::MAJOR < 7
+          ActiveSupport::Dependencies::Reference.clear!
+        end
+
         super
       end
 
