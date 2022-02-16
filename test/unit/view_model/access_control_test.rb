@@ -156,6 +156,21 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       assert_equal(2, ex.reasons.count)
     end
 
+    def test_veto_ordering
+      TestAccessControl.visible_if!('always') { true }
+
+      TestAccessControl.visible_unless!('car starts with i') do
+        view.car =~ /^i/
+      end
+
+      TestAccessControl.visible_unless!('car ends with e') do
+        view.car =~ /e$/
+      end
+
+      assert_serializes(ListView, List.create!(car: 'ok'))
+      refute_serializes(ListView, List.create!(car: 'invisible'), /not permitted.*car starts with i/)
+    end
+
     def test_custom_error_if
       TestAccessControl.visible_if!('car is visible1') do
         view.car == 'visible1' ||
