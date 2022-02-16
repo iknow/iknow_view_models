@@ -156,6 +156,39 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       assert_equal(2, ex.reasons.count)
     end
 
+    def test_custom_error_if
+      TestAccessControl.visible_if!('car is visible1') do
+        view.car == 'visible1' ||
+          # In principle a failure() may return any error, but by returning an
+          # AccessControlError we make it possible to test with refute_serializes
+          failure(ViewModel::AccessControlError.new('Custom Error Message', view.blame_reference))
+      end
+
+      TestAccessControl.visible_if!('car is visible2') do
+        view.car == 'visible2' ||
+          # Only the first failure() recorded by a failed if check will be
+          # raised as the error.
+          failure(ViewModel::AccessControlError.new('Should not be seen', view.blame_reference))
+      end
+
+      assert_serializes(ListView, List.create!(car: 'visible1'))
+      assert_serializes(ListView, List.create!(car: 'visible2'))
+      refute_serializes(ListView, List.create!(car: 'bad'), /Custom Error Message/)
+    end
+
+    def test_custom_error_unless
+      TestAccessControl.visible_if!('always') { true }
+
+      TestAccessControl.visible_unless!('car is invisible') do
+        if view.car == 'invisible'
+          failure(ViewModel::AccessControlError.new('Custom Error Message', view.blame_reference))
+        end
+      end
+
+      assert_serializes(ListView, List.create!(car: 'ok'))
+      refute_serializes(ListView, List.create!(car: 'invisible'), /Custom Error Message/)
+    end
+
     def test_inheritance
       child_access_control = Class.new(ViewModel::AccessControl::Composed)
       child_access_control.include_from(TestAccessControl)
