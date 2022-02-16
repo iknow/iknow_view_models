@@ -15,15 +15,10 @@ require 'view_model/active_record'
 
 DUMMY_RAILS_CACHE = ActiveSupport::Cache::MemoryStore.new
 
-module RailsDummyCache
-  def cache
-    DUMMY_RAILS_CACHE
-  end
+IknowCache.configure! do
+  logger ::ActiveRecord::Base.logger
+  cache DUMMY_RAILS_CACHE
 end
-
-# Ensure we have a dummy Rails, and then prepend our dummy cache
-module Rails; end
-Rails.singleton_class.prepend(RailsDummyCache)
 
 class ViewModel::ActiveRecord
   class CacheTest < ActiveSupport::TestCase
