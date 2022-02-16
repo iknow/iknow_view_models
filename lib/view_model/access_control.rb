@@ -149,6 +149,14 @@ class ViewModel::AccessControl
   def raise_if_error!(result)
     raise (result.error || yield) unless result.permit?
   end
+
+  # Called from composed access controls via the `env`, this is used to make the
+  # if/unless DSL more readable when returning a custom failure error.
+  def failure(err)
+    raise ArgumentError.new("Unexpected failure type: #{err}") unless err.is_a?(StandardError)
+
+    err
+  end
 end
 
 require 'view_model/access_control/open'

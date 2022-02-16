@@ -39,7 +39,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
           case
           when new_allow
             nil
-          when self.allow_error && other.allow_error
+          when mergeable_error?(self.allow_error) && mergeable_error?(other.allow_error)
             self.allow_error.merge(other.allow_error)
           else
             self.allow_error || other.allow_error
@@ -47,6 +47,12 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
 
         ComposedResult.new(new_allow, other.veto, new_allow_error, other.veto_error)
       end
+    end
+
+    private
+
+    def mergeable_error?(err)
+      err&.is_a?(NoRequiredConditionsError)
     end
   end
 
@@ -196,22 +202,54 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
   protected
 
   def check_delegates(env, ifs, unlesses)
-    vetoed_checker = unlesses.detect { |checker| checker.check(env) }
-
-    veto = vetoed_checker.present?
-    if veto
-      veto_error = vetoed_checker.error_type.new('Action not permitted because: ' +
-                                                 vetoed_checker.reason,
-                                                 env.view.blame_reference)
-    end
-
-    allow = ifs.any? { |checker| checker.check(env) }
-
-    unless allow
-      allow_error = NoRequiredConditionsError.new(env.view.blame_reference,
-                                                  ifs.map(&:name))
-    end
+    veto, veto_error = detect_veto(env, unlesses)
+    allow, allow_error = detect_allow(env, ifs)
 
     ComposedResult.new(allow, veto, allow_error, veto_error)
+  end
+
+  private
+
+  def detect_veto(env, checkers)
+    checkers.each do |checker|
+      result = checker.check(env)
+      next unless result
+
+      error =
+        if result.is_a?(StandardError)
+          result
+        else
+          checker.error_type.new('Action not permitted because: ' +
+                                 checker.reason,
+                                 env.view.blame_reference)
+        end
+
+      # short-circuit exit with failure
+      return true, error
+    end
+
+    return false, nil
+  end
+
+  def detect_allow(env, checkers)
+    error = nil
+
+    checkers.each do |checker|
+      result = checker.check(env)
+      next unless result
+
+      if result.is_a?(StandardError)
+        error ||= result
+      else
+        # short-circuit exit with success
+        return true, nil
+      end
+    end
+
+    error ||= NoRequiredConditionsError.new(
+      env.view.blame_reference,
+      checkers.map(&:name))
+
+    return false, error
   end
 end
