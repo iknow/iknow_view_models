@@ -14,7 +14,7 @@ class ViewModel::Migration::NoPathError < ViewModel::AbstractError
   end
 
   def detail
-    "No migration path for #{vm_name} from #{from} to #{to}"
+    "No migration path for #{vm_name} between client version #{from} and server version #{to}"
   end
 
   def meta
