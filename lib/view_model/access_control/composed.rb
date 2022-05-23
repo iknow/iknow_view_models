@@ -39,10 +39,20 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
           case
           when new_allow
             nil
-          when mergeable_error?(self.allow_error) && mergeable_error?(other.allow_error)
-            self.allow_error.merge(other.allow_error)
+          when self.allow_error.nil?
+            other.allow_error
+          when other.allow_error.nil?
+            self.allow_error
+          # Mergeable (standard) errors should be merged if possible; if not
+          # possible, we should take the first non-standard error.
+          when mergeable_error?(self.allow_error)
+            if mergeable_error?(other.allow_error)
+              self.allow_error.merge(other.allow_error)
+            else
+              other.allow_error
+            end
           else
-            self.allow_error || other.allow_error
+            self.allow_error
           end
 
         ComposedResult.new(new_allow, other.veto, new_allow_error, other.veto_error)
@@ -52,7 +62,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     private
 
     def mergeable_error?(err)
-      err&.is_a?(NoRequiredConditionsError)
+      err.is_a?(NoRequiredConditionsError)
     end
   end
 
