@@ -3,6 +3,7 @@
 # A ViewModel encapsulates a particular aggregation of data calculated via the
 # underlying models and provides a means of serializing it into views.
 require 'jbuilder'
+require 'base64'
 require 'deep_preloader'
 
 class ViewModel
