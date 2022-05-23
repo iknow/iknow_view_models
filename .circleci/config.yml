@@ -16,14 +16,14 @@ executors:
       PGHOST: 127.0.0.1
       PGUSER: eikaiwa
     docker:
-      - image: circleci/ruby:<< parameters.ruby-version >>
+      - image: cimg/ruby:<< parameters.ruby-version >>
         environment:
           BUNDLE_JOBS: 3
           BUNDLE_RETRY: 3
           BUNDLE_PATH: vendor/bundle
           RAILS_ENV: test
           BUNDLE_GEMFILE: << parameters.gemfile >>
-      - image: circleci/postgres:<< parameters.pg-version >>-alpine
+      - image: cimg/postgres:<< parameters.pg-version >>
         environment:
           POSTGRES_USER: eikaiwa
           POSTGRES_DB: iknow_view_models
@@ -104,27 +104,27 @@ workflows:
       - test:
           name: 'ruby 2.7 rails 5.2 pg 12'
           ruby-version: "2.7"
-          pg-version: "12"
+          pg-version: "12.10"
           gemfile: gemfiles/rails_5_2.gemfile
       - test:
           name: 'ruby 2.7 rails 6.0 pg 12'
           ruby-version: "2.7"
-          pg-version: "12"
+          pg-version: "12.10"
           gemfile: gemfiles/rails_6_0.gemfile
       - test:
           name: 'ruby 2.7 rails 6.1 pg 12'
           ruby-version: "2.7"
-          pg-version: "12"
+          pg-version: "12.10"
           gemfile: gemfiles/rails_6_1.gemfile
       - test:
           name: 'ruby 3.0 rails 6.1 pg 12'
           ruby-version: "3.0"
-          pg-version: "12"
+          pg-version: "12.10"
           gemfile: gemfiles/rails_6_1.gemfile
       - test:
-          name: 'ruby 3.0 rails 7.0 pg 12'
-          ruby-version: "3.0"
-          pg-version: "12"
+          name: 'ruby 3.1 rails 7.0 pg 13'
+          ruby-version: "3.1"
+          pg-version: "13.6"
           gemfile: gemfiles/rails_7_0.gemfile
       - publish:
           filters:
