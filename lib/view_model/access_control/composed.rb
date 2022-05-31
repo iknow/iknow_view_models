@@ -175,11 +175,10 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
     end
 
     def inspect
-      s = super + '('
-      s += inspect_checks.join(', ')
-      s += " includes checkers: #{@included_checkers.inspect}" if @included_checkers.present?
-      s += ')'
-      s
+      checks = inspect_checks
+      checks << "includes checkers: #{@included_checkers.inspect}" if @included_checkers.present?
+
+      super + '(' + checks.join(', ') + ')'
     end
 
     def inspect_checks

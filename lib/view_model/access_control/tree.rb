@@ -192,8 +192,6 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
       def inspect_checks
         checks = super
         if root?
-          checks << 'no root checks'
-        else
           checks << "root_children_visible_if: #{root_children_visible_ifs.map(&:reason)}"            if root_children_visible_ifs.present?
           checks << "root_children_visible_unless: #{root_children_visible_unlesses.map(&:reason)}"   if root_children_visible_unlesses.present?
           checks << "root_children_editable_if: #{root_children_editable_ifs.map(&:reason)}"          if root_children_editable_ifs.present?
@@ -252,16 +250,16 @@ class ViewModel::AccessControl::Tree < ViewModel::AccessControl
 
     def save_root_visibility!(traversal_env)
       result = check_delegates(traversal_env,
-                               self.class.each_check(:root_children_visible_ifs,      ->(a) { a.is_a?(Node) }),
-                               self.class.each_check(:root_children_visible_unlesses, ->(a) { a.is_a?(Node) }))
+                               self.class.each_check(:root_children_visible_ifs,      ->(a) { a < Node }),
+                               self.class.each_check(:root_children_visible_unlesses, ->(a) { a < Node }))
 
       store_descendent_visibility(traversal_env.view, result)
     end
 
     def save_root_editability!(traversal_env)
       result = check_delegates(traversal_env,
-                               self.class.each_check(:root_children_editable_ifs,      ->(a) { a.is_a?(Node) }),
-                               self.class.each_check(:root_children_editable_unlesses, ->(a) { a.is_a?(Node) }))
+                               self.class.each_check(:root_children_editable_ifs,      ->(a) { a < Node }),
+                               self.class.each_check(:root_children_editable_unlesses, ->(a) { a < Node }))
 
       store_descendent_editability(traversal_env.view, result)
     end
