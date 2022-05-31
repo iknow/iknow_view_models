@@ -319,6 +319,26 @@ class ViewModel::AccessControlTest < ActiveSupport::TestCase
       assert_serializes(Tree1View, make_tree('rule:visible_children', 'visible child', 'rule:visible_children', 'visible child'))
     end
 
+    def test_root_inheritance
+      parent_access_control = Class.new(ViewModel::AccessControl::Tree)
+      parent_access_control.view 'Tree1' do
+        visible_if!('true') { true }
+
+        root_children_visible_if!('root children visible') do
+          view.val == 'rule:visible_children'
+        end
+      end
+
+      TestAccessControl.include_from(parent_access_control)
+
+      refute_serializes(Tree1View, make_tree('arbitrary parent',      'invisible child'))
+      assert_serializes(Tree1View, make_tree('rule:visible_children', 'visible child'))
+
+      # nested root
+      refute_serializes(Tree1View, make_tree('rule:visible_children', 'visible child', 'arbitrary parent',      'invisible child'))
+      assert_serializes(Tree1View, make_tree('rule:visible_children', 'visible child', 'rule:visible_children', 'visible child'))
+    end
+
     def test_visibility_veto_from_root
       TestAccessControl.view 'Tree1' do
         root_children_visible_unless!('root children invisible') do
