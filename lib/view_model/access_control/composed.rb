@@ -170,7 +170,7 @@ class ViewModel::AccessControl::Composed < ViewModel::AccessControl
         next unless visited.add?(ancestor)
         next if include_ancestor && !include_ancestor.call(ancestor)
 
-        ancestor.each_check(check_name) { |x| yield x }
+        ancestor.each_check(check_name, include_ancestor) { |x| yield x }
       end
     end
 
