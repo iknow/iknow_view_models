@@ -273,6 +273,84 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     end
   end
 
+  describe 'renaming views' do
+    include ViewModelSpecHelpers::Single
+
+    def model_attributes
+      super.merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+          migrates from: 1, to: 2 do
+            down { |view, _refs| view['old_field'] = 'present' }
+            up   { |view, _refs| view.delete('old_field') }
+            renamed_from :OldName
+          end
+        },
+      )
+    end
+
+    def new_model
+      model_class.new(name: 'm1')
+    end
+
+    let(:migration_versions) { { viewmodel_class => 1 } }
+
+    let(:v1_serialization_data) do
+      {
+        ViewModel::TYPE_ATTRIBUTE => 'OldName',
+        ViewModel::VERSION_ATTRIBUTE => 1,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'old_field' => 'present',
+      }
+    end
+
+    let(:v1_serialization_references) { {} }
+
+    let(:v1_serialization) do
+      {
+        'data' => v1_serialization_data,
+        'references' => v1_serialization_references,
+      }
+    end
+
+    describe 'down' do
+      let(:migrator) { down_migrator }
+      let(:migration_versions) { { viewmodel_class => 1 } }
+
+      let(:subject) { current_serialization.deep_dup }
+
+      let(:expected_result) do
+        v1_serialization.deep_merge({ 'data' => { ViewModel::MIGRATED_ATTRIBUTE => true } })
+      end
+
+      it 'migrates' do
+        migrate!
+        assert_equal(expected_result, subject)
+      end
+    end
+
+    describe 'up' do
+      let(:migrator) { up_migrator }
+      let(:subject) { v1_serialization.deep_dup }
+
+      let(:expected_result) do
+        current_serialization.deep_merge(
+          {
+            'data' => {
+              ViewModel::MIGRATED_ATTRIBUTE => true,
+            },
+          },
+        )
+      end
+
+      it 'migrates' do
+        migrate!
+        assert_equal(expected_result, subject)
+      end
+    end
+  end
+
   describe 'garbage collection' do
     include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 

@@ -70,6 +70,9 @@ class ViewModel::TestHelpers::ARVMBuilder
     if ActiveSupport::VERSION::MAJOR < 7
       ActiveSupport::Dependencies::Reference.clear!
     end
+
+    # Ensure the registry no longer refers to us
+    ViewModel::Registry.clear_removed_classes!
   end
 
   private

@@ -120,10 +120,17 @@ module ViewModel::ActiveRecord::Controller
         migration_versions = {}
 
         versions.each do |view_name, required_version|
-          viewmodel_class = ViewModel::Registry.for_view_name(view_name)
+          viewmodel_class = ViewModel::Registry.for_view_name(view_name, version: required_version)
 
           if viewmodel_class.schema_version != required_version
-            migration_versions[viewmodel_class] = required_version
+            if migration_versions.has_key?(viewmodel_class) && migration_versions[viewmodel_class] != required_version
+              raise ViewModel::Error.new(
+                      status: 400,
+                      code: 'ViewModel.InconsistentMigration',
+                      detail: "Viewmodel #{viewmodel_class.view_name} specified twice with different versions (as '#{view_name}')")
+            else
+              migration_versions[viewmodel_class] = required_version
+            end
           end
         rescue ViewModel::DeserializationError::UnknownView
           # Ignore requests to migrate types that no longer exist

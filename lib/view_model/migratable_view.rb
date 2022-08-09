@@ -19,18 +19,33 @@ module ViewModel::MigratableView
       @migrations_lock   = Monitor.new
       @migration_classes = {}
       @migration_paths   = {}
-      @realized_migration_paths = true
+      @previous_names    = {}
+      @realized_paths    = true
+      @previous_name_cache = nil
     end
 
     def migration_path(from:, to:)
       @migrations_lock.synchronize do
-        realize_paths! unless @realized_migration_paths
+        realize_paths! unless @realized_paths
 
         migrations = @migration_paths.fetch([from, to]) do
           raise ViewModel::Migration::NoPathError.new(self, from, to)
         end
 
         migrations
+      end
+    end
+
+    def versioned_view_names
+      @migrations_lock.synchronize do
+        cache_previous_names! if @previous_name_cache.nil?
+        @previous_name_cache
+      end
+    end
+
+    def view_name_at_version(version)
+      versioned_view_names.fetch(version) do
+       raise ViewModel::Migration::NoSuchVersionError.new(self, version)
       end
     end
 
@@ -61,10 +76,20 @@ module ViewModel::MigratableView
 
         migration_class = builder.build!
 
+        if migration_class.renamed?
+          old_name = migration_class.renamed_from
+          if @previous_names.has_key?(from)
+            raise ArgumentError.new("Inconsistent previous naming for version #{from}") if @previous_names[from] != old_name
+          else
+            @previous_names[from] = old_name
+          end
+        end
+
         const_set(:"Migration_#{from}_To_#{to}", migration_class)
         @migration_classes[[from, to]] = migration_class
 
-        @realized_migration_paths = false
+        @previous_name_cache = nil
+        @realized_paths = false
       end
     end
 
@@ -98,6 +123,17 @@ module ViewModel::MigratableView
       end
 
       @realized_paths = true
+    end
+
+    def cache_previous_names!
+      name = self.view_name
+      @previous_name_cache =
+        self.schema_version.downto(1).to_h do |version|
+          if @previous_names.has_key?(version)
+            name = @previous_names[version]
+          end
+          [version, name]
+        end
     end
   end
 end
