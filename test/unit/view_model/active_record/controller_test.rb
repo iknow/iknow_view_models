@@ -46,15 +46,18 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_migrated_show
+    assert_equal(ParentView.view_name_at_version(1), 'PreviousParent')
+
     parentcontroller = ParentController.new(
       params: { id: @parent.id },
-      headers: { 'X-ViewModel-Versions' => { ParentView.view_name => 1 }.to_json })
+      headers: { 'X-ViewModel-Versions' => { 'PreviousParent' => 1 }.to_json })
 
     parentcontroller.invoke(:show)
 
     expected_view = @parent_view.to_hash
                       .except('name')
                       .merge('old_name' => @parent.name,
+                             ViewModel::TYPE_ATTRIBUTE => 'PreviousParent',
                              ViewModel::VERSION_ATTRIBUTE => 1,
                              ViewModel::MIGRATED_ATTRIBUTE => true)
 
@@ -118,13 +121,15 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_migrated_create
+    assert_equal(ParentView.view_name_at_version(1), 'PreviousParent')
+
     data = {
-      '_type'    => 'Parent',
+      '_type'    => 'PreviousParent',
       '_version' => 1,
       'old_name' => 'p2',
     }
 
-    parentcontroller = ParentController.new(params: { data: data, versions: { ParentView.view_name => 1 } })
+    parentcontroller = ParentController.new(params: { data: data, versions: { 'PreviousParent' => 1 } })
     parentcontroller.invoke(:create)
 
     assert_equal(200, parentcontroller.status)

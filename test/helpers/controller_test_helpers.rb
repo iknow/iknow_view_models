@@ -108,6 +108,8 @@ module ControllerTestModels
           down do |view, _refs|
             view['old_name'] = view.delete('name')
           end
+
+          renamed_from :PreviousParent
         end
       end
     end
