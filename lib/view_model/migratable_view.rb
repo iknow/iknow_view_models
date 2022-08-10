@@ -45,7 +45,7 @@ module ViewModel::MigratableView
 
     def view_name_at_version(version)
       versioned_view_names.fetch(version) do
-       raise ViewModel::Migration::NoSuchVersionError.new(self, version)
+        raise ViewModel::Migration::NoSuchVersionError.new(self, version)
       end
     end
 
@@ -54,6 +54,17 @@ module ViewModel::MigratableView
     def migration_class(from, to)
       @migration_classes.fetch([from, to]) do
         raise ViewModel::Migration::NoPathError.new(self, from, to)
+      end
+    end
+
+    def known_schema_versions
+      @migrations_lock.synchronize do
+        realize_paths! unless @realized_paths
+        versions = Set.new([schema_version])
+        @migration_paths.each_key do |from, to|
+          versions << from << to
+        end
+        versions.to_a.sort
       end
     end
 
@@ -128,7 +139,7 @@ module ViewModel::MigratableView
     def cache_previous_names!
       name = self.view_name
       @previous_name_cache =
-        self.schema_version.downto(1).to_h do |version|
+        known_schema_versions.reverse_each.to_h do |version|
           if @previous_names.has_key?(version)
             name = @previous_names[version]
           end
