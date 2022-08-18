@@ -21,7 +21,7 @@ module ViewModel::MigratableView
       @migration_paths   = {}
       @previous_names    = {}
       @realized_paths    = true
-      @previous_name_cache = nil
+      @versioned_view_names = nil
     end
 
     def migration_path(from:, to:)
@@ -38,8 +38,8 @@ module ViewModel::MigratableView
 
     def versioned_view_names
       @migrations_lock.synchronize do
-        cache_previous_names! if @previous_name_cache.nil?
-        @previous_name_cache
+        cache_versioned_view_names! if @versioned_view_names.nil?
+        @versioned_view_names
       end
     end
 
@@ -99,7 +99,7 @@ module ViewModel::MigratableView
         const_set(:"Migration_#{from}_To_#{to}", migration_class)
         @migration_classes[[from, to]] = migration_class
 
-        @previous_name_cache = nil
+        @versioned_view_names = nil
         @realized_paths = false
       end
     end
@@ -136,9 +136,9 @@ module ViewModel::MigratableView
       @realized_paths = true
     end
 
-    def cache_previous_names!
+    def cache_versioned_view_names!
       name = self.view_name
-      @previous_name_cache =
+      @versioned_view_names =
         known_schema_versions.reverse_each.to_h do |version|
           if @previous_names.has_key?(version)
             name = @previous_names[version]
