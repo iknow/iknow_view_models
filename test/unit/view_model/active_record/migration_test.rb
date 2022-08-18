@@ -335,13 +335,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       let(:subject) { v1_serialization.deep_dup }
 
       let(:expected_result) do
-        current_serialization.deep_merge(
-          {
-            'data' => {
-              ViewModel::MIGRATED_ATTRIBUTE => true,
-            },
-          },
-        )
+        current_serialization.deep_merge({ 'data' => { ViewModel::MIGRATED_ATTRIBUTE => true } })
       end
 
       it 'migrates' do
