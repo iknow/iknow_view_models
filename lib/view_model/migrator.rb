@@ -13,8 +13,10 @@ class ViewModel
 
           client_versions.each do |vm_class, client_version|
             name = vm_class.view_name
+            name_at_client_version = vm_class.view_name_at_version(client_version)
             if deep_schema_version.has_key?(name)
-              deep_schema_version[name] = client_version
+              deep_schema_version.delete(name)
+              deep_schema_version[name_at_client_version] = client_version
             end
           end
         end
