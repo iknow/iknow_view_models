@@ -96,6 +96,13 @@ class ViewModel::Registry
       next unless vm.should_register?
 
       view_name = vm.view_name if view_name == DEFERRED_NAME
+
+      if (prev_vm = @viewmodel_classes_by_name[view_name]) && prev_vm != vm
+        raise RuntimeError.new(
+                'No two viewmodel classes may have the same name: ' \
+                "#{vm.name} and #{prev_vm.name} named #{view_name}")
+      end
+
       @viewmodel_classes_by_name[view_name] = vm
 
       # Migratable views record their previous names. Other views have only the
@@ -119,7 +126,7 @@ class ViewModel::Registry
           # to 'jump' schema versions at the same time as renaming to ensure
           # there is no ambiguity.
           raise RuntimeError.new(
-                  'No two viewmodel classes may have the same name at the same version: '\
+                  'No two viewmodel classes may have the same name at the same version: ' \
                   "#{vm.name} and #{prev_vm.name} named #{previous_name} at #{previous_version}")
         end
 
