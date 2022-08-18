@@ -64,7 +64,7 @@ module ViewModel::ActiveRecord::Controller
   end
 
   included do
-    etag { migrated_deep_schema_version }
+    etag { migrated_deep_schema_version_key }
   end
 
   def parse_viewmodel_updates
@@ -141,7 +141,15 @@ module ViewModel::ActiveRecord::Controller
       end
   end
 
-  def migrated_deep_schema_version
-    ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true)
+  # To identify a migrated schema version for caching purposes, we need to use
+  # both the current and target schema versions. Otherwise if we were to make
+  # future migrations that would affect the result when migrating to older views
+  # (e.g. by discarding and reconstructing data), the cache would not be
+  # invalidated and cached results would be different from computed ones.
+  def migrated_deep_schema_version_key
+    {
+      from: viewmodel_class.deep_schema_version(include_referenced: true),
+      to: ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true),
+    }
   end
 end
