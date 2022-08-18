@@ -11,8 +11,8 @@ class ViewModel
         if client_versions.present?
           deep_schema_version = deep_schema_version.dup
 
-          client_versions.each do |required_vm_class, client_version|
-            name = required_vm_class.view_name
+          client_versions.each do |vm_class, client_version|
+            name = vm_class.view_name
             if deep_schema_version.has_key?(name)
               deep_schema_version[name] = client_version
             end
