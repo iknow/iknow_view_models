@@ -445,6 +445,44 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     end
   end
 
+  class CustomizedErrorTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+    class TestError < ViewModel::Error; end
+
+    def before_all
+      super
+
+      build_viewmodel(:Model) do
+        define_schema do |t|
+          t.integer :value, null: false
+        end
+
+        define_model do
+        end
+
+        define_viewmodel do
+          root!
+
+          attribute :value
+        end
+      end
+
+      ModelView.define_singleton_method(:customize_deserialization_error) do |e|
+        TestError.new if e.is_a?(ViewModel::DeserializationError::DatabaseConstraint)
+      end
+    end
+
+    def test_customized_error
+      m = Model.create!(value: 1)
+
+      assert_raises(TestError) do
+        alter_by_view!(ModelView, m) do |view, refs|
+          view['value'] = nil
+        end
+      end
+    end
+  end
+
   # Parent view should be correctly passed down the tree when deserializing
   class DeferredConstraintTest < ActiveSupport::TestCase
     include ARVMTestUtilities

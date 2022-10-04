@@ -102,6 +102,12 @@ class ViewModel::Record < ViewModel
 
         viewmodel
       end
+    rescue ViewModel::DeserializationError => e
+      if (new_error = customize_deserialization_error(e))
+        raise new_error
+      else
+        raise
+      end
     end
 
     def deserialize_members_from_view(viewmodel, view_hash, references:, deserialize_context:)
@@ -163,6 +169,14 @@ class ViewModel::Record < ViewModel
       end
 
       @model_class = type
+    end
+
+    # Overriding this method allows matching and customization of deserialization
+    # errors in individual viewmodel types. This method is called on error from
+    # #deserialize_from_view. If a value is returned, that exception is raised
+    # instead.
+    def customize_deserialization_error(e)
+      nil
     end
   end
 
