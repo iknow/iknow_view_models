@@ -493,6 +493,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       build_viewmodel(:List) do
         define_schema do |t|
           t.integer :child_id
+          t.integer :value
         end
 
         define_model do
@@ -502,9 +503,11 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
         define_viewmodel do
           root!
           association :child
+          attribute :value
         end
       end
       List.connection.execute('ALTER TABLE lists ADD CONSTRAINT unique_child UNIQUE (child_id) DEFERRABLE INITIALLY DEFERRED')
+      List.connection.execute('ALTER TABLE lists ADD CONSTRAINT excluded_value EXCLUDE USING btree (value WITH =) DEFERRABLE INITIALLY DEFERRED')
     end
 
     def test_deferred_constraint_violation
@@ -521,13 +524,37 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
       constraint = 'unique_child'
       columns    = ['child_id']
       values     = l1.child.id.to_s
+      conflicts  = nil
 
       assert_match(/#{constraint}/, ex.message)
       assert_equal(constraint, ex.constraint)
       assert_equal(columns, ex.columns)
       assert_equal(values, ex.values)
 
-      assert_equal({ constraint: constraint, columns: columns, values: values, nodes: [] }, ex.meta)
+      assert_equal({ constraint: constraint, columns: columns, values: values, conflicts: conflicts, nodes: [] }, ex.meta)
+    end
+
+    def test_deferred_exclusion_violation
+      l1 = List.create!(value: 1)
+      l2 = List.create!
+
+      ex = assert_raises(ViewModel::DeserializationError::UniqueViolation) do
+        alter_by_view!(ListView, l2) do |view, refs|
+          view['value'] = 1
+        end
+      end
+
+      constraint = 'excluded_value'
+      columns    = ['value']
+      values     = '1'
+      conflicts  = '1'
+
+      assert_match(/#{constraint}/, ex.message)
+      assert_equal(constraint, ex.constraint)
+      assert_equal(columns, ex.columns)
+      assert_equal(values, ex.values)
+
+      assert_equal({ constraint: constraint, columns: columns, values: values, conflicts: conflicts, nodes: [] }, ex.meta)
     end
   end
 end

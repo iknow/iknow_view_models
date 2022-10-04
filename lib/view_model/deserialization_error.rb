@@ -347,7 +347,7 @@ class ViewModel
       # back when we can't.
       def self.from_exception(exception, nodes = [])
         case exception.cause
-        when PG::UniqueViolation
+        when PG::UniqueViolation, PG::ExclusionViolation
           UniqueViolation.from_postgres_error(exception.cause, nodes)
         else
           self.new(exception.message, nodes)
@@ -357,36 +357,60 @@ class ViewModel
 
     class UniqueViolation < DeserializationError
       status 400
-      attr_reader :detail, :constraint, :columns, :values
+      attr_reader :detail, :constraint, :columns, :values, :conflicts
 
-      PG_ERROR_FIELD_CONSTRAINT_NAME = 'n'.ord # Not exposed in pg gem
       def self.from_postgres_error(err, nodes)
         result         = err.result
-        constraint     = result.error_field(PG_ERROR_FIELD_CONSTRAINT_NAME)
-        message_detail = result.error_field(PG::Result::PG_DIAG_MESSAGE_DETAIL)
+        constraint     = result.error_field(PG::PG_DIAG_CONSTRAINT_NAME)
+        message_detail = result.error_field(PG::PG_DIAG_MESSAGE_DETAIL)
 
-        columns, values = parse_message_detail(message_detail)
+        columns, values, conflicts = parse_message_detail(message_detail)
 
         unless columns
           # Couldn't parse the detail message, fall back on an unparsed error
           return DatabaseConstraint.new(err.message, nodes)
         end
 
-        self.new(err.message, constraint, columns, values, nodes)
+        self.new(err.message, constraint, columns, values, conflicts, nodes)
       end
 
       class << self
         DETAIL_PREFIX = 'Key ('
-        DETAIL_SUFFIX = ') already exists.'
-        DETAIL_INFIX  = ')=('
+        UNIQUE_SUFFIX_TEMPLATE    = /\A\)=\((?<values>.*)\) already exists\.\z/
+        EXCLUSION_SUFFIX_TEMPLATE = /\A\)=\((?<values>.*)\) conflicts with existing key \(.*\)=\((?<conflicts>.*)\)\.\z/
+
         def parse_message_detail(detail)
           stream = detail.dup
-
           return nil unless stream.delete_prefix!(DETAIL_PREFIX)
-          return nil unless stream.delete_suffix!(DETAIL_SUFFIX)
 
           # The message should start with an identifier list: pop off identifier
           # tokens while we can.
+          identifiers = parse_identifiers(stream)
+          return nil if identifiers.nil?
+
+          # The message should now contain ")=(" followed by the value list and
+          # the suffix, potentially including a conflict list. We consider the
+          # value and conflict lists to be essentially unparseable because they
+          # are free to contain commas and no escaping is used. We make a best
+          # effort to extract them anyway.
+          values, conflicts =
+            if (m = UNIQUE_SUFFIX_TEMPLATE.match(stream))
+              m.values_at(:values)
+            elsif (m = EXCLUSION_SUFFIX_TEMPLATE.match(stream))
+              m.values_at(:values, :conflicts)
+            else
+              return nil
+            end
+
+          return identifiers, values, conflicts
+        end
+
+        private
+
+        QUOTED_IDENTIFIER   = /\A"(?:[^"]|"")+"/.freeze
+        UNQUOTED_IDENTIFIER = /\A(?:\p{Alpha}|_)(?:\p{Alnum}|_)*/.freeze
+
+        def parse_identifiers(stream)
           identifiers = []
 
           identifier = parse_identifier(stream)
@@ -401,17 +425,8 @@ class ViewModel
             identifiers << identifier
           end
 
-          # The message should now contain ")=(" followed by the (unparseable)
-          # value list.
-          return nil unless stream.delete_prefix!(DETAIL_INFIX)
-
-          [identifiers, stream]
+          identifiers
         end
-
-        private
-
-        QUOTED_IDENTIFIER   = /\A"(?:[^"]|"")+"/.freeze
-        UNQUOTED_IDENTIFIER = /\A(?:\p{Alpha}|_)(?:\p{Alnum}|_)*/.freeze
 
         def parse_identifier(stream)
           if (identifier = stream.slice!(UNQUOTED_IDENTIFIER))
@@ -424,16 +439,17 @@ class ViewModel
         end
       end
 
-      def initialize(detail, constraint, columns, values, nodes = [])
+      def initialize(detail, constraint, columns, values, conflicts, nodes = [])
         @detail     = detail
         @constraint = constraint
         @columns    = columns
         @values     = values
+        @conflicts  = conflicts
         super(nodes)
       end
 
       def meta
-        super.merge(constraint: @constraint, columns: @columns, values: @values)
+        super.merge(constraint: @constraint, columns: @columns, values: @values, conflicts: @conflicts)
       end
     end
 

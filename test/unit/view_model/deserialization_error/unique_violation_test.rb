@@ -34,7 +34,15 @@ class ViewModel::DeserializationError::UniqueViolationTest < ActiveSupport::Test
       let(:detail_message) { 'Key (x)=(a) already exists.' }
 
       it 'parses the key and value' do
-        expect(parse).to eq([['x'], 'a'])
+        expect(parse).to eq([['x'], 'a', nil])
+      end
+    end
+
+    describe 'with a exclusion conflict' do
+      let(:detail_message) { 'Key (x)=(a) conflicts with existing key (x)=(z).' }
+
+      it 'parses the key and value' do
+        expect(parse).to eq([['x'], 'a', 'z'])
       end
     end
 
@@ -42,7 +50,7 @@ class ViewModel::DeserializationError::UniqueViolationTest < ActiveSupport::Test
       let(:detail_message) { 'Key (x, y)=(a, b) already exists.' }
 
       it 'parses the keys and value' do
-        expect(parse).to eq([['x', 'y'], 'a, b'])
+        expect(parse).to eq([['x', 'y'], 'a, b', nil])
       end
     end
 
@@ -50,7 +58,7 @@ class ViewModel::DeserializationError::UniqueViolationTest < ActiveSupport::Test
       let(:detail_message) { 'Key ("x, y", z)=(a, b, c) already exists.' }
 
       it 'parses the keys and value' do
-        expect(parse).to eq([['x, y', 'z'], 'a, b, c'])
+        expect(parse).to eq([['x, y', 'z'], 'a, b, c', nil])
       end
     end
 
@@ -58,7 +66,7 @@ class ViewModel::DeserializationError::UniqueViolationTest < ActiveSupport::Test
       let(:detail_message) { 'Key ("""x"", ""y""", z)=(a, b, c) already exists.' }
 
       it 'parses the keys and value' do
-        expect(parse).to eq([['"x", "y"', 'z'], 'a, b, c'])
+        expect(parse).to eq([['"x", "y"', 'z'], 'a, b, c', nil])
       end
     end
 
@@ -66,7 +74,7 @@ class ViewModel::DeserializationError::UniqueViolationTest < ActiveSupport::Test
       let(:detail_message) { 'Key (a, b)=(a, b)=(c, d) already exists.' }
 
       it 'parses the keys and value' do
-        expect(parse).to eq([['a', 'b'], 'a, b)=(c, d'])
+        expect(parse).to eq([['a', 'b'], 'a, b)=(c, d', nil])
       end
     end
   end
