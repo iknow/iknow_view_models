@@ -174,6 +174,12 @@ class ViewModel::ActiveRecord < ViewModel::Record
               .run!(deserialize_context: deserialize_context)
         end
       end
+    rescue ViewModel::DeserializationError => e
+      if (new_error = customize_deserialization_error(e))
+        raise new_error
+      else
+        raise
+      end
     end
 
     # Constructs a preload specification of the required models for
