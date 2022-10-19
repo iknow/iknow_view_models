@@ -19,12 +19,14 @@ module ViewModel::MigratableView
       @migrations_lock   = Monitor.new
       @migration_classes = {}
       @migration_paths   = {}
-      @realized_migration_paths = true
+      @previous_names    = {}
+      @realized_paths    = true
+      @versioned_view_names = nil
     end
 
     def migration_path(from:, to:)
       @migrations_lock.synchronize do
-        realize_paths! unless @realized_migration_paths
+        realize_paths! unless @realized_paths
 
         migrations = @migration_paths.fetch([from, to]) do
           raise ViewModel::Migration::NoPathError.new(self, from, to)
@@ -34,11 +36,35 @@ module ViewModel::MigratableView
       end
     end
 
+    def versioned_view_names
+      @migrations_lock.synchronize do
+        cache_versioned_view_names! if @versioned_view_names.nil?
+        @versioned_view_names
+      end
+    end
+
+    def view_name_at_version(version)
+      versioned_view_names.fetch(version) do
+        raise ViewModel::Migration::NoSuchVersionError.new(self, version)
+      end
+    end
+
     protected
 
     def migration_class(from, to)
       @migration_classes.fetch([from, to]) do
         raise ViewModel::Migration::NoPathError.new(self, from, to)
+      end
+    end
+
+    def known_schema_versions
+      @migrations_lock.synchronize do
+        realize_paths! unless @realized_paths
+        versions = Set.new([schema_version])
+        @migration_paths.each_key do |from, to|
+          versions << from << to
+        end
+        versions.to_a.sort
       end
     end
 
@@ -61,10 +87,20 @@ module ViewModel::MigratableView
 
         migration_class = builder.build!
 
+        if migration_class.renamed?
+          old_name = migration_class.renamed_from
+          if @previous_names.has_key?(from)
+            raise ArgumentError.new("Inconsistent previous naming for version #{from}") if @previous_names[from] != old_name
+          else
+            @previous_names[from] = old_name
+          end
+        end
+
         const_set(:"Migration_#{from}_To_#{to}", migration_class)
         @migration_classes[[from, to]] = migration_class
 
-        @realized_migration_paths = false
+        @versioned_view_names = nil
+        @realized_paths = false
       end
     end
 
@@ -98,6 +134,17 @@ module ViewModel::MigratableView
       end
 
       @realized_paths = true
+    end
+
+    def cache_versioned_view_names!
+      name = self.view_name
+      @versioned_view_names =
+        known_schema_versions.reverse_each.to_h do |version|
+          if @previous_names.has_key?(version)
+            name = @previous_names[version]
+          end
+          [version, name]
+        end
     end
   end
 end

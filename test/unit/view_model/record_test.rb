@@ -476,7 +476,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
         if ActiveSupport::VERSION::MAJOR < 7
           ActiveSupport::Dependencies::Reference.clear!
         end
-
+        ViewModel::Registry.clear_removed_classes!
         super
       end
 

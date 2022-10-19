@@ -64,7 +64,7 @@ module ViewModel::ActiveRecord::Controller
   end
 
   included do
-    etag { migrated_deep_schema_version }
+    etag { migrated_deep_schema_version_key }
   end
 
   def parse_viewmodel_updates
@@ -120,10 +120,17 @@ module ViewModel::ActiveRecord::Controller
         migration_versions = {}
 
         versions.each do |view_name, required_version|
-          viewmodel_class = ViewModel::Registry.for_view_name(view_name)
+          viewmodel_class = ViewModel::Registry.for_view_name(view_name, version: required_version)
 
           if viewmodel_class.schema_version != required_version
-            migration_versions[viewmodel_class] = required_version
+            if migration_versions.has_key?(viewmodel_class) && migration_versions[viewmodel_class] != required_version
+              raise ViewModel::Error.new(
+                      status: 400,
+                      code: 'ViewModel.InconsistentMigration',
+                      detail: "Viewmodel #{viewmodel_class.view_name} specified twice with different versions (as '#{view_name}')")
+            else
+              migration_versions[viewmodel_class] = required_version
+            end
           end
         rescue ViewModel::DeserializationError::UnknownView
           # Ignore requests to migrate types that no longer exist
@@ -134,7 +141,15 @@ module ViewModel::ActiveRecord::Controller
       end
   end
 
-  def migrated_deep_schema_version
-    ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true)
+  # To identify a migrated schema version for caching purposes, we need to use
+  # both the current and target schema versions. Otherwise if we were to make
+  # future migrations that would affect the result when migrating to older views
+  # (e.g. by discarding and reconstructing data), the cache would not be
+  # invalidated and cached results would be different from computed ones.
+  def migrated_deep_schema_version_key
+    {
+      from: viewmodel_class.deep_schema_version(include_referenced: true),
+      to: ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true),
+    }
   end
 end

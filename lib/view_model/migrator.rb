@@ -5,16 +5,18 @@ class ViewModel
     EXCLUDE_FROM_MIGRATION = '_exclude_from_migration'
 
     class << self
-      def migrated_deep_schema_version(viewmodel_class, required_versions, include_referenced: true)
+      def migrated_deep_schema_version(viewmodel_class, client_versions, include_referenced: true)
         deep_schema_version = viewmodel_class.deep_schema_version(include_referenced: include_referenced)
 
-        if required_versions.present?
+        if client_versions.present?
           deep_schema_version = deep_schema_version.dup
 
-          required_versions.each do |required_vm_class, required_version|
-            name = required_vm_class.view_name
+          client_versions.each do |vm_class, client_version|
+            name = vm_class.view_name
+            name_at_client_version = vm_class.view_name_at_version(client_version)
             if deep_schema_version.has_key?(name)
-              deep_schema_version[name] = required_version
+              deep_schema_version.delete(name)
+              deep_schema_version[name_at_client_version] = client_version
             end
           end
         end
@@ -23,16 +25,27 @@ class ViewModel
       end
     end
 
-    def initialize(required_versions)
-      @paths = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
-        if required_version != viewmodel_class.schema_version
-          path = viewmodel_class.migration_path(from: required_version, to: viewmodel_class.schema_version)
-          h[viewmodel_class.view_name] = path
-        end
+    MigrationDetail = Value.new(:viewmodel_class, :path, :client_name, :client_version) do
+      def current_name
+        viewmodel_class.view_name
       end
 
-      @versions = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
-        h[viewmodel_class.view_name] = [required_version, viewmodel_class.schema_version]
+      def current_version
+        viewmodel_class.schema_version
+      end
+    end
+
+    def initialize(client_versions)
+      @migrations = client_versions.each_with_object({}) do |(viewmodel_class, client_version), h|
+        next if client_version == viewmodel_class.schema_version
+
+        path = viewmodel_class.migration_path(from: client_version, to: viewmodel_class.schema_version)
+        client_name = viewmodel_class.view_name_at_version(client_version)
+        detail = MigrationDetail.new(viewmodel_class, path, client_name, client_version)
+
+        # Index by the name we expect to see in the tree to be migrated (client
+        # name for up, current name for down)
+        h[source_name(detail)] = detail
       end
     end
 
@@ -70,6 +83,12 @@ class ViewModel
     def migrate_viewmodel!(_view_name, _version, _view_hash, _references)
       raise RuntimeError.new('abstract method')
     end
+
+    # What name is expected for a given view in the to-be-migrated source tree.
+    # Varies between up and down migration.
+    def source_name(_migration_detail)
+      raise RuntimeError.new('abstract method')
+    end
   end
 
   class UpMigrator < Migrator
@@ -101,25 +120,28 @@ class ViewModel
       end
     end
 
-    def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      path = @paths[view_name]
-      return false unless path
+    def migrate_viewmodel!(source_name, source_version, view_hash, references)
+      migration = @migrations[source_name]
+      return false unless migration
 
       # We assume that an unspecified source version is the same as the required
-      # version.
-      required_version, current_version = @versions[view_name]
-
-      unless source_version.nil? || source_version == required_version
-        raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
+      # client version.
+      unless source_version.nil? || source_version == migration.client_version
+        raise ViewModel::Migration::UnspecifiedVersionError.new(source_name, source_version)
       end
 
-      path.each do |migration|
-        migration.up(view_hash, references)
+      migration.path.each do |step|
+        step.up(view_hash, references)
       end
 
-      view_hash[ViewModel::VERSION_ATTRIBUTE] = current_version
+      view_hash[ViewModel::TYPE_ATTRIBUTE]    = migration.current_name
+      view_hash[ViewModel::VERSION_ATTRIBUTE] = migration.current_version
 
       true
+    end
+
+    def source_name(migration_detail)
+      migration_detail.client_name
     end
   end
 
@@ -128,26 +150,31 @@ class ViewModel
   class DownMigrator < Migrator
     private
 
-    def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      path = @paths[view_name]
-      return false unless path
+    def migrate_viewmodel!(source_name, source_version, view_hash, references)
+      migration = @migrations[source_name]
+      return false unless migration
 
-      # In a serialized output, the source version should always be the present
-      # and the current version, unless already modified by a parent migration
-      required_version, current_version = @versions[view_name]
-      return false if source_version == required_version
-
-      unless source_version == current_version
-        raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
+      # In a serialized output, the source version should always be present and
+      # the current version, unless already modified by a parent migration (in
+      # which case there's nothing to be done).
+      if source_version == migration.client_version
+        return false
+      elsif source_version != migration.current_version
+        raise ViewModel::Migration::UnspecifiedVersionError.new(source_name, source_version)
       end
 
-      path.reverse_each do |migration|
-        migration.down(view_hash, references)
+      migration.path.reverse_each do |step|
+        step.down(view_hash, references)
       end
 
-      view_hash[ViewModel::VERSION_ATTRIBUTE] = required_version
+      view_hash[ViewModel::TYPE_ATTRIBUTE]    = migration.client_name
+      view_hash[ViewModel::VERSION_ATTRIBUTE] = migration.client_version
 
       true
+    end
+
+    def source_name(migration_detail)
+      migration_detail.current_name
     end
   end
 end

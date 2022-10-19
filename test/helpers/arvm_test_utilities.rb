@@ -33,6 +33,7 @@ module ARVMTestUtilities
   def after_all
     @viewmodels.each(&:teardown)
     @viewmodels.clear
+    ViewModel::Registry.clear_removed_classes!
     super
   end
 
