@@ -143,8 +143,8 @@ module ViewModelSpecHelpers
 
   module ParentAndChildMigrations
     extend ActiveSupport::Concern
-  
-  def model_attributes
+
+    def model_attributes
       super.merge(
         schema: ->(t) { t.integer :new_field, default: 1, null: false },
         viewmodel: ->(_v) {
