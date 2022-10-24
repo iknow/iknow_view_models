@@ -37,8 +37,15 @@ class ViewModel
     end
 
     def migrate!(serialization)
-      migrate_tree!(serialization, references: serialization['references'] || {})
+      references = (serialization['references'] ||= {})
+
+      migrate_tree!(serialization, references: references)
+
       GarbageCollection.garbage_collect_references!(serialization)
+
+      if references.empty?
+        serialization.delete('references')
+      end
     end
 
     private

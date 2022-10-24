@@ -30,8 +30,16 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
   let(:current_serialization) do
     ctx = viewmodel_class.new_serialize_context
     view = ViewModel.serialize_to_hash(viewmodel, serialize_context: ctx)
-    refs = ctx.serialize_references_to_hash
-    { 'data' => view, 'references' => refs }
+
+    serialization = { 'data' => view }
+
+    # Only include 'references' key if there are actually references to
+    # serialize. This matches prerender_viewmodel.
+    if ctx.has_references?
+      serialization['references'] = ctx.serialize_references_to_hash
+    end
+
+    serialization
   end
 
   let(:v2_serialization_data) do
@@ -51,12 +59,9 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     }
   end
 
-  let(:v2_serialization_references) { {} }
-
   let(:v2_serialization) do
     {
       'data' => v2_serialization_data,
-      'references' => v2_serialization_references,
     }
   end
 
@@ -101,8 +106,7 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     describe 'upwards' do
       let(:migrator) { up_migrator }
       let(:subject_data) { v2_serialization_data.deep_dup }
-      let(:subject_references) { v2_serialization_references.deep_dup }
-      let(:subject) { { 'data' => subject_data, 'references' => subject_references } }
+      let(:subject) { { 'data' => subject_data } }
 
       let(:expected_result) do
         current_serialization.deep_merge(
@@ -229,12 +233,9 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       }
     end
 
-    let(:v1_serialization_references) { {} }
-
     let(:v1_serialization) do
       {
         'data' => v1_serialization_data,
-        'references' => v1_serialization_references,
       }
     end
 
@@ -331,7 +332,6 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
           ViewModel::MIGRATED_ATTRIBUTE => true,
           'name' => viewmodel.name,
         },
-        'references' => {},
       }
     end
 
@@ -367,6 +367,116 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         assert_raises(ViewModel::Migration::NoPathError) do
           migrate!
         end
+      end
+    end
+  end
+
+  describe 'changing references' do
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    let(:migration_versions) { { viewmodel_class => 1 } }
+
+    let(:old_field_serialization) do
+      {
+        ViewModel::TYPE_ATTRIBUTE    => 'SyntheticType',
+        ViewModel::VERSION_ATTRIBUTE => 1,
+      }
+    end
+
+    def model_attributes
+      old_field_serialization = self.old_field_serialization
+      super.merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+
+          # The migration from 1 -> 2 deleted a referenced field.
+          migrates from: 1, to: 2 do
+            # Put the referenced field back with a canned serialization
+            down do |view, refs|
+              view['old_field'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:old_field' }
+              refs['ref:old_field'] = old_field_serialization
+            end
+
+            # Remove the referenced field
+            up do |view, _refs|
+              view.delete('old_field')
+            end
+          end
+        },
+      )
+    end
+
+    let(:v1_serialization_data) do
+      base = {
+        ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+        ViewModel::VERSION_ATTRIBUTE => 1,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'child' => {
+          ViewModel::TYPE_ATTRIBUTE => child_viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 1,
+          ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
+          'name' => viewmodel.child.name,
+        },
+        'old_field' => { ViewModel::REFERENCE_ATTRIBUTE => 'ref:old_field' },
+      }
+    end
+
+    let(:v1_serialization_references) do
+      { 'ref:old_field' => old_field_serialization }
+    end
+
+    let(:v1_serialization) do
+      {
+        'data' => v1_serialization_data,
+        'references' => v1_serialization_references,
+      }
+    end
+
+    describe 'adding references' do
+      let(:migrator) { down_migrator }
+      let(:subject) do
+        ser = current_serialization.deep_dup
+        raise ArgumentError.new("Expected no references") if ser.has_key?('references')
+        ser
+      end
+
+      let(:expected_result) do
+        {
+          'data' => v1_serialization_data.deep_dup.deep_merge(
+            { ViewModel::MIGRATED_ATTRIBUTE => true }
+          ),
+          'references' => v1_serialization_references
+        }
+      end
+
+      it 'migrates and returns references' do
+        migrate!
+
+        assert_equal(expected_result, subject)
+      end
+    end
+
+    describe 'removing references' do
+      let(:migrator) { up_migrator }
+      let(:subject) do
+        ser = v1_serialization.deep_dup
+        raise ArgumentError.new("Expected references") unless ser.has_key?('references')
+        ser
+      end
+
+      let(:expected_result) do
+        {
+          'data' => current_serialization.fetch('data').deep_dup.merge({
+            ViewModel::MIGRATED_ATTRIBUTE => true,
+          }),
+          # references key is absent
+        }
+      end
+
+      it 'migrates and returns references' do
+        migrate!
+
+        assert_equal(expected_result, subject)
       end
     end
   end
