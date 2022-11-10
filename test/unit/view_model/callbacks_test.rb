@@ -554,6 +554,35 @@ class ViewModel::CallbacksTest < ActiveSupport::TestCase
       end
     end
 
+    describe 'delegates to methods on the callback object' do
+      class TestCallback
+        include ViewModel::Callbacks
+
+        attr_reader :a_args, :b_args
+
+        def a(*args)
+          @a_args = args
+        end
+
+        def b(*args, **kwargs)
+          @b_args = [args, kwargs]
+        end
+
+        before_visit do
+          a(1, 2, x: 1, y: 2)
+          b(1, 2, x: 1, y: 2)
+        end
+      end
+
+      let(:callback) { TestCallback.new }
+
+      it 'delegates to callback methods including kwargs' do
+        serialize(vm)
+        value(callback.a_args).must_equal([1, 2, { x: 1, y: 2 }])
+        value(callback.b_args).must_equal([[1, 2], { x: 1, y: 2 }])
+      end
+    end
+
     describe 'provides details to the execution environment' do
       class EnvCallback
         include ViewModel::Callbacks

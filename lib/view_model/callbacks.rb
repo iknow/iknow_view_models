@@ -11,9 +11,9 @@ module ViewModel::Callbacks
   # callbacks instance with additional instance method access to the view,
   # context and extra context-dependent parameters.
   module CallbackEnvContext
-    def method_missing(method, *args, &block)
+    def method_missing(method, ...)
       if _callbacks.respond_to?(method, true)
-        _callbacks.send(method, *args, &block)
+        _callbacks.send(method, ...)
       else
         super
       end

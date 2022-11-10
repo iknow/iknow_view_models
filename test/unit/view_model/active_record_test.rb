@@ -146,7 +146,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     assert_raises(ViewModel::AccessControlError) do
       no_view_context = ViewModelBase.new_serialize_context(can_view: false)
-      parentview.to_hash(serialize_context: no_view_context)
+      parentview.serialize_to_hash(serialize_context: no_view_context)
     end
 
     assert_raises(ViewModel::AccessControlError) do
@@ -191,7 +191,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # edit
-      v = ParentView.new(@parent1).to_hash.merge('name' => 'p2')
+      v = ParentView.new(@parent1).serialize_to_hash.merge('name' => 'p2')
       ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)
@@ -214,7 +214,7 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
     ex = assert_raises(ViewModel::AccessControlError) do
       # edit
-      v = ParentView.new(@parent1).to_hash.merge('name' => 'p2')
+      v = ParentView.new(@parent1).serialize_to_hash.merge('name' => 'p2')
       ParentView.deserialize_from_view(v, deserialize_context: no_edit_context)
     end
     assert_match(/Illegal edit/, ex.message)

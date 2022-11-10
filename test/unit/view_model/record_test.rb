@@ -204,7 +204,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       def self.included(base)
         base.instance_eval do
           it 'can serialize to the expected view' do
-            h = viewmodel_class.new(subject_model).to_hash
+            h = viewmodel_class.new(subject_model).serialize_to_hash
             assert_equal(expected_view, h)
           end
         end
@@ -318,7 +318,7 @@ class ViewModel::RecordTest < ActiveSupport::TestCase
       it 'raises correctly on an undeserializable value' do
         bad_model = subject_model.tap { |m| m.moment = 2.7 }
         ex = assert_raises(ViewModel::SerializationError) do
-          viewmodel_class.new(bad_model).to_hash
+          viewmodel_class.new(bad_model).serialize_to_hash
         end
         assert_match(/Could not serialize invalid value.*'moment'.*Incorrect type/, ex.detail)
       end

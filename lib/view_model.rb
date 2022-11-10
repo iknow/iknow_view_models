@@ -303,12 +303,12 @@ class ViewModel
     end
   end
 
-  def to_hash(serialize_context: self.class.new_serialize_context)
+  def serialize_to_hash(serialize_context: self.class.new_serialize_context)
     Jbuilder.new { |json| serialize(json, serialize_context: serialize_context) }.attributes!
   end
 
   def to_json(serialize_context: self.class.new_serialize_context)
-    ViewModel.encode_json(self.to_hash(serialize_context: serialize_context))
+    ViewModel.encode_json(self.serialize_to_hash(serialize_context: serialize_context))
   end
 
   # Render this viewmodel to a jBuilder. Usually overridden in subclasses.

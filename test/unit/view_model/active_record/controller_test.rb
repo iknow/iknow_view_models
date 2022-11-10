@@ -37,7 +37,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     parentcontroller = ParentController.new(params: { id: @parent.id })
     parentcontroller.invoke(:show)
 
-    assert_equal({ 'data' => @parent_view.to_hash },
+    assert_equal({ 'data' => @parent_view.serialize_to_hash },
                  parentcontroller.hash_response)
 
     assert_equal(200, parentcontroller.status)
@@ -52,7 +52,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
 
     parentcontroller.invoke(:show)
 
-    expected_view = @parent_view.to_hash
+    expected_view = @parent_view.serialize_to_hash
                       .except('name')
                       .merge('old_name' => @parent.name,
                              ViewModel::VERSION_ATTRIBUTE => 1,
@@ -88,7 +88,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     assert_equal(200, parentcontroller.status)
 
     assert_equal(parentcontroller.hash_response,
-                 { 'data' => [@parent_view.to_hash, p2_view.to_hash] })
+                 { 'data' => [@parent_view.serialize_to_hash, p2_view.serialize_to_hash] })
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
@@ -112,7 +112,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     p2_view = ParentView.new(p2)
     assert(p2.present?, 'p2 created')
 
-    assert_equal({ 'data' => p2_view.to_hash }, parentcontroller.hash_response)
+    assert_equal({ 'data' => p2_view.serialize_to_hash }, parentcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
   end
@@ -160,7 +160,7 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal('new', @parent.name)
-    assert_equal({ 'data' => @parent_view.to_hash },
+    assert_equal({ 'data' => @parent_view.serialize_to_hash },
                  parentcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)

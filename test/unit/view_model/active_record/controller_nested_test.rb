@@ -44,7 +44,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     assert_equal(200, childcontroller.status)
 
     expected_children = @parent.children
-    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).serialize_to_hash } },
       childcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
@@ -59,7 +59,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     assert_equal(200, childcontroller.status)
 
     expected_children = @parent.children + distractor.children
-    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).to_hash } },
+    assert_equal({ 'data' => expected_children.map { |c| ChildView.new(c).serialize_to_hash } },
       childcontroller.hash_response)
   end
 
@@ -79,7 +79,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal(%w[c1 c2 c3], @parent.children.order(:position).pluck(:name))
-    assert_equal({ 'data' => ChildView.new(@parent.children.last).to_hash },
+    assert_equal({ 'data' => ChildView.new(@parent.children.last).serialize_to_hash },
       childcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(childcontroller.hook_trace)
@@ -102,7 +102,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     @parent.reload
 
     assert_equal(%w[c1 c2 c3 c4], @parent.children.order(:position).pluck(:name))
-    new_children_hashes = @parent.children.last(2).map { |c| ChildView.new(c).to_hash }
+    new_children_hashes = @parent.children.last(2).map { |c| ChildView.new(c).serialize_to_hash }
     assert_equal({ 'data' => new_children_hashes },
       childcontroller.hash_response)
 
@@ -265,7 +265,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     old_child.reload
 
     assert_equal('new_name', old_child.name)
-    assert_equal({ 'data' => ChildView.new(old_child).to_hash },
+    assert_equal({ 'data' => ChildView.new(old_child).serialize_to_hash },
       childcontroller.hash_response)
   end
 
@@ -275,7 +275,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     childcontroller = ChildController.new(params: { id: old_child.id })
     childcontroller.invoke(:show)
 
-    assert_equal({ 'data' => ChildView.new(old_child).to_hash },
+    assert_equal({ 'data' => ChildView.new(old_child).serialize_to_hash },
       childcontroller.hash_response)
 
     assert_equal(200, childcontroller.status)
@@ -323,7 +323,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
-    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).serialize_to_hash },
       labelcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
@@ -367,7 +367,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     old_label.reload
 
     assert_equal('new label', old_label.text)
-    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).serialize_to_hash },
       labelcontroller.hash_response)
 
     assert_all_hooks_nested_inside_parent_hook(labelcontroller.hook_trace)
@@ -381,7 +381,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
 
     assert_equal(200, labelcontroller.status, labelcontroller.hash_response)
 
-    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).serialize_to_hash },
       labelcontroller.hash_response)
   end
 
@@ -414,7 +414,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
     old_label.reload
 
     assert_equal('new label', old_label.text)
-    assert_equal({ 'data' => LabelView.new(old_label).to_hash },
+    assert_equal({ 'data' => LabelView.new(old_label).serialize_to_hash },
       labelcontroller.hash_response)
   end
 
@@ -472,11 +472,11 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
           'updates' => [
             {
               'id'     => @parent.id,
-              'update' => TargetView.new(target).to_hash,
+              'update' => TargetView.new(target).serialize_to_hash,
             },
             {
               'id'     => other_parent.id,
-              'update' => TargetView.new(other_target).to_hash,
+              'update' => TargetView.new(other_target).serialize_to_hash,
             },
           ].sort_by { |x| x.fetch('id') }
         }
@@ -535,7 +535,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
 
     assert_equal(
       {
-        ref_key => CategoryView.new(@parent.category).to_hash,
+        ref_key => CategoryView.new(@parent.category).serialize_to_hash,
       },
       references,
     )
@@ -591,7 +591,7 @@ class ViewModel::ActiveRecord::ControllerNestedTest < ActiveSupport::TestCase
 
     assert_equal(
       {
-        ref_key => TagView.new(@parent.parent_tags.first.tag).to_hash,
+        ref_key => TagView.new(@parent.parent_tags.first.tag).serialize_to_hash,
       },
       references,
     )
