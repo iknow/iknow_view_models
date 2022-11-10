@@ -283,13 +283,13 @@ class ViewModel::ActiveRecord::FlattenAssociationTest < ActiveSupport::TestCase
 
   def test_serialize
     v = SectionView.new(@simplesection)
-    assert_equal(@simplesection_view, v.to_hash)
+    assert_equal(@simplesection_view, v.serialize_to_hash)
 
     v = SectionView.new(@quizsection)
-    assert_equal(@quizsection_view, v.to_hash)
+    assert_equal(@quizsection_view, v.serialize_to_hash)
 
     v = SectionView.new(@vocabsection)
-    assert_equal(@vocabsection_view, v.to_hash)
+    assert_equal(@vocabsection_view, v.serialize_to_hash)
   end
 
   def new_view_like(view)

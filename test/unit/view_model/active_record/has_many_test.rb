@@ -469,8 +469,8 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     old_children = @model1.children.order(:position)
     moved_child = old_children[1]
 
-    view = viewmodel_class.new(@model2).to_hash
-    view['children'] << child_viewmodel_class.new(moved_child).to_hash
+    view = viewmodel_class.new(@model2).serialize_to_hash
+    view['children'] << child_viewmodel_class.new(moved_child).serialize_to_hash
 
     retained_children = old_children - [moved_child]
     release_view = { '_type' => 'Model', 'id' => @model1.id,
@@ -503,7 +503,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_has_many_append_and_update_existing_association
     child = @model1.children[1]
 
-    cv = child_viewmodel_class.new(child).to_hash
+    cv = child_viewmodel_class.new(child).serialize_to_hash
     cv['name'] = 'newname'
 
     viewmodel_class.new(@model1).append_associated(:children, cv)
@@ -558,7 +558,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_move_and_edit_child_to_new
     child = @model1.children[1]
 
-    child_view = child_viewmodel_class.new(child).to_hash
+    child_view = child_viewmodel_class.new(child).serialize_to_hash
     child_view['name'] = 'changed'
 
     view = { '_type' => 'Model',
@@ -592,9 +592,9 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
   def test_move_and_edit_child_to_existing
     old_child = @model1.children[1]
 
-    old_child_view = child_viewmodel_class.new(old_child).to_hash
+    old_child_view = child_viewmodel_class.new(old_child).serialize_to_hash
     old_child_view['name'] = 'changed'
-    view = viewmodel_class.new(@model2).to_hash
+    view = viewmodel_class.new(@model2).serialize_to_hash
     view['children'] << old_child_view
 
     release_view = { '_type' => 'Model', 'id' => @model1.id,
