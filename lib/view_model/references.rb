@@ -37,12 +37,13 @@ class ViewModel
 
     private
 
-    # Ensure stable reference ids for the same (persisted) viewmodels.
+    # Ensure stable reference keys for the same (persisted) viewmodels. For
+    # unpersisted viewmodels, use a counter to generate a reference key unique
+    # to this serialization.
     def new_ref!(viewmodel)
       vm_ref = viewmodel.to_reference
       if vm_ref.model_id
-        hash = Digest::SHA256.base64digest("#{vm_ref.viewmodel_class.name}.#{vm_ref.model_id}")
-        "ref:h:#{hash}"
+        vm_ref.stable_reference
       else
         format('ref:i:%06<count>d', count: (@last_ref += 1))
       end

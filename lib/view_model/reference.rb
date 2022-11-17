@@ -29,5 +29,13 @@ class ViewModel
     def hash
       [viewmodel_class, model_id].hash
     end
+
+    # Generate a stable reference key for this viewmodel using type name and id
+    def stable_reference
+      raise RuntimeError.new('Model id required to generate a stable reference') unless model_id
+
+      hash = Digest::SHA256.base64digest("#{viewmodel_class.name}.#{model_id}")
+      "ref:h:#{hash}"
+    end
   end
 end

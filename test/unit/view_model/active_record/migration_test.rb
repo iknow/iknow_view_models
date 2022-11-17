@@ -436,16 +436,17 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       let(:migrator) { down_migrator }
       let(:subject) do
         ser = current_serialization.deep_dup
-        raise ArgumentError.new("Expected no references") if ser.has_key?('references')
+        raise ArgumentError.new('Expected no references') if ser.has_key?('references')
+
         ser
       end
 
       let(:expected_result) do
         {
           'data' => v1_serialization_data.deep_dup.deep_merge(
-            { ViewModel::MIGRATED_ATTRIBUTE => true }
+            { ViewModel::MIGRATED_ATTRIBUTE => true },
           ),
-          'references' => v1_serialization_references
+          'references' => v1_serialization_references,
         }
       end
 
@@ -460,7 +461,8 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       let(:migrator) { up_migrator }
       let(:subject) do
         ser = v1_serialization.deep_dup
-        raise ArgumentError.new("Expected references") unless ser.has_key?('references')
+        raise ArgumentError.new('Expected references') unless ser.has_key?('references')
+
         ser
       end
 
@@ -477,6 +479,98 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         migrate!
 
         assert_equal(expected_result, subject)
+      end
+    end
+  end
+
+  describe 'concurrently inserting a reference' do
+    include ViewModelSpecHelpers::ReferencedList
+    let(:migration_versions) { { viewmodel_class => 1 } }
+
+    # Use a list with two members
+    def new_model
+      model_class.new(name: 'root',
+                      next: model_class.new(name: 'old-tail'))
+    end
+
+    # Define a down migration that matches the old tail to insert a new tail
+    # after it, and the new tail to change its name.
+    def model_attributes
+      super.merge(
+        viewmodel: ->(v) {
+          self.schema_version = 2
+
+          migrates from: 1, to: 2 do
+            down do |view, refs|
+              case view['name']
+              when 'old-tail'
+                view['next'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:s:new_tail' }
+                refs['ref:s:new_tail'] = {
+                  ViewModel::TYPE_ATTRIBUTE    => v.view_name,
+                  ViewModel::VERSION_ATTRIBUTE => v.schema_version,
+                  'id' => 100, # entirely fake
+                  'name' => 'new-tail',
+                  'next' => nil,
+                }
+
+              when 'new-tail'
+                view['name'] = 'newer-tail'
+              end
+            end
+          end
+        },
+      )
+    end
+
+    let(:v1_serialization_data) do
+      {
+        ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+        ViewModel::VERSION_ATTRIBUTE => 1,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'next' => { ViewModel::REFERENCE_ATTRIBUTE => viewmodel.next.to_reference.stable_reference },
+        ViewModel::MIGRATED_ATTRIBUTE => true,
+      }
+    end
+
+    let(:v1_serialization_references) do
+      old_tail = viewmodel.next
+      old_tail_ref = old_tail.to_reference.stable_reference
+      {
+        old_tail_ref => {
+          ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 1,
+          ViewModel::ID_ATTRIBUTE => old_tail.id,
+          'name' => 'old-tail',
+          'next' => { ViewModel::REFERENCE_ATTRIBUTE => 'ref:s:new_tail' },
+          ViewModel::MIGRATED_ATTRIBUTE => true,
+        },
+        'ref:s:new_tail' => {
+          ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 1,
+          ViewModel::ID_ATTRIBUTE => 100,
+          'name' => 'newer-tail',
+          'next' => nil,
+          ViewModel::MIGRATED_ATTRIBUTE => true,
+        },
+      }
+    end
+
+    let(:v1_serialization) do
+      {
+        'data' => v1_serialization_data,
+        'references' => v1_serialization_references,
+      }
+    end
+
+    describe 'downwards' do
+      let(:migrator) { down_migrator }
+      let(:subject) { current_serialization.deep_dup }
+
+      it 'migrates' do
+        migrate!
+
+        assert_equal(v1_serialization, subject)
       end
     end
   end

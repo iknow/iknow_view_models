@@ -39,7 +39,26 @@ class ViewModel
     def migrate!(serialization)
       references = (serialization['references'] ||= {})
 
-      migrate_tree!(serialization, references: references)
+      # First visit everything except references; there's no issue with adding
+      # new references during this.
+      migrate_tree!(serialization.except('references'), references: references)
+
+      # While visiting references itself, we need to take care that we can
+      # concurrently modify them (e.g. by adding new referenced views).
+      # Moreover, such added references must themselves be visited, as they'll
+      # be synthesized at the current version and so may need to be migrated
+      # down to the client's requested version.
+      visited_refs = []
+      loop do
+        unvisited_refs = references.keys - visited_refs
+        break if unvisited_refs.empty?
+
+        unvisited_refs.each do |ref|
+          migrate_tree!(references[ref], references: references)
+        end
+
+        visited_refs.concat(unvisited_refs)
+      end
 
       GarbageCollection.garbage_collect_references!(serialization)
 
@@ -112,10 +131,11 @@ class ViewModel
       path = @paths[view_name]
       return false unless path
 
-      # We assume that an unspecified source version is the same as the required
-      # version.
       required_version, current_version = @versions[view_name]
+      return false if source_version == current_version
 
+      # We assume that an unspecified source version is the same as the required
+      # version (i.e. the version demanded by the client request).
       unless source_version.nil? || source_version == required_version
         raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
       end

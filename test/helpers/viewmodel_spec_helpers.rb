@@ -295,6 +295,14 @@ module ViewModelSpecHelpers
     end
   end
 
+  module ReferencedList
+    extend ActiveSupport::Concern
+    include ViewModelSpecHelpers::List
+    def model_attributes
+      super.merge(viewmodel: ->(_v) { root! })
+    end
+  end
+
   module ParentAndHasOneChild
     extend ActiveSupport::Concern
     include ViewModelSpecHelpers::Base
