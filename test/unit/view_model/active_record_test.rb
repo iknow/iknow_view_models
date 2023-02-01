@@ -556,5 +556,21 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
 
       assert_equal({ constraint: constraint, columns: columns, values: values, conflicts: conflicts, nodes: [] }, ex.meta)
     end
+
+    def test_disabled_deferred_check
+      l1 = List.create!(value: 1)
+      l2 = List.create!
+
+      ctx = ListView.new_deserialize_context(validate_deferred_constraints: false)
+      alter_by_view!(ListView, l2, deserialize_context: ctx) do |view, refs|
+        view['value'] = 1
+      end
+
+      ex = assert_raises(::ActiveRecord::StatementInvalid) do
+        List.connection.execute('SET CONSTRAINTS ALL IMMEDIATE')
+      end
+
+      assert_equal(PG::ExclusionViolation, ex.cause.class)
+    end
   end
 end

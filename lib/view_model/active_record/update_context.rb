@@ -163,7 +163,7 @@ class ViewModel::ActiveRecord
 
       @release_pool.release_all!
 
-      if updated_viewmodels.present?
+      if updated_viewmodels.present? && deserialize_context.validate_deferred_constraints?
         # Deferred database constraints may have been violated by changes during
         # deserialization. VM::AR promises that any errors during deserialization
         # will be raised as a ViewModel::DeserializationError, so check constraints
