@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: read
+  checks: write
+  pull-requests: write
 
 jobs:
   test:
@@ -50,6 +52,14 @@ jobs:
       run: bundle exec rake test
     - name: Upload result
       uses: actions/upload-artifact@v3
+      if: always()
       with:
         path: test/reports/
         name: test_results_${{ matrix.ruby-version }}
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Minitest Tests - ${{ matrix.ruby-version }}
+        path: test/reports/*.xml
+        reporter: java-junit
