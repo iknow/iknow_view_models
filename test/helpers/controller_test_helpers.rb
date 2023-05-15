@@ -267,7 +267,9 @@ module ControllerTestControllers
     [:ParentController, :ChildController, :LabelController, :TargetController].each do |name|
       Object.send(:remove_const, name)
     end
-    ActiveSupport::Dependencies::Reference.clear!
+    if ActiveSupport::VERSION::MAJOR < 7
+      ActiveSupport::Dependencies::Reference.clear!
+    end
     super
   end
 end
