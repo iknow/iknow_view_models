@@ -8,11 +8,18 @@ require 'view_model/active_record/controller'
 
 require 'acts_as_manual_list'
 
-db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
-db_config = YAML.safe_load(File.open(db_config_path))
-raise 'Test database configuration missing' unless db_config['test']
+db_config =
+  if (url = ENV['DATABASE_URL'])
+    url
+  else
+    db_config_path = File.join(File.dirname(__FILE__), '../config/database.yml')
+    yaml = YAML.safe_load(File.open(db_config_path))
+    raise 'Test database configuration missing' unless yaml['test']
 
-ActiveRecord::Base.establish_connection(db_config['test'])
+    yaml['test']
+  end
+
+ActiveRecord::Base.establish_connection(db_config)
 
 # Remove test tables if any exist
 %w[labels parents children targets poly_ones poly_twos owners
