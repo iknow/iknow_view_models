@@ -3,6 +3,7 @@
 # A ViewModel encapsulates a particular aggregation of data calculated via the
 # underlying models and provides a means of serializing it into views.
 require 'jbuilder'
+require 'base64'
 require 'deep_preloader'
 
 class ViewModel
@@ -209,16 +210,16 @@ class ViewModel
       ViewModel::SerializeContext
     end
 
-    def new_serialize_context(*args)
-      serialize_context_class.new(*args)
+    def new_serialize_context(...)
+      serialize_context_class.new(...)
     end
 
     def deserialize_context_class
       ViewModel::DeserializeContext
     end
 
-    def new_deserialize_context(*args)
-      deserialize_context_class.new(*args)
+    def new_deserialize_context(...)
+      deserialize_context_class.new(...)
     end
 
     def accepts_schema_version?(schema_version)
