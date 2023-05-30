@@ -24,6 +24,8 @@ module ViewModel::Controller
         ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
       end
 
+      render_response_metadata(json, serialize_context: serialize_context)
+
       if serialize_context && serialize_context.has_references?
         json.references do
           serialize_context.serialize_references(json)
@@ -32,6 +34,9 @@ module ViewModel::Controller
 
       yield(json) if block_given?
     end
+  end
+
+  def render_response_metadata(json, serialize_context:)
   end
 
   # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
