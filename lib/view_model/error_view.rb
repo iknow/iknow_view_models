@@ -12,11 +12,19 @@ class ViewModel::ErrorView < ViewModel::Record
     def serialize_view(json, serialize_context: nil)
       json.set! :class, exception.class.name
       json.backtrace exception.backtrace
-      if (cause = exception.cause)
-        json.cause do
-          json.set! :class, cause.class.name
-          json.backtrace cause.backtrace
-        end
+
+      json.cause do
+        cause = exception.cause
+        next json.null! unless cause
+
+        json.set! :class, cause.class.name
+        json.backtrace cause.backtrace
+      end
+
+      json.context do
+        next json.null! unless exception.respond_to?(:to_honeybadger_context)
+
+        json.merge! cause.to_honeybadger_context
       end
     end
   end
