@@ -24,7 +24,7 @@ class ViewModel::ErrorView < ViewModel::Record
       json.context do
         next json.null! unless exception.respond_to?(:to_honeybadger_context)
 
-        json.merge! cause.to_honeybadger_context
+        json.merge! exception.to_honeybadger_context
       end
     end
   end
