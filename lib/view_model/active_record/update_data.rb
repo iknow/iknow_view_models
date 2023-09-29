@@ -522,6 +522,10 @@ class ViewModel::ActiveRecord
 
     delegate :new?, :child_update?, :auto_child_update?, to: :metadata
 
+    def reference_only?
+      attributes.empty? && associations.empty? && referenced_associations.empty?
+    end
+
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
       valid_reference_keys = referenced_subtree_hashes.keys.to_set
 
