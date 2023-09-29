@@ -5,8 +5,18 @@ class ViewModel::Migration
   require 'view_model/migration/one_way_error'
   require 'view_model/migration/unspecified_version_error'
 
+  REFERENCE_ONLY_KEYS = [
+    ViewModel::TYPE_ATTRIBUTE,
+    ViewModel::ID_ATTRIBUTE,
+    ViewModel::VERSION_ATTRIBUTE,
+  ].freeze
+
   def up(view, _references)
-    raise ViewModel::Migration::OneWayError.new(view[ViewModel::TYPE_ATTRIBUTE], :up)
+    # Only a reference-only view may be (trivially) migrated up without an
+    # explicit migration.
+    if (view.keys - REFERENCE_ONLY_KEYS).present?
+      raise ViewModel::Migration::OneWayError.new(view[ViewModel::TYPE_ATTRIBUTE], :up)
+    end
   end
 
   def down(view, _references)
