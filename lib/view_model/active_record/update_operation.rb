@@ -81,15 +81,15 @@ class ViewModel::ActiveRecord
             viewmodel._list_attribute = reposition_to
           end
 
-          # update user-specified attributes
-          valid_members = viewmodel.class._members.keys.map(&:to_s).to_set
-          bad_keys = attributes.keys.reject { |k| valid_members.include?(k) }
-          if bad_keys.present?
-            causes = bad_keys.map { |k| ViewModel::DeserializationError::UnknownAttribute.new(k, blame_reference) }
-            raise ViewModel::DeserializationError::Collection.for_errors(causes)
-          end
+          # Visit attributes and associations as much as possible in the order
+          # that they're declared in the view.
+          member_ordering = viewmodel.class._members.keys.each_with_index.to_h
 
-          attributes.each do |attr_name, serialized_value|
+          # update user-specified attributes
+          attribute_keys = attributes.keys.sort_by { |k| member_ordering[k] }
+          attribute_keys.each do |attr_name|
+            serialized_value = attributes[attr_name]
+
             # Note that the VM::AR deserialization tree asserts ownership over any
             # references it's provided, and so they're intentionally not passed on
             # to attribute deserialization for use by their `using:` viewmodels. A
@@ -101,7 +101,13 @@ class ViewModel::ActiveRecord
           end
 
           # Update points-to associations before save
-          points_to.each do |association_data, child_operation|
+          points_to_keys = points_to.keys.sort_by do |association_data|
+            member_ordering[association_data.association_name]
+          end
+
+          points_to_keys.each do |association_data|
+            child_operation = points_to[association_data]
+
             reflection = association_data.direct_reflection
             debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
@@ -138,7 +144,12 @@ class ViewModel::ActiveRecord
 
           # Update association cache of pointed-from associations after save: the
           # child update will have saved the pointer.
-          pointed_to.each do |association_data, child_operation|
+          pointed_to_keys = pointed_to.keys.sort_by do |association_data|
+            member_ordering[association_data.association_name]
+          end
+
+          pointed_to_keys.each do |association_data|
+            child_operation = pointed_to[association_data]
             reflection = association_data.direct_reflection
 
             debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
