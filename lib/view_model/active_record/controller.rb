@@ -98,6 +98,15 @@ module ViewModel::ActiveRecord::Controller
   def migration_versions
     @migration_versions ||=
       begin
+        specified_migration_versions.reject do |viewmodel_class, required_version|
+          viewmodel_class.schema_version == required_version
+        end.freeze
+      end
+  end
+
+  def specified_migration_versions
+    @specified_migration_versions ||=
+      begin
         version_spec =
           if params.include?(:versions)
             params[:versions]
@@ -121,10 +130,7 @@ module ViewModel::ActiveRecord::Controller
 
         versions.each do |view_name, required_version|
           viewmodel_class = ViewModel::Registry.for_view_name(view_name)
-
-          if viewmodel_class.schema_version != required_version
-            migration_versions[viewmodel_class] = required_version
-          end
+          migration_versions[viewmodel_class] = required_version
         rescue ViewModel::DeserializationError::UnknownView
           # Ignore requests to migrate types that no longer exist
           next
