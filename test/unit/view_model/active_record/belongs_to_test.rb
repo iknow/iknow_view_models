@@ -85,7 +85,7 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
   end
 
-  def test_belongs_to_create
+  def test_belongs_to_create_implicit_new
     @model1.update(child: nil)
 
     alter_by_view!(ModelView, @model1) do |view, _refs|
@@ -93,6 +93,95 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     end
 
     assert_equal('cheese', @model1.child.name)
+  end
+
+  def test_belongs_to_create
+    @model1.update(child: nil)
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', '_new' => true, 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+  end
+
+  def test_belongs_to_create_with_id
+    @model1.update(child: nil)
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', 'id' => 9999, '_new' => true, 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+    assert_equal(9999, @model1.child.id)
+  end
+
+  def test_belongs_to_create_with_colliding_id
+    child_id = @model1.child_id
+    @model1.update(child: nil)
+
+    ex = assert_raises(ViewModel::DeserializationError::UniqueViolation) do
+      alter_by_view!(ModelView, @model1) do |view, _refs|
+        view['child'] = { '_type' => 'Child', 'id' => child_id, '_new' => true, 'name' => 'cheese' }
+      end
+    end
+
+    assert_equal(['id'], ex.columns)
+    assert_equal([ViewModel::Reference.new(ChildView, child_id)], ex.nodes)
+  end
+
+  def test_belongs_to_create_child_with_auto
+    @model1.update(child: nil)
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', '_new' => 'auto', 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+  end
+
+  def test_belongs_to_edit_implicit_new
+    child_id = @model1.child_id
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', 'id' => child_id, 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+    assert_equal(child_id, @model1.child.id)
+  end
+
+  def test_belongs_to_edit
+    child_id = @model1.child_id
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', 'id' => child_id, '_new' => false, 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+    assert_equal(child_id, @model1.child.id)
+  end
+
+  def test_belongs_to_edit_child_without_id
+    child_id = @model1.child_id
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', '_new' => false, 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+    assert_equal(child_id, @model1.child.id)
+  end
+
+  def test_belongs_to_edit_child_with_auto
+    child_id = @model1.child_id
+
+    alter_by_view!(ModelView, @model1) do |view, _refs|
+      view['child'] = { '_type' => 'Child', '_new' => 'auto', 'name' => 'cheese' }
+    end
+
+    assert_equal('cheese', @model1.child.name)
+    assert_equal(child_id, @model1.child.id)
   end
 
   def test_belongs_to_replace

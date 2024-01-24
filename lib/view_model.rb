@@ -23,6 +23,10 @@ class ViewModel
   #            that child doesn't exist.
   # * nil    - Create a new model if `id` is not specified, otherwise update the
   #            existing record with `id`, and error if it doesn't exist.
+  # * 'auto' - Can only be used when the viewmodel is being deserialized in the
+  #            context of a singular association. `id` must not be specified. If
+  #            the association currently has a child, update it, otherwise
+  #            create a new one.
   NEW_ATTRIBUTE       = '_new'
 
   BULK_UPDATE_TYPE       = '_bulk_update'
@@ -35,20 +39,32 @@ class ViewModel
   MIGRATED_ATTRIBUTE = '_migrated'
 
   Metadata = Struct.new(:id, :view_name, :schema_version, :new, :migrated) do
-    # Does this metadata either explicitly or implicitly describe
-    # deserialization to a new model
+    # Does this metadata describe deserialization to a new model, either by
+    # {new: true} or {new: nil, id: nil}
     def new?
       if new.nil?
         id.nil?
       else
-        new
+        new == true
       end
     end
 
-    # Does this metadata describe an update to the anonymous current existing
+    # Does this metadata describe an change to the anonymous child of a singular
+    # association
+    def child_update?
+      explicit_child_update? || auto_child_update?
+    end
+
+    # Does this metadata describe an update to the already-existing anonymous
     # child of a singular association
-    def implicit_child_update?
+    def explicit_child_update?
       new == false && id.nil?
+    end
+
+    # Does this child metadata describe an create-or-update to the anonymous
+    # child of a singular association
+    def auto_child_update?
+      new == 'auto'
     end
   end
 
@@ -147,6 +163,11 @@ class ViewModel
       schema_version = hash.delete(ViewModel::VERSION_ATTRIBUTE)
       new            = hash.delete(ViewModel::NEW_ATTRIBUTE)
       migrated       = hash.delete(ViewModel::MIGRATED_ATTRIBUTE) { false }
+
+      if id && new == 'auto'
+        raise ViewModel::DeserializationError::InvalidSyntax.new(
+                "An explicit id must not be specified with an 'auto' child update")
+      end
 
       Metadata.new(id, type_name, schema_version, new, migrated)
     end
