@@ -173,6 +173,19 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
     assert_equal(child_id, @model1.child.id)
   end
 
+  def test_belongs_to_one_edit_without_id_no_child
+    @model1.update(child: nil)
+
+    ex = assert_raises(ViewModel::DeserializationError::PreviousChildNotFound) do
+      alter_by_view!(ModelView, @model1) do |view, _refs|
+        view['child'] = { '_type' => 'Child', '_new' => false, 'name' => 'cheese' }
+      end
+    end
+
+    assert_equal('child', ex.association)
+    assert_equal([ViewModel::Reference.new(ModelView, @model1.id)], ex.nodes)
+  end
+
   def test_belongs_to_edit_child_with_auto
     child_id = @model1.child_id
 
