@@ -107,7 +107,7 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
     assert(pv.model.children.blank?)
   end
 
-  def test_create_has_many
+  def test_create_has_many_implicit_new
     view = { '_type'    => 'Model',
              'name'     => 'p',
              'children' => [{ '_type' => 'Child', 'name' => 'c1' },
@@ -121,6 +121,64 @@ class ViewModel::ActiveRecord::HasManyTest < ActiveSupport::TestCase
       context.valid_edit_refs)
 
     assert_equal(%w[c1 c2], pv.model.children.map(&:name))
+  end
+
+  def test_create_has_many
+    view = { '_type'    => 'Model',
+             'name'     => 'p',
+             'children' => [{ '_type' => 'Child', '_new' => true, 'name' => 'c1' },
+                            { '_type' => 'Child', '_new' => true, 'name' => 'c2' },] }
+
+    context = viewmodel_class.new_deserialize_context
+    pv = viewmodel_class.deserialize_from_view(view, deserialize_context: context)
+
+    assert_contains_exactly(
+      [pv.to_reference, pv.children[0].to_reference, pv.children[1].to_reference],
+      context.valid_edit_refs)
+
+    assert_equal(%w[c1 c2], pv.model.children.map(&:name))
+  end
+
+  def test_create_has_many_with_id
+    view = { '_type'    => 'Model',
+             'name'     => 'p',
+             'children' => [{ '_type' => 'Child', 'id' => 9998, '_new' => true, 'name' => 'c1' },
+                            { '_type' => 'Child', 'id' => 9999, '_new' => true, 'name' => 'c2' },] }
+
+    context = viewmodel_class.new_deserialize_context
+    pv = viewmodel_class.deserialize_from_view(view, deserialize_context: context)
+
+    assert_contains_exactly(
+      [pv.to_reference, pv.children[0].to_reference, pv.children[1].to_reference],
+      context.valid_edit_refs)
+
+    assert_equal(%w[c1 c2], pv.model.children.map(&:name))
+  end
+
+  def test_create_has_many_auto
+    view = { '_type'    => 'Model',
+             'name'     => 'p',
+             'children' => [{ '_type' => 'Child', '_new' => 'auto', 'name' => 'c1' }] }
+
+    context = viewmodel_class.new_deserialize_context
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
+      viewmodel_class.deserialize_from_view(view, deserialize_context: context)
+    end
+    assert_match(/existing children of a collection association without specified ids/, ex.message)
+    assert_equal([ViewModel::Reference.new(ChildView, nil)], ex.nodes)
+  end
+
+  def test_update_has_many_without_id
+    view = { '_type'    => 'Model',
+             'name'     => 'p',
+             'children' => [{ '_type' => 'Child', '_new' => false, 'name' => 'c1' }] }
+
+    context = viewmodel_class.new_deserialize_context
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
+      viewmodel_class.deserialize_from_view(view, deserialize_context: context)
+    end
+    assert_match(/existing children of a collection association without specified ids/, ex.message)
+    assert_equal([ViewModel::Reference.new(ChildView, nil)], ex.nodes)
   end
 
   def test_nil_multiple_association

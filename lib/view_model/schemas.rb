@@ -21,7 +21,7 @@ class ViewModel::Schemas
       'description' => 'viewmodel update',
       'properties'  => { ViewModel::TYPE_ATTRIBUTE    => { 'type' => 'string' },
                          ViewModel::ID_ATTRIBUTE      => ID_SCHEMA,
-                         ViewModel::NEW_ATTRIBUTE     => { 'type' => 'boolean' },
+                         ViewModel::NEW_ATTRIBUTE     => { 'oneOf' => [{ 'type' => 'boolean' }, { 'type' => 'string', 'enum' => ['auto'] }] },
                          ViewModel::VERSION_ATTRIBUTE => { 'type' => 'integer' } },
       'required'    => [ViewModel::TYPE_ATTRIBUTE],
     }.freeze

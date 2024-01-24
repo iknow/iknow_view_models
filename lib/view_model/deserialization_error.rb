@@ -211,6 +211,23 @@ class ViewModel
       end
     end
 
+    class PreviousChildNotFound < NotFound
+      attr_reader :association
+
+      def initialize(association, blame_nodes)
+        @association = association
+        super(blame_nodes)
+      end
+
+      def detail
+        "No child currently exists to update for association '#{association}'"
+      end
+
+      def meta
+        super.merge(association: association)
+      end
+    end
+
     class DuplicateNodes < InvalidRequest
       attr_reader :type
 

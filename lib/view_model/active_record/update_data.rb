@@ -520,9 +520,7 @@ class ViewModel::ActiveRecord
       end
     end
 
-    def new?
-      id.nil? || metadata.new?
-    end
+    delegate :new?, :child_update?, :auto_child_update?, to: :metadata
 
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
       valid_reference_keys = referenced_subtree_hashes.keys.to_set

@@ -300,6 +300,26 @@ class ViewModel::ActiveRecord
         case
         when update_data.new?
           child_viewmodel_class.for_new_model(id: update_data.id)
+        when update_data.child_update?
+          if association_data.collection?
+            raise ViewModel::DeserializationError::InvalidStructure.new(
+                    'Cannot update existing children of a collection association without specified ids',
+                    ViewModel::Reference.new(update_data.viewmodel_class, nil))
+          end
+
+          child = previous_child_viewmodels[0]
+
+          if child.nil?
+            unless update_data.auto_child_update?
+              raise ViewModel::DeserializationError::PreviousChildNotFound.new(
+                    association_data.association_name.to_s,
+                    self.blame_reference)
+            end
+
+            child = child_viewmodel_class.for_new_model
+          end
+
+          child
         when existing_child = previous_by_key[key]
           existing_child
         when taken_child = update_context.try_take_released_viewmodel(key)

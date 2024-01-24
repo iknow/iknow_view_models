@@ -127,6 +127,30 @@ class ViewModel::ActiveRecordTest < ActiveSupport::TestCase
     assert_equal([ViewModel::Reference.new(ParentView, 9999)], ex.nodes)
   end
 
+  def test_create_implicit_id_raises
+    view = {
+      '_type' => 'Parent',
+      '_new'  => false,
+    }
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
+      ParentView.deserialize_from_view(view)
+    end
+    assert_match(/existing root node without a specified id/, ex.message)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], ex.nodes)
+  end
+
+  def test_create_auto_raises
+    view = {
+      '_type' => 'Parent',
+      '_new'  => 'auto',
+    }
+    ex = assert_raises(ViewModel::DeserializationError::InvalidStructure) do
+      ParentView.deserialize_from_view(view)
+    end
+    assert_match(/automatic child update to a root node/, ex.message)
+    assert_equal([ViewModel::Reference.new(ParentView, nil)], ex.nodes)
+  end
+
   def test_read_only_raises_with_id
     view = {
       '_type' => 'Parent',

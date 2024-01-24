@@ -134,7 +134,15 @@ class ViewModel::ActiveRecord
 
         updates.each do |ref, update_data|
           viewmodel =
-            if update_data.new?
+            if update_data.auto_child_update?
+              raise ViewModel::DeserializationError::InvalidStructure.new(
+                      'Cannot make an automatic child update to a root node',
+                      ViewModel::Reference.new(update_data.viewmodel_class, nil))
+            elsif update_data.child_update?
+              raise ViewModel::DeserializationError::InvalidStructure.new(
+                      'Cannot update an existing root node without a specified id',
+                      ViewModel::Reference.new(update_data.viewmodel_class, nil))
+            elsif update_data.new?
               viewmodel_class.for_new_model(id: update_data.id)
             else
               viewmodel_class.new(existing_models[update_data.id])
