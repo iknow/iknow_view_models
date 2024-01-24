@@ -521,7 +521,11 @@ class ViewModel::ActiveRecord
     end
 
     def new?
-      id.nil? || metadata.new?
+      metadata.new?
+    end
+
+    def implicit_child_update?
+      metadata.implicit_child_update?
     end
 
     def self.parse_hashes(root_subtree_hashes, referenced_subtree_hashes = {})
