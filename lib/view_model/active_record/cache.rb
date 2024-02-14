@@ -49,8 +49,12 @@ class ViewModel::ActiveRecord::Cache
     @migrated_cache = @migrated_cache_group.register_cache(cache_name)
   end
 
+  # Handles being called with either ids or model/viewmodel objects
   def delete(*ids)
     ids.each do |id|
+      id = id.id if id.respond_to?(:id)
+      raise ArgumentError.new unless id.is_a?(Numeric) || id.is_a?(String)
+
       @cache_group.delete_all(@cache.key.new(id))
     end
   end
