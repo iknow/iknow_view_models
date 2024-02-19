@@ -14,8 +14,7 @@ class ViewModel::ActiveRecord
 
     attr_accessor :viewmodel,
                   :update_data,
-                  :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
-                  :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
+                  :association_updates, # AssociationData => UpdateOperation(s)
                   :reparent_to, # If node needs to update its pointer to a new parent, ParentData for the parent
                   :reposition_to, # if this node participates in a list under its parent, what should its position be?
                   :released_children # Set of children that have been released
@@ -23,13 +22,12 @@ class ViewModel::ActiveRecord
     delegate :attributes, to: :update_data
 
     def initialize(viewmodel, update_data, reparent_to: nil, reposition_to: nil)
-      self.viewmodel         = viewmodel
-      self.update_data       = update_data
-      self.points_to         = {}
-      self.pointed_to        = {}
-      self.reparent_to       = reparent_to
-      self.reposition_to     = reposition_to
-      self.released_children = []
+      self.viewmodel           = viewmodel
+      self.update_data         = update_data
+      self.association_updates = {}
+      self.reparent_to         = reparent_to
+      self.reposition_to       = reposition_to
+      self.released_children   = []
 
       @run_state = RunState::Pending
       @changed_associations = []
@@ -82,46 +80,47 @@ class ViewModel::ActiveRecord
           end
 
           # Visit attributes and associations as much as possible in the order
-          # that they're declared in the view.
-          member_ordering = viewmodel.class._members.keys.each_with_index.to_h
-
-          # update user-specified attributes
-          attribute_keys = attributes.keys.sort_by { |k| member_ordering[k] }
-          attribute_keys.each do |attr_name|
-            serialized_value = attributes[attr_name]
-
-            # Note that the VM::AR deserialization tree asserts ownership over any
-            # references it's provided, and so they're intentionally not passed on
-            # to attribute deserialization for use by their `using:` viewmodels. A
-            # (better?) alternative would be to provide them as reference-only
-            # hashes, to indicate that no modification can be permitted.
-            viewmodel.public_send("deserialize_#{attr_name}", serialized_value,
-                                  references: {},
-                                  deserialize_context: deserialize_context)
+          # that they're declared in the view. We can visit attributes and
+          # points-to associations before save, but points-from associations
+          # must be visited after save.
+          pre_save_members, post_save_members = viewmodel.class._members.values.partition do |member_data|
+            !member_data.association? || member_data.pointer_location == :local
           end
 
-          # Update points-to associations before save
-          points_to_keys = points_to.keys.sort_by do |association_data|
-            member_ordering[association_data.association_name]
-          end
+          pre_save_members.each do |member_data|
+            if member_data.association?
+              next unless association_updates.include?(member_data)
 
-          points_to_keys.each do |association_data|
-            child_operation = points_to[association_data]
+              child_operation = association_updates[member_data]
 
-            reflection = association_data.direct_reflection
-            debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
+              reflection = member_data.direct_reflection
+              debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
 
-            association = model.association(reflection.name)
-            new_target =
-              if child_operation
-                child_ctx = viewmodel.context_for_child(association_data.association_name, context: deserialize_context)
-                child_viewmodel = child_operation.run!(deserialize_context: child_ctx)
-                propagate_tree_changes(association_data, child_viewmodel.previous_changes)
+              association = model.association(reflection.name)
+              new_target =
+                if child_operation
+                  child_ctx = viewmodel.context_for_child(member_data.association_name, context: deserialize_context)
+                  child_viewmodel = child_operation.run!(deserialize_context: child_ctx)
+                  propagate_tree_changes(member_data, child_viewmodel.previous_changes)
 
-                child_viewmodel.model
-              end
-            association.writer(new_target)
-            debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
+                  child_viewmodel.model
+                end
+              association.writer(new_target)
+              debug "<- #{debug_name}: Updated points-to association '#{reflection.name}'"
+            else
+              attr_name = member_data.name
+              next unless attributes.include?(attr_name)
+
+              serialized_value = attributes[attr_name]
+              # Note that the VM::AR deserialization tree asserts ownership over any
+              # references it's provided, and so they're intentionally not passed on
+              # to attribute deserialization for use by their `using:` viewmodels. A
+              # (better?) alternative would be to provide them as reference-only
+              # hashes, to indicate that no modification can be permitted.
+              viewmodel.public_send("deserialize_#{attr_name}", serialized_value,
+                                    references: {},
+                                    deserialize_context: deserialize_context)
+            end
           end
 
           # validate
@@ -144,12 +143,10 @@ class ViewModel::ActiveRecord
 
           # Update association cache of pointed-from associations after save: the
           # child update will have saved the pointer.
-          pointed_to_keys = pointed_to.keys.sort_by do |association_data|
-            member_ordering[association_data.association_name]
-          end
+          post_save_members.each do |association_data|
+            next unless association_updates.include?(association_data)
 
-          pointed_to_keys.each do |association_data|
-            child_operation = pointed_to[association_data]
+            child_operation = association_updates[association_data]
             reflection = association_data.direct_reflection
 
             debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
@@ -265,13 +262,7 @@ class ViewModel::ActiveRecord
     end
 
     def add_update(association_data, update)
-      target =
-        case association_data.pointer_location
-        when :remote then pointed_to
-        when :local then  points_to
-        end
-
-      target[association_data] = update
+      self.association_updates[association_data] = update
     end
 
     private
