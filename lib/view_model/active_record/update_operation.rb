@@ -14,8 +14,7 @@ class ViewModel::ActiveRecord
 
     attr_accessor :viewmodel,
                   :update_data,
-                  :points_to,  # AssociationData => UpdateOperation (returns single new viewmodel to update fkey)
-                  :pointed_to, # AssociationData => UpdateOperation(s) (returns viewmodel(s) with which to update assoc cache)
+                  :association_updates, # AssociationData => UpdateOperation(s)
                   :reparent_to, # If node needs to update its pointer to a new parent, ParentData for the parent
                   :reposition_to, # if this node participates in a list under its parent, what should its position be?
                   :released_children # Set of children that have been released
@@ -23,13 +22,12 @@ class ViewModel::ActiveRecord
     delegate :attributes, to: :update_data
 
     def initialize(viewmodel, update_data, reparent_to: nil, reposition_to: nil)
-      self.viewmodel         = viewmodel
-      self.update_data       = update_data
-      self.points_to         = {}
-      self.pointed_to        = {}
-      self.reparent_to       = reparent_to
-      self.reposition_to     = reposition_to
-      self.released_children = []
+      self.viewmodel           = viewmodel
+      self.update_data         = update_data
+      self.association_updates = {}
+      self.reparent_to         = reparent_to
+      self.reposition_to       = reposition_to
+      self.released_children   = []
 
       @run_state = RunState::Pending
       @changed_associations = []
@@ -91,9 +89,9 @@ class ViewModel::ActiveRecord
 
           pre_save_members.each do |member_data|
             if member_data.association?
-              next unless points_to.include?(member_data)
+              next unless association_updates.include?(member_data)
 
-              child_operation = points_to[member_data]
+              child_operation = association_updates[member_data]
 
               reflection = member_data.direct_reflection
               debug "-> #{debug_name}: Updating points-to association '#{reflection.name}'"
@@ -146,9 +144,9 @@ class ViewModel::ActiveRecord
           # Update association cache of pointed-from associations after save: the
           # child update will have saved the pointer.
           post_save_members.each do |association_data|
-            next unless pointed_to.include?(association_data)
+            next unless association_updates.include?(association_data)
 
-            child_operation = pointed_to[association_data]
+            child_operation = association_updates[association_data]
             reflection = association_data.direct_reflection
 
             debug "-> #{debug_name}: Updating pointed-to association '#{reflection.name}'"
@@ -264,13 +262,7 @@ class ViewModel::ActiveRecord
     end
 
     def add_update(association_data, update)
-      target =
-        case association_data.pointer_location
-        when :remote then pointed_to
-        when :local then  points_to
-        end
-
-      target[association_data] = update
+      self.association_updates[association_data] = update
     end
 
     private
