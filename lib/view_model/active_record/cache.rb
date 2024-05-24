@@ -30,8 +30,21 @@ class ViewModel::ActiveRecord::Cache
     end
 
     def render_from_cache(viewmodel_class, ids, initial_viewmodels: nil, migration_versions: {}, locked: false, serialize_context: viewmodel_class.new_serialize_context)
-      worker = CacheWorker.new(migration_versions: migration_versions, serialize_context: serialize_context)
-      worker.render_from_cache(viewmodel_class, ids, initial_viewmodels: initial_viewmodels, locked: locked)
+      ignore_existing = false
+      begin
+        worker = CacheWorker.new(migration_versions: migration_versions, serialize_context: serialize_context, ignore_existing: ignore_existing)
+        worker.render_from_cache(viewmodel_class, ids, initial_viewmodels: initial_viewmodels, locked: locked)
+      rescue StaleCachedReference
+        # If the cache contents contained a unresolvable stale reference, retry
+        # while ignoring existing cached values (thereby updating the cache). This
+        # will have the side-effect of duplicate Before/AfterVisit callbacks.
+        if ignore_existing
+          raise
+        else
+          ignore_existing = true
+          retry
+        end
+      end
     end
   end
 
@@ -76,18 +89,25 @@ class ViewModel::ActiveRecord::Cache
                                  migration_versions: migration_versions, serialize_context: serialize_context)
   end
 
+  class StaleCachedReference < StandardError
+    def initialize(error)
+      super("Cached value contained stale reference: #{error.message}")
+    end
+  end
+
   class CacheWorker
     SENTINEL = Object.new
     WorklistEntry = Struct.new(:ref_name, :viewmodel)
 
     attr_reader :migration_versions, :serialize_context, :resolved_references
 
-    def initialize(migration_versions:, serialize_context:)
+    def initialize(migration_versions:, serialize_context:, ignore_existing: false)
       @worklist                = {} # Hash[type_name, Hash[id, WorklistEntry]]
       @resolved_references     = {} # Hash[refname, json]
       @migration_versions      = migration_versions
       @migrated_cache_versions = {}
       @serialize_context       = serialize_context
+      @ignore_existing         = ignore_existing
     end
 
     def render_from_cache(viewmodel_class, ids, initial_viewmodels: nil, locked: false)
@@ -104,7 +124,7 @@ class ViewModel::ActiveRecord::Cache
 
         ids_to_render = ids.to_set
 
-        if viewmodel_class < CacheableView
+        if viewmodel_class < CacheableView && !@ignore_existing
           # Load existing serializations from the cache
           cached_serializations = load_from_cache(viewmodel_class.viewmodel_cache, ids)
           cached_serializations.each do |id, data|
@@ -168,7 +188,7 @@ class ViewModel::ActiveRecord::Cache
           @resolved_references[entry.ref_name] = SENTINEL
         end
 
-        if viewmodel_class < CacheableView
+        if viewmodel_class < CacheableView && !@ignore_existing
           cached_serializations = load_from_cache(viewmodel_class.viewmodel_cache, required_entries.keys)
           cached_serializations.each do |id, data|
             ref_name = required_entries.delete(id).ref_name
@@ -181,8 +201,18 @@ class ViewModel::ActiveRecord::Cache
           h[id] = entry.viewmodel if entry.viewmodel
         end
 
-        viewmodels = find_and_preload_viewmodels(viewmodel_class, required_entries.keys,
-                                                 available_viewmodels: available_viewmodels)
+        viewmodels =
+          begin
+            find_and_preload_viewmodels(viewmodel_class, required_entries.keys,
+                                        available_viewmodels: available_viewmodels)
+          rescue ViewModel::DeserializationError::NotFound => e
+            # We encountered a reference to an entity that does not exist.
+            # If this reference was potentially found in cached data, it
+            # could be stale: we can retry without using the cache.
+            # If the reference was obtained directly, it indicates invalid
+            # data such as an invalid foreign key, and we cannot recover.
+            raise StaleCachedReference.new(e)
+          end
 
         loaded_serializations = serialize_and_cache(viewmodels)
         loaded_serializations.each do |id, data|

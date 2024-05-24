@@ -209,10 +209,26 @@ class ViewModel::ActiveRecord
         end
 
         it 'returns the right serialization with provided locked initial viewmodel' do
-          locked_root_view = viewmodel_class.new(model_class.lock("FOR SHARE").find(root.id))
+          locked_root_view = viewmodel_class.new(model_class.lock('FOR SHARE').find(root.id))
           fetched_result = parse_result(fetch_with_cache(initial_viewmodels: [locked_root_view], locked: true))
 
           value(fetched_result).must_equal(serialize_from_database)
+        end
+
+        it 'handles a stale cached reference' do
+          # Fetch to populate the cache
+          initial_result = parse_result(fetch_with_cache)
+          value(initial_result).must_equal(serialize_from_database)
+
+          # Destroy the shared child and its cache without invalidating the cached parent cache
+          root.update_columns(shared_id: nil)
+          shared.destroy!
+          shared_viewmodel_class.viewmodel_cache.clear
+
+          fetched_result = parse_result(fetch_with_cache)
+          value(fetched_result).must_equal(serialize_from_database)
+          fetched_view = fetched_result.first.first
+          value(fetched_view['shared']).must_be_nil
         end
       end
 
