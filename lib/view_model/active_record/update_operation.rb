@@ -127,8 +127,11 @@ class ViewModel::ActiveRecord
             end
           end
 
-          # Validate, unless this is a id-only reference to an existing model
-          if !reference_only? || viewmodel.new_model?
+          # If a request makes no assertions about the model, we don't demand
+          # that the current state of the model is valid. This permits making
+          # edits to other models that refer to this model when this model is
+          # invalid.
+          unless reference_only? && !viewmodel.new_model?
             deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
             viewmodel.validate!
           end
