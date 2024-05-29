@@ -44,6 +44,10 @@ class ViewModel::ActiveRecord
       @built
     end
 
+    def reference_only?
+      update_data.reference_only? && reparent_to.nil? && reposition_to.nil?
+    end
+
     # Evaluate a built update tree, applying and saving changes to the models.
     def run!(deserialize_context:)
       raise ViewModel::DeserializationError::Internal.new('Internal error: UpdateOperation run before build') unless built?
@@ -123,9 +127,14 @@ class ViewModel::ActiveRecord
             end
           end
 
-          # validate
-          deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
-          viewmodel.validate!
+          # If a request makes no assertions about the model, we don't demand
+          # that the current state of the model is valid. This permits making
+          # edits to other models that refer to this model when this model is
+          # invalid.
+          unless reference_only? && !viewmodel.new_model?
+            deserialize_context.run_callback(ViewModel::Callbacks::Hook::BeforeValidate, viewmodel)
+            viewmodel.validate!
+          end
 
           # Save if the model has been altered. Covers not only models with
           # view changes but also lock version assertions.
