@@ -56,9 +56,14 @@ module ViewModel::ActiveRecord::Controller
   end
 
   def destroy(serialize_context: new_serialize_context, deserialize_context: new_deserialize_context)
+    viewmodel_ids = parse_param(
+      :id, with: IknowParams::Serializer::ArrayOf.new(ViewmodelIdSerializer, allow_singleton: true))
+
     viewmodel_class.transaction do
-      view = viewmodel_class.find(viewmodel_id, eager_include: false)
-      view.destroy!(deserialize_context: deserialize_context)
+      views = viewmodel_class.find(viewmodel_ids, eager_include: false)
+      views.each do |view|
+        view.destroy!(deserialize_context: deserialize_context)
+      end
     end
     render_viewmodel(nil)
   end
@@ -91,8 +96,28 @@ module ViewModel::ActiveRecord::Controller
 
   private
 
+  # Viewmodel ids are permitted to be either integers or strings
+  class ViewmodelIdSerializer < IknowParams::Serializer
+    def initialize
+      super(::Object)
+    end
+
+    def load(val)
+      case val
+      when ::Integer, ::String
+        val
+      else
+        raise IknowParams::Serializer::LoadError.new(
+                "Incorrect type for #{self.class.name}: #{val.inspect}:#{val.class.name}")
+      end
+    end
+
+    set_singleton!
+    json_value!
+  end
+
   def viewmodel_id
-    parse_param(:id)
+    parse_param(:id, with: ViewmodelIdSerializer)
   end
 
   def migrated_deep_schema_version

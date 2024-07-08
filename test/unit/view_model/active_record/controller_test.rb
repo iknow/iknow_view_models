@@ -167,6 +167,22 @@ class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   end
 
   def test_destroy
+    other_parent = make_parent
+    parentcontroller = ParentController.new(params: { id: [@parent.id, other_parent.id] })
+    parentcontroller.invoke(:destroy)
+
+    assert_equal(200, parentcontroller.status)
+
+    assert(Parent.where(id: @parent.id).blank?, "record doesn't exist after delete")
+    assert(Parent.where(id: other_parent.id).blank?, "record doesn't exist after delete")
+
+    assert_equal({ 'data' => nil },
+                 parentcontroller.hash_response)
+
+    assert_all_hooks_nested_inside_parent_hook(parentcontroller.hook_trace)
+  end
+
+  def test_batch_destroy
     parentcontroller = ParentController.new(params: { id: @parent.id })
     parentcontroller.invoke(:destroy)
 
