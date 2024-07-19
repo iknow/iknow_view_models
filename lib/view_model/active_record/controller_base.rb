@@ -156,11 +156,13 @@ module ActionDispatch
                   name_route = { as: '' } # Only one route may take the name
                   post('', action: :create, **name_route.extract!(:as)) unless except.include?(:create) || !add_shallow_routes
                   get('',  action: :index,  **name_route.extract!(:as)) unless except.include?(:index)  || !add_shallow_routes
+                  delete('', action: :destroy, as: :bulk_delete) unless except.include?(:destroy) || !add_shallow_routes
                 end
               end
             else
               collection do
                 get('', action: :index, as: '') unless except.include?(:index)
+                delete('', action: :destroy, as: :bulk_delete) unless except.include?(:destroy)
               end
             end
           end
