@@ -274,6 +274,24 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     end
   end
 
+  describe 'with an unmentioned migration version' do
+    it 'raises MigrationsIncompleteError' do
+      expect {
+        Class.new(ViewModel::Record) do
+          self.unregistered = true
+          self.model_class = Struct.new(:a)
+          self.view_name = 'ExpectedFailure'
+          self.schema_version = 3
+          migrations do
+            migrates from: 1, to: 2 do
+              down { |_, _| }
+            end
+          end
+        end
+      }.to raise_error(ViewModel::Migration::MigrationsIncompleteError)
+    end
+  end
+
   describe 'garbage collection' do
     include ViewModelSpecHelpers::ParentAndSharedBelongsToChild
 
