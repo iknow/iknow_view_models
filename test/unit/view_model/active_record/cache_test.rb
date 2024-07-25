@@ -62,13 +62,15 @@ class ViewModel::ActiveRecord
             self.schema_version = 2
             attributes :name
             cacheable!(cache_group: shared_cache_group)
-            migrates from: 1, to: 2 do
-              up do |view, _references|
-                view['name'] = view.delete('old_name')
-              end
+            migrations do
+              migrates from: 1, to: 2 do
+                up do |view, _references|
+                  view['name'] = view.delete('old_name')
+                end
 
-              down do |view, _references|
-                view['old_name'] = view.delete('name')
+                down do |view, _references|
+                  view['old_name'] = view.delete('name')
+                end
               end
             end
           end
