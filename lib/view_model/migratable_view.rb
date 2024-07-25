@@ -19,6 +19,7 @@ module ViewModel::MigratableView
       @migrations_lock   = Monitor.new
       @migration_classes = {}
       @migration_paths   = {}
+      @unmigratable_versions = []
       @realized_migration_paths = true
     end
 
@@ -44,6 +45,13 @@ module ViewModel::MigratableView
 
     private
 
+    # Helper for defining migrations exhaustively: migrations are defined in the
+    # block, and then validated for completeness on its return.
+    def migrations(&block)
+      instance_exec(&block)
+      validate_migrations!
+    end
+
     # Define a migration on this viewmodel
     def migrates(from:, to:, inherit: nil, at: nil, &block)
       @migrations_lock.synchronize do
@@ -65,6 +73,20 @@ module ViewModel::MigratableView
         @migration_classes[[from, to]] = migration_class
 
         @realized_migration_paths = false
+      end
+    end
+
+    def no_migration!(version)
+      @unmigratable_versions << version
+    end
+
+    # Ensure that all versions up to schema_version are either reachable by a
+    # migration, or declared as no_migration!
+    def validate_migrations!
+      (1 ... schema_version).each do |target_version|
+        migration_path(from: target_version, to: schema_version)
+      rescue ViewModel::Migration::NoPathError
+        raise unless @unmigratable_versions.include?(target_version)
       end
     end
 
