@@ -35,7 +35,7 @@ module ViewModel::MigratableView
       @viewmodel = viewmodel
       @migration_classes = {}
       @migration_paths = {}
-      @unmigratable_versions = []
+      @mentioned_versions = Set.new
     end
 
     def build!(&block)
@@ -74,6 +74,7 @@ module ViewModel::MigratableView
 
       @viewmodel.const_set(:"Migration_#{from}_To_#{to}", migration_class)
       @migration_classes[[from, to]] = migration_class
+      @mentioned_versions << from
     end
 
     # Migration helper for common migration actions
@@ -132,7 +133,7 @@ module ViewModel::MigratableView
     end
 
     def no_migration_from!(version)
-      @unmigratable_versions << version
+      @mentioned_versions << version
     end
 
     # Internal: find and record possible paths to the current schema version.
@@ -165,11 +166,8 @@ module ViewModel::MigratableView
       # Ensure that all versions up to schema_version are either specified in a
       # migration, or declared as `no_migration!`. This does not imply that
       # every version is reachable, but merely that every version is mentioned.
-      mentioned_versions = Set.new(@unmigratable_versions)
-      paths.each_key { |target, _| mentioned_versions << target }
-
       (1 ... @viewmodel.schema_version).each do |target_version|
-        unless mentioned_versions.include?(target_version)
+        unless @mentioned_versions.include?(target_version)
           raise ViewModel::Migration::MigrationsIncompleteError.new(@viewmodel, target_version)
         end
       end
