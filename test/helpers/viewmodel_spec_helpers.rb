@@ -152,36 +152,38 @@ module ViewModelSpecHelpers
 
           attribute :new_field
 
-          # add: old_field (one-way)
-          migrates from: 1, to: 2 do
-            down do |view, _refs|
-              view.delete('old_field')
-            end
-          end
-
-          # rename: old_field -> mid_field
-          migrates from: 2, to: 3 do
-            up do |view, _refs|
-              if view.has_key?('old_field')
-                view['mid_field'] = view.delete('old_field') + 1
+          migrations do
+            # add: old_field (one-way)
+            migrates from: 1, to: 2 do
+              down do |view, _refs|
+                view.delete('old_field')
               end
             end
 
-            down do |view, _refs|
-              view['old_field'] = view.delete('mid_field') - 1
-            end
-          end
+            # rename: old_field -> mid_field
+            migrates from: 2, to: 3 do
+              up do |view, _refs|
+                if view.has_key?('old_field')
+                  view['mid_field'] = view.delete('old_field') + 1
+                end
+              end
 
-          # rename: mid_field -> new_field
-          migrates from: 3, to: 4 do
-            up do |view, _refs|
-              if view.has_key?('mid_field')
-                view['new_field'] = view.delete('mid_field') + 1
+              down do |view, _refs|
+                view['old_field'] = view.delete('mid_field') - 1
               end
             end
 
-            down do |view, _refs|
-              view['mid_field'] = view.delete('new_field') - 1
+            # rename: mid_field -> new_field
+            migrates from: 3, to: 4 do
+              up do |view, _refs|
+                if view.has_key?('mid_field')
+                  view['new_field'] = view.delete('mid_field') + 1
+                end
+              end
+
+              down do |view, _refs|
+                view['mid_field'] = view.delete('new_field') - 1
+              end
             end
           end
         })
@@ -192,14 +194,18 @@ module ViewModelSpecHelpers
         viewmodel: ->(_v) {
           self.schema_version = 3
 
-          # delete: former_field
-          migrates from: 2, to: 3 do
-            up do |view, _refs|
-              view.delete('former_field')
-            end
+          migrations do
+            no_migration_from! 1
 
-            down do |view, _refs|
-              view['former_field'] = 'reconstructed'
+            # delete: former_field
+            migrates from: 2, to: 3 do
+              up do |view, _refs|
+                view.delete('former_field')
+              end
+
+              down do |view, _refs|
+                view['former_field'] = 'reconstructed'
+              end
             end
           end
         })
@@ -222,9 +228,11 @@ module ViewModelSpecHelpers
           viewmodel: ->(v) {
             root!
             self.schema_version = 2
-            migrates from: 1, to: 2 do
-              down do |view, _refs|
-                view['inherited_base'] = 'present'
+            migrations do
+              migrates from: 1, to: 2 do
+                down do |view, _refs|
+                  view['inherited_base'] = 'present'
+                end
               end
             end
           }))
@@ -240,15 +248,17 @@ module ViewModelSpecHelpers
 
           attribute :new_field
 
-          migrates from: 1, to: 2, inherit: migration_bearing_viewmodel_class, at: 2 do
-            down do |view, refs|
-              super(view, refs)
-              view.delete('new_field')
-            end
+          migrations do
+            migrates from: 1, to: 2, inherit: migration_bearing_viewmodel_class, at: 2 do
+              down do |view, refs|
+                super(view, refs)
+                view.delete('new_field')
+              end
 
-            up do |view, refs|
-              view.delete('inherited_base')
-              view['new_field'] = 100
+              up do |view, _refs|
+                view.delete('inherited_base')
+                view['new_field'] = 100
+              end
             end
           end
         })

@@ -282,9 +282,11 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
       super.merge(
         viewmodel: ->(_v) {
           self.schema_version = 2
-          migrates from: 1, to: 2 do
-            down do |view, refs|
-              view.delete('child')
+          migrations do
+            migrates from: 1, to: 2 do
+              down do |view, refs|
+                view.delete('child')
+              end
             end
           end
         })
@@ -301,9 +303,11 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         viewmodel: ->(_v) {
           self.schema_version = 2
           association :child
-          migrates from: 1, to: 2 do
-            down do |view, refs|
-              view.delete('child')
+          migrations do
+            migrates from: 1, to: 2 do
+              down do |view, _refs|
+                view.delete('child')
+              end
             end
           end
         })
@@ -351,7 +355,11 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
                       self.schema_version = 4
                       # Define an unreachable migration to ensure that the view
                       # attempts to realize paths.
-                      migrates from: 1, to: 2 do
+                      migrations do
+                        migrates from: 1, to: 2 do
+                        end
+                        no_migration_from! 2
+                        no_migration_from! 3
                       end
                     })
       end
@@ -388,17 +396,19 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         viewmodel: ->(_v) {
           self.schema_version = 2
 
-          # The migration from 1 -> 2 deleted a referenced field.
-          migrates from: 1, to: 2 do
-            # Put the referenced field back with a canned serialization
-            down do |view, refs|
-              view['old_field'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:old_field' }
-              refs['ref:old_field'] = old_field_serialization
-            end
+          migrations do
+            # The migration from 1 -> 2 deleted a referenced field.
+            migrates from: 1, to: 2 do
+              # Put the referenced field back with a canned serialization
+              down do |view, refs|
+                view['old_field'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:old_field' }
+                refs['ref:old_field'] = old_field_serialization
+              end
 
-            # Remove the referenced field
-            up do |view, _refs|
-              view.delete('old_field')
+              # Remove the referenced field
+              up do |view, _refs|
+                view.delete('old_field')
+              end
             end
           end
         },
@@ -500,21 +510,23 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         viewmodel: ->(v) {
           self.schema_version = 2
 
-          migrates from: 1, to: 2 do
-            down do |view, refs|
-              case view['name']
-              when 'old-tail'
-                view['next'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:s:new_tail' }
-                refs['ref:s:new_tail'] = {
-                  ViewModel::TYPE_ATTRIBUTE    => v.view_name,
-                  ViewModel::VERSION_ATTRIBUTE => v.schema_version,
-                  'id' => 100, # entirely fake
-                  'name' => 'new-tail',
-                  'next' => nil,
-                }
+          migrations do
+            migrates from: 1, to: 2 do
+              down do |view, refs|
+                case view['name']
+                when 'old-tail'
+                  view['next'] = { ViewModel::REFERENCE_ATTRIBUTE => 'ref:s:new_tail' }
+                  refs['ref:s:new_tail'] = {
+                    ViewModel::TYPE_ATTRIBUTE    => v.view_name,
+                    ViewModel::VERSION_ATTRIBUTE => v.schema_version,
+                    'id' => 100, # entirely fake
+                    'name' => 'new-tail',
+                    'next' => nil,
+                  }
 
-              when 'new-tail'
-                view['name'] = 'newer-tail'
+                when 'new-tail'
+                  view['name'] = 'newer-tail'
+                end
               end
             end
           end

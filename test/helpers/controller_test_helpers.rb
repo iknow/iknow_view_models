@@ -98,15 +98,17 @@ module ControllerTestModels
         association  :category, external: true
         association :tags, through: :parent_tags, external: true
 
-        migrates from: 1, to: 2 do
-          up do |view, _refs|
-            if view.has_key?('old_name')
-              view['name'] = view.delete('old_name')
+        migrations do
+          migrates from: 1, to: 2 do
+            up do |view, _refs|
+              if view.has_key?('old_name')
+                view['name'] = view.delete('old_name')
+              end
             end
-          end
 
-          down do |view, _refs|
-            view['old_name'] = view.delete('name')
+            down do |view, _refs|
+              view['old_name'] = view.delete('name')
+            end
           end
         end
       end
