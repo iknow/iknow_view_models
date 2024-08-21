@@ -9,15 +9,6 @@ module ViewModel::ActiveRecord::ControllerBase
 
   protected
 
-  # Override (pre)render_viewmodel to use the default serialization context from this controller.
-  def render_viewmodel(viewmodel, serialize_context: new_serialize_context, **args)
-    super(viewmodel, serialize_context: serialize_context, **args)
-  end
-
-  def prerender_viewmodel(viewmodel, serialize_context: new_serialize_context, **args)
-    super(viewmodel, serialize_context: serialize_context, **args)
-  end
-
   def new_deserialize_context(viewmodel_class: self.viewmodel_class, access_control: self.access_control.new, **args)
     viewmodel_class.new_deserialize_context(access_control: access_control, **args)
   end
