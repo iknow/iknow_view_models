@@ -24,30 +24,43 @@ module ViewModel::Controller
         ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
       end
 
+      yield(json, serialize_context: serialize_context) if block_given?
+
       if serialize_context && serialize_context.has_references?
         json.references do
           serialize_context.serialize_references(json)
         end
       end
-
-      yield(json) if block_given?
     end
   end
 
   # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
   # JSON string terminals. Useful for rendering cached views without parsing
   # then re-serializing the cached JSON.
-  def render_json_view(json_view, json_references: {}, status: nil, &block)
-    prerender = prerender_json_view(json_view, json_references: json_references, &block)
+  def render_json_view(json_view, json_references: {}, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context), &block)
+    prerender = prerender_json_view(json_view, json_references: json_references, serialize_context: serialize_context, &block)
     render_json_string(prerender, status: status)
   end
 
-  def prerender_json_view(json_view, json_references: {})
+  def prerender_json_view(json_view, json_references: {}, serialize_context: viewmodel.class.try(:new_serialize_context))
     json_view = wrap_json_view(json_view)
     json_references = wrap_json_view(json_references)
 
     encode_jbuilder do |json|
       json.data json_view
+
+      if block_given?
+        yield(json, serialize_context: serialize_context)
+
+        if serialize_context && serialize_context.has_references?
+          # The block contributed references: we serialize them and then merge
+          # them together with the json references, with the json references
+          # taking priority
+          block_references = serialize_context.serialize_references_to_hash
+          json_references = block_references.merge(json_references)
+        end
+      end
+
       if json_references.present?
         json.references do
           json_references.sort.each do |key, value|
@@ -55,7 +68,6 @@ module ViewModel::Controller
           end
         end
       end
-      yield(json) if block_given?
     end
   end
 
