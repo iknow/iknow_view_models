@@ -63,7 +63,7 @@ module ViewModel::ActiveRecord::Controller
         view.destroy!(deserialize_context: deserialize_context)
       end
     end
-    render_viewmodel(nil)
+    render_viewmodel(nil, serialize_context: serialize_context)
   end
 
   private
