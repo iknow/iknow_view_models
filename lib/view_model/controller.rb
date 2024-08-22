@@ -6,30 +6,42 @@ require 'oj'
 module ViewModel::Controller
   extend ActiveSupport::Concern
 
+  require 'view_model/controller/migration_versions'
+  include ViewModel::Controller::MigrationVersions
+
   included do
     rescue_from ViewModel::AbstractError, with: ->(ex) do
       render_error(ex.view, ex.status)
     end
+
+    etag { migrated_deep_schema_version }
   end
 
-  def render_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context), &block)
+  def render_viewmodel(viewmodel, status: nil, serialize_context:, &block)
     prerender = prerender_viewmodel(viewmodel, serialize_context: serialize_context, &block)
     render_json_string(prerender, status: status)
   end
 
   # Render viewmodel(s) to a JSON API response as a String
-  def prerender_viewmodel(viewmodel, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context))
+  def prerender_viewmodel(viewmodel, status: nil, serialize_context:)
     encode_jbuilder do |json|
       json.data do
         ViewModel.serialize(viewmodel, json, serialize_context: serialize_context)
       end
 
-      yield(json, serialize_context: serialize_context) if block_given?
+      yield(json) if block_given?
 
       if serialize_context && serialize_context.has_references?
         json.references do
           serialize_context.serialize_references(json)
         end
+      end
+
+      # migrate the resulting structure before it's serialized to a json string
+      if migration_versions.present?
+        tree = json.attributes!
+        migrator = ViewModel::DownMigrator.new(migration_versions)
+        migrator.migrate!(tree)
       end
     end
   end
@@ -37,12 +49,12 @@ module ViewModel::Controller
   # Render an arbitrarily nested tree of hashes and arrays with pre-rendered
   # JSON string terminals. Useful for rendering cached views without parsing
   # then re-serializing the cached JSON.
-  def render_json_view(json_view, json_references: {}, status: nil, serialize_context: viewmodel.class.try(:new_serialize_context), &block)
+  def render_json_view(json_view, json_references: {}, status: nil, serialize_context:, &block)
     prerender = prerender_json_view(json_view, json_references: json_references, serialize_context: serialize_context, &block)
     render_json_string(prerender, status: status)
   end
 
-  def prerender_json_view(json_view, json_references: {}, serialize_context: viewmodel.class.try(:new_serialize_context))
+  def prerender_json_view(json_view, json_references: {}, serialize_context:)
     json_view = wrap_json_view(json_view)
     json_references = wrap_json_view(json_references)
 
@@ -50,14 +62,27 @@ module ViewModel::Controller
       json.data json_view
 
       if block_given?
-        yield(json, serialize_context: serialize_context)
+        yield(json)
+
+        # The block can contribute attributes directly to the jbuilder and
+        # references via the serialize context. If it did, we need to serialize,
+        # migrate, and merge them.
+        block_attributes = json.attributes!.except('data')
 
         if serialize_context && serialize_context.has_references?
-          # The block contributed references: we serialize them and then merge
-          # them together with the json references, with the json references
-          # taking priority
           block_references = serialize_context.serialize_references_to_hash
-          json_references = block_references.merge(json_references)
+        end
+
+        has_migrations = defined?(migration_versions) && migration_versions.present?
+
+        if has_migrations && (block_attributes.present? || block_references.present?)
+          migrator = ViewModel::DownMigrator.new(migration_versions)
+          tree = block_attributes.merge({ 'references' => block_references })
+          migrator.migrate!(tree)
+        end
+
+        if block_references.present?
+          json_references = json_references.reverse_merge(block_references)
         end
       end
 
@@ -94,6 +119,11 @@ module ViewModel::Controller
 
     update_hash = _extract_update_data(data_param)
     refs        = _extract_param_hash(refs_param)
+
+    if migration_versions.present?
+      migrator = ViewModel::UpMigrator.new(migration_versions)
+      migrator.migrate!({ 'data' => update_hash, 'references' => refs })
+    end
 
     return update_hash, refs
   end
@@ -138,6 +168,10 @@ module ViewModel::Controller
     else
       raise ViewModel::Error.new(status: 400, detail: "Invalid data submitted, expected hash: #{data.inspect}")
     end
+  end
+
+  def migrated_deep_schema_version
+    ViewModel::Migrator.migrated_deep_schema_version(viewmodel_class, migration_versions, include_referenced: true)
   end
 
   def encode_jbuilder
