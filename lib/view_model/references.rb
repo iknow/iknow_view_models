@@ -30,6 +30,14 @@ class ViewModel
       ref
     end
 
+    def add_preserialized_reference(ref, literal_value)
+      return ref if @value_by_ref.has_key?(ref)
+
+      @ref_by_value[literal_value] = ref
+      @value_by_ref[ref] = literal_value
+      ref
+    end
+
     def clear!
       @ref_by_value.clear
       @value_by_ref.clear

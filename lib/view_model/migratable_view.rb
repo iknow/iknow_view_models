@@ -10,9 +10,9 @@ module ViewModel::MigratableView
   extend ActiveSupport::Concern
 
   class_methods do
-    def inherited(base)
+    def inherited(subclass)
       super
-      base.initialize_as_migratable_view
+      subclass.initialize_as_migratable_view
     end
 
     def initialize_as_migratable_view
