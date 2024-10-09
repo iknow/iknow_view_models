@@ -291,6 +291,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
         hook_control.record_changes(changes)
         model.destroy!
       end
+    rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => e
+      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(e, self.blame_reference)
     end
   end
 
