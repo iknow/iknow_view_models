@@ -19,7 +19,7 @@ class ViewModel::SerializeContext < ViewModel::TraversalContext
   end
 
   delegate :references, :flatten_references, to: :shared_context
-  delegate :add_reference, :has_references?, to: :references
+  delegate :add_reference, :add_preserialized_reference, :has_references?, to: :references
 
   # Return viewmodels referenced during serialization and clear @references.
   def extract_referenced_views!
