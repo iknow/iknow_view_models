@@ -443,4 +443,26 @@ class ViewModel::ActiveRecord::BelongsToTest < ActiveSupport::TestCase
       end
     end
   end
+
+  class DeserializationIncludeTest < ActiveSupport::TestCase
+    include ARVMTestUtilities
+    include ViewModelSpecHelpers::Base
+
+    def model_attributes
+      super.merge(
+        viewmodel: ->(_v) {
+          def self.deserialization_includes
+            :child
+          end
+        }
+      )
+    end
+
+    def test_extra_dependencies
+      viewmodel_class # realize lazy dependency
+
+      root_updates, _ref_updates = ViewModel::ActiveRecord::UpdateData.parse_hashes([{ '_type' => 'Model' }])
+      assert_equal(DeepPreloader::Spec.new('child' => nil), root_updates.first.preload_dependencies)
+    end
+  end
 end

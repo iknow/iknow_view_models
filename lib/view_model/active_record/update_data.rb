@@ -635,7 +635,12 @@ class ViewModel::ActiveRecord
         deps[association_data.direct_reflection.name.to_s] = referenced_deps
       end
 
-      DeepPreloader::Spec.new(deps)
+      deserialization_includes = viewmodel_class.deserialization_includes
+      unless deserialization_includes.is_a?(DeepPreloader::AbstractSpec)
+        deserialization_includes = DeepPreloader::Spec.parse(deserialization_includes)
+      end
+
+      DeepPreloader::Spec.new(deps).merge!(deserialization_includes)
     end
 
     def viewmodel_reference

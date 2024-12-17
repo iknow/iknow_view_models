@@ -192,9 +192,18 @@ class ViewModel
     end
 
     # If this viewmodel represents an AR model, what associations does it make
-    # use of? Returns a includes spec appropriate for DeepPreloader, either as
-    # AR-style nested hashes or DeepPreloader::Spec.
+    # use of during serialization? Returns a includes spec appropriate for
+    # DeepPreloader, either as AR-style nested hashes or DeepPreloader::Spec.
     def eager_includes(include_referenced: true)
+      {}
+    end
+
+    # If this viewmodel represents an AR model, what associations does it make
+    # use of during deserialization? By default all mentioned associations are
+    # preloaded, however access controls and hooks may benefit from additional
+    # preloading. Returns a includes spec appropriate for DeepPreloader, either
+    # as AR-style nested hashes or DeepPreloader::Spec.
+    def deserialization_includes
       {}
     end
 
