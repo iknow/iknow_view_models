@@ -350,6 +350,16 @@ class ViewModel
       end
     end
 
+    class TransientDatabaseError < DeserializationError
+      status 502
+      attr_reader :detail
+
+      def initialize(detail, nodes = [])
+        @detail = detail
+        super(nodes)
+      end
+    end
+
     class DatabaseConstraint < DeserializationError
       status 400
       attr_reader :detail
@@ -359,9 +369,9 @@ class ViewModel
         super(nodes)
       end
 
-      # Database constraint errors are pretty opaque and stringly typed. We can
-      # do our best to parse out what metadata we can from the error, and fall
-      # back when we can't.
+      # Database constraint errors that come from Postgres are pretty opaque and
+      # stringly typed. We can do our best to parse out what metadata we can
+      # from the error, and fall back when we can't.
       def self.from_exception(exception, nodes = [])
         case exception.cause
         when PG::UniqueViolation, PG::ExclusionViolation
@@ -478,7 +488,7 @@ class ViewModel
         @attribute = attribute
         @reason    = reason
         @details   = details
-        super([node])
+        super(Array.wrap(node))
       end
 
       def detail

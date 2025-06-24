@@ -20,6 +20,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   AFTER_ATTRIBUTE        = 'after'
 
   require 'view_model/utils/collections'
+  require 'view_model/error_wrapping'
   require 'view_model/active_record/association_data'
   require 'view_model/active_record/update_data'
   require 'view_model/active_record/update_context'
@@ -30,6 +31,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   require 'view_model/active_record/association_manipulation'
 
   include AssociationManipulation
+  include ViewModel::ErrorWrapping
 
   attr_reader :changed_associations
 
@@ -285,14 +287,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
-        changes = ViewModel::Changes.new(deleted: true)
-        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
-        hook_control.record_changes(changes)
-        model.destroy!
+      wrap_active_record_errors(self.blame_reference) do
+        ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
+          changes = ViewModel::Changes.new(deleted: true)
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
+          hook_control.record_changes(changes)
+          model.destroy!
+        end
       end
-    rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => e
-      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(e, self.blame_reference)
     end
   end
 
@@ -371,14 +373,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
   end
 
-  # Rails 6.1 introduced "previously_new_record?", but this library still
-  # supports activerecord >= 5.0. This is an approximation.
   def self.model_previously_new?(model)
-    if (id_changes = model.saved_change_to_id)
-      old_id, _new_id = id_changes
-      return true if old_id.nil?
-    end
-    false
+    model.previously_new_record?
   end
 
   # Helper to return entities that were part of the last deserialization. The

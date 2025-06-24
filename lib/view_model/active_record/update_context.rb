@@ -5,6 +5,8 @@
 # the mechanism by which it is applied to models.
 class ViewModel::ActiveRecord
   class UpdateContext
+    include ViewModel::ErrorWrapping
+
     ReleaseEntry = Struct.new(:viewmodel, :association_data) do
       def initialize(*)
         super
@@ -276,10 +278,10 @@ class ViewModel::ActiveRecord
     # human-readable error details.
     def check_deferred_constraints!(model_class)
       if model_class.connection.adapter_name == 'PostgreSQL'
-        model_class.connection.execute('SET CONSTRAINTS ALL IMMEDIATE')
+        wrap_active_record_errors([]) do
+          model_class.connection.execute('SET CONSTRAINTS ALL IMMEDIATE')
+        end
       end
-    rescue ::ActiveRecord::StatementInvalid => ex
-      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(ex)
     end
   end
 end

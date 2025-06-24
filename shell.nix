@@ -8,8 +8,6 @@ in
 (bundlerEnv {
   name = "iknow-view-models-shell";
   gemdir = ./nix/gem;
-
-  gemConfig = (defaultGemConfig.override { inherit (dependencies) postgresql; });
-
+  gemConfig = defaultGemConfig;
   inherit (dependencies) ruby;
 }).env
