@@ -53,7 +53,7 @@ jobs:
     - name: Run tests
       run: bundle exec rake test
     - name: Upload result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       if: always()
       with:
         path: test/reports/

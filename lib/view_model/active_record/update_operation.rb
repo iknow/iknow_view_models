@@ -5,11 +5,11 @@ require 'renum'
 # Partially parsed tree of user-specified update hashes, created during deserialization.
 class ViewModel::ActiveRecord
   using ViewModel::Utils::Collections
-  include ViewModel::ErrorWrapping
 
   class UpdateOperation
     # inverse association and record to update a change in parent from a child
     ParentData = Struct.new(:association_reflection, :viewmodel)
+    include ViewModel::ErrorWrapping
 
     enum :RunState, [:Pending, :Running, :Run]
 
