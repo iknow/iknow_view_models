@@ -373,14 +373,8 @@ class ViewModel::ActiveRecord < ViewModel::Record
     end
   end
 
-  # Rails 6.1 introduced "previously_new_record?", but this library still
-  # supports activerecord >= 5.0. This is an approximation.
   def self.model_previously_new?(model)
-    if (id_changes = model.saved_change_to_id)
-      old_id, _new_id = id_changes
-      return true if old_id.nil?
-    end
-    false
+    model.previously_new_record?
   end
 
   # Helper to return entities that were part of the last deserialization. The
