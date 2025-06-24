@@ -30,6 +30,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   require 'view_model/active_record/association_manipulation'
 
   include AssociationManipulation
+  include ViewModel::ErrorWrapping
 
   attr_reader :changed_associations
 
@@ -285,14 +286,14 @@ class ViewModel::ActiveRecord < ViewModel::Record
 
   def destroy!(deserialize_context: self.class.new_deserialize_context)
     model_class.transaction do
-      ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
-        changes = ViewModel::Changes.new(deleted: true)
-        deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
-        hook_control.record_changes(changes)
-        model.destroy!
+      wrap_active_record_errors(self.blame_reference) do
+        ViewModel::Callbacks.wrap_deserialize(self, deserialize_context: deserialize_context) do |hook_control|
+          changes = ViewModel::Changes.new(deleted: true)
+          deserialize_context.run_callback(ViewModel::Callbacks::Hook::OnChange, self, changes: changes)
+          hook_control.record_changes(changes)
+          model.destroy!
+        end
       end
-    rescue ::ActiveRecord::StatementInvalid, ::ActiveRecord::InvalidForeignKey, ::ActiveRecord::RecordNotSaved => e
-      raise ViewModel::DeserializationError::DatabaseConstraint.from_exception(e, self.blame_reference)
     end
   end
 
