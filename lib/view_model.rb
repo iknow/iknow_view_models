@@ -337,11 +337,14 @@ class ViewModel
     end
 
     def preload_for_serialization(viewmodels, include_referenced: true, lock: nil)
-      Array.wrap(viewmodels).group_by(&:class).each do |type, views|
-        DeepPreloader.preload(views.map(&:model),
-                              type.eager_includes(include_referenced: include_referenced),
-                              lock: lock)
-      end
+      Array.wrap(viewmodels)
+        .flat_map(&:preloadable_dependencies)
+        .group_by(&:class)
+        .each do |type, views|
+          DeepPreloader.preload(views.map(&:model),
+                                type.eager_includes(include_referenced: include_referenced),
+                                lock: lock)
+        end
     end
   end
 
@@ -423,8 +426,16 @@ class ViewModel
     context.for_child(self, association_name: member_name)
   end
 
-  def preload_for_serialization(lock: nil)
-    ViewModel.preload_for_serialization([self], lock: lock)
+  def preload_for_serialization(include_referenced: true, lock: nil)
+    ViewModel.preload_for_serialization([self], include_referenced: include_referenced, lock: lock)
+  end
+
+  # Returns a collection of zero or more AR-backed views that this view depends
+  # on that can have their dependencies preloaded via `eager_includes`. This can
+  # be overridden for non-AR view that wrap AR-backed views to expose those
+  # dependencies for preloading.
+  def preloadable_dependencies
+    []
   end
 
   def ==(other)

@@ -449,5 +449,10 @@ class ViewModel::ActiveRecord < ViewModel::Record
     super
   end
 
+  # As an AR view, this view itself is preloadable
+  def preloadable_dependencies
+    [self]
+  end
+
   self.abstract_class = true
 end
