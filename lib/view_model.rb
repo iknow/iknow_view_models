@@ -338,7 +338,7 @@ class ViewModel
 
     def preload_for_serialization(viewmodels, include_referenced: true, lock: nil)
       Array.wrap(viewmodels)
-        .flat_map(&:preloadable_dependencies)
+        .flat_map { |v| v.preloadable_dependencies(include_referenced: include_referenced) }
         .group_by(&:class)
         .each do |type, views|
           DeepPreloader.preload(views.map(&:model),
@@ -434,7 +434,7 @@ class ViewModel
   # on that can have their dependencies preloaded via `eager_includes`. This can
   # be overridden for non-AR view that wrap AR-backed views to expose those
   # dependencies for preloading.
-  def preloadable_dependencies
+  def preloadable_dependencies(include_referenced: true)
     []
   end
 

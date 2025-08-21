@@ -450,7 +450,7 @@ class ViewModel::ActiveRecord < ViewModel::Record
   end
 
   # As an AR view, this view itself is preloadable
-  def preloadable_dependencies
+  def preloadable_dependencies(include_referenced: true)
     [self]
   end
 
