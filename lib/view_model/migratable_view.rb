@@ -19,14 +19,15 @@ module ViewModel::MigratableView
       @migrations_lock   = Monitor.new
       @migration_classes = {}
       @migration_paths   = {}
-      @realized_migration_paths = true
     end
 
     def migration_path(from:, to:)
       @migrations_lock.synchronize do
-        realize_paths! unless @realized_migration_paths
+        unless @migration_paths.has_key?(to)
+          @migration_paths[to] = compute_migration_paths(to)
+        end
 
-        migrations = @migration_paths.fetch([from, to]) do
+        migrations = @migration_paths[to].fetch(from) do
           raise ViewModel::Migration::NoPathError.new(self, from, to)
         end
 
@@ -64,25 +65,35 @@ module ViewModel::MigratableView
         const_set(:"Migration_#{from}_To_#{to}", migration_class)
         @migration_classes[[from, to]] = migration_class
 
-        @realized_migration_paths = false
+        clear_migration_paths!
+      end
+    end
+
+    def clear_migration_paths!
+      @migrations_lock.synchronize do
+        @migration_paths.clear
       end
     end
 
     # Internal: find and record possible paths to the current schema version.
-    def realize_paths!
-      @migration_paths.clear
+    def compute_migration_paths(to_version)
+      unless to_version <= self.schema_version
+        raise RuntimeError.new("Cannot compute path to future version '#{to_version}'")
+      end
 
       graph = RGL::DirectedAdjacencyGraph.new
 
-      # Add a vertex for the current version, in case no edges reach it
-      graph.add_vertex(self.schema_version)
+      # Add a vertex for the destination version, in case no edges reach it
+      graph.add_vertex(to_version)
 
       # Add edges backwards, as we care about paths from the latest version
       @migration_classes.each_key do |from, to|
         graph.add_edge(to, from)
       end
 
-      paths = graph.dijkstra_shortest_paths(Hash.new { 1 }, self.schema_version)
+      paths = graph.dijkstra_shortest_paths(Hash.new { 1 }, to_version)
+
+      result = {}
 
       paths.each do |target_version, path|
         next if path.nil? || path.length == 1
@@ -92,12 +103,10 @@ module ViewModel::MigratableView
           @migration_classes.fetch([from, to])
         end
 
-        key = [target_version, schema_version]
-
-        @migration_paths[key] = path_migration_classes.map(&:new)
+        result[target_version] = path_migration_classes.map(&:new)
       end
 
-      @realized_paths = true
+      result
     end
   end
 end
