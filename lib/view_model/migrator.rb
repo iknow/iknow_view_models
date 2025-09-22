@@ -23,16 +23,15 @@ class ViewModel
       end
     end
 
-    def initialize(required_versions)
-      @paths = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
-        if required_version != viewmodel_class.schema_version
-          path = viewmodel_class.migration_path(from: required_version, to: viewmodel_class.schema_version)
-          h[viewmodel_class.view_name] = path
-        end
-      end
+    MigrationPlan = Struct.new(:path, :required_version, :current_version, :viewmodel_class)
 
-      @versions = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
-        h[viewmodel_class.view_name] = [required_version, viewmodel_class.schema_version]
+    def initialize(required_versions)
+      @plans = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
+        current_version = viewmodel_class.schema_version
+        next if required_version == current_version
+
+        path = viewmodel_class.migration_path(from: required_version, to: current_version)
+        h[viewmodel_class.view_name] = MigrationPlan.new(path, required_version, current_version, viewmodel_class)
       end
     end
 
@@ -128,23 +127,22 @@ class ViewModel
     end
 
     def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      path = @paths[view_name]
-      return false unless path
+      plan = @plans[view_name]
+      return false unless plan
 
-      required_version, current_version = @versions[view_name]
-      return false if source_version == current_version
+      return false if source_version == plan.current_version
 
       # We assume that an unspecified source version is the same as the required
       # version (i.e. the version demanded by the client request).
-      unless source_version.nil? || source_version == required_version
+      unless source_version.nil? || source_version == plan.required_version
         raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
       end
 
-      path.each do |migration|
+      plan.path.each do |migration|
         migration.up(view_hash, references)
       end
 
-      view_hash[ViewModel::VERSION_ATTRIBUTE] = current_version
+      view_hash[ViewModel::VERSION_ATTRIBUTE] = plan.current_version
 
       true
     end
@@ -156,15 +154,23 @@ class ViewModel
     private
 
     def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      path = @paths[view_name]
-      return false unless path
+      plan = @plans[view_name]
+      return false unless plan
 
       # In a serialized output, the source version should always be the present
       # and the current version, unless already modified by a parent migration
-      required_version, current_version = @versions[view_name]
-      return false if source_version == required_version
+      return false if source_version == plan.required_version
 
-      unless source_version == current_version
+      # If a parent migration has already partially migrated us to an
+      # intermediate version, we need to construct a new path to the required
+      # version.
+      if source_version == plan.current_version
+        path = plan.path
+      elsif view_hash[ViewModel::MIGRATED_ATTRIBUTE] &&
+            source_version > plan.required_version &&
+            source_version < plan.current_version
+        path = plan.viewmodel_class.migration_path(from: plan.required_version, to: source_version)
+      else
         raise ViewModel::Migration::UnspecifiedVersionError.new(view_name, source_version)
       end
 
@@ -172,7 +178,7 @@ class ViewModel
         migration.down(view_hash, references)
       end
 
-      view_hash[ViewModel::VERSION_ATTRIBUTE] = required_version
+      view_hash[ViewModel::VERSION_ATTRIBUTE] = plan.required_version
 
       true
     end

@@ -483,6 +483,87 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
     end
   end
 
+  describe 'partially migrating children' do
+    include ViewModelSpecHelpers::ParentAndBelongsToChild
+    let(:migration_versions) { { viewmodel_class => 1, child_viewmodel_class => 1 } }
+
+    # Parent 2->1 requires premigrating child 3->2
+    def model_attributes
+      child_viewmodel_class = self.child_viewmodel_class
+      super.merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 2
+
+          # The migration from 1 -> 2 relies on a field only present in child v2
+          migrates from: 1, to: 2 do
+            down do |view, references|
+              child = view['child']
+
+              if child['_version'] > 2
+                migrator = ViewModel::DownMigrator.new({ child_viewmodel_class => 2 })
+                migrator.migrate!({ 'data' => child, 'references' => references.deep_dup })
+              end
+
+              view['child_v2_field'] = child['v2_field']
+            end
+          end
+        },
+      )
+    end
+
+    def child_attributes
+      super().merge(
+        viewmodel: ->(_v) {
+          self.schema_version = 3
+          migrates from: 1, to: 2 do
+            down do |view, _references|
+              view.delete('v2_field')
+            end
+          end
+
+          migrates from: 2, to: 3 do
+            down do |view, _references|
+              view['v2_field'] = 'v2_field_data'
+            end
+          end
+        })
+    end
+
+    let(:v1_serialization_data) do
+      {
+        ViewModel::TYPE_ATTRIBUTE => viewmodel_class.view_name,
+        ViewModel::VERSION_ATTRIBUTE => 1,
+        ViewModel::ID_ATTRIBUTE => viewmodel.id,
+        'name' => viewmodel.name,
+        'child' => {
+          ViewModel::TYPE_ATTRIBUTE => child_viewmodel_class.view_name,
+          ViewModel::VERSION_ATTRIBUTE => 1,
+          ViewModel::ID_ATTRIBUTE => viewmodel.child.id,
+          'name' => viewmodel.child.name,
+        },
+        'child_v2_field' => 'v2_field_data',
+      }
+    end
+
+    let(:migrator) { down_migrator }
+    let(:subject) do
+      current_serialization.deep_dup
+    end
+
+    let(:expected_result) do
+      data = v1_serialization_data.deep_dup
+      data[ViewModel::MIGRATED_ATTRIBUTE] = true
+      data['child'][ViewModel::MIGRATED_ATTRIBUTE] = true
+
+      { 'data' => data }
+    end
+
+    it 'migrates' do
+      migrate!
+      assert_equal(expected_result, subject)
+    end
+  end
+
   describe 'concurrently inserting a reference' do
     include ViewModelSpecHelpers::ReferencedList
     let(:migration_versions) { { viewmodel_class => 1 } }
