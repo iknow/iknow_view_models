@@ -8,9 +8,19 @@ module ViewModel::Controller::MigrationVersions
   def migration_versions
     @migration_versions ||=
       begin
-        specified_migration_versions.reject do |viewmodel_class, required_version|
-          viewmodel_class.schema_version == required_version
-        end.freeze
+        versions = specified_migration_versions.dup
+
+        unless ViewModel::Config.strict_migration_versions
+          # Ignore the current version. This allows skipping migrations if only
+          # current versions are requested. Can't be ignored when strict
+          # migrations are enabled, since we need to walk the tree to assert
+          # that all visited types are mentioned.
+          versions.reject! do |viewmodel_class, required_version|
+            viewmodel_class.schema_version == required_version
+          end
+        end
+
+        versions.freeze
       end
   end
 

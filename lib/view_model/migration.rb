@@ -4,6 +4,7 @@ class ViewModel::Migration
   require 'view_model/migration/no_path_error'
   require 'view_model/migration/one_way_error'
   require 'view_model/migration/unspecified_version_error'
+  require 'view_model/migration/strict_migration_error'
 
   REFERENCE_ONLY_KEYS = [
     ViewModel::TYPE_ATTRIBUTE,

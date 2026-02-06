@@ -26,6 +26,10 @@ class ViewModel
     MigrationPlan = Struct.new(:path, :required_version, :current_version, :viewmodel_class)
 
     def initialize(required_versions)
+      # If strict migrations are enabled, a version must be explicitly specified
+      # for every view used
+      @strict_permitted_views = required_versions.each_key.to_set(&:view_name)
+
       @plans = required_versions.each_with_object({}) do |(viewmodel_class, required_version), h|
         current_version = viewmodel_class.schema_version
         next if required_version == current_version
@@ -67,6 +71,13 @@ class ViewModel
     end
 
     private
+
+    def fetch_plan(view_name)
+      if ViewModel::Config.strict_migration_versions && !@strict_permitted_views.include?(view_name)
+        raise ViewModel::Migration::StrictMigrationError.new(view_name)
+      end
+      @plans[view_name]
+    end
 
     def migrate_tree!(node, references:)
       case node
@@ -127,7 +138,7 @@ class ViewModel
     end
 
     def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      plan = @plans[view_name]
+      plan = fetch_plan(view_name)
       return false unless plan
 
       return false if source_version == plan.current_version
@@ -154,7 +165,7 @@ class ViewModel
     private
 
     def migrate_viewmodel!(view_name, source_version, view_hash, references)
-      plan = @plans[view_name]
+      plan = fetch_plan(view_name)
       return false unless plan
 
       # In a serialized output, the source version should always be the present
