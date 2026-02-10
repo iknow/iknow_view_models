@@ -3,8 +3,7 @@
 require 'view_model'
 require 'view_model/test_helpers'
 
-require 'minitest/unit'
-require 'minitest/hooks'
+require 'minitest'
 
 module ViewModelSpecHelpers
   module Base

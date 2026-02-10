@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
+require_relative '../../../test_helper'
+
 require_relative '../../../helpers/arvm_test_utilities'
 require_relative '../../../helpers/arvm_test_models'
 require_relative '../../../helpers/viewmodel_spec_helpers'
-
-require 'minitest/autorun'
 
 require 'view_model/active_record'
 
@@ -88,8 +88,16 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       it 'migrates' do
         migrate!
-
         assert_equal(expected_result, subject)
+      end
+
+      describe 'with strict migrations' do
+        it 'migrates' do
+          ViewModel::Config.stub(:strict_migration_versions, true) do
+            migrate!
+          end
+          assert_equal(expected_result, subject)
+        end
       end
 
       describe 'to an unreachable version' do
@@ -98,6 +106,30 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         it 'raises' do
           assert_raises(ViewModel::Migration::NoPathError) do
             migrate!
+          end
+        end
+      end
+
+      describe 'leaving a version out of the request' do
+        let(:migration_versions) { { viewmodel_class => 2 } }
+        let(:parent_only_expected_result) do
+          v = expected_result.deep_dup
+          v['data']['child'] = current_serialization['data']['child'].deep_dup
+          v
+        end
+
+        it 'migrates only the included view' do
+          migrate!
+          assert_equal(parent_only_expected_result, subject)
+        end
+
+        describe 'with strict migrations' do
+          it 'refuses to migrate' do
+            ViewModel::Config.stub(:strict_migration_versions, true) do
+              assert_raises(ViewModel::Migration::StrictMigrationError) do
+                migrate!
+              end
+            end
           end
         end
       end
@@ -124,8 +156,16 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
 
       it 'migrates' do
         migrate!
-
         assert_equal(expected_result, subject)
+      end
+
+      describe 'with strict migrations' do
+        it 'migrates' do
+          ViewModel::Config.stub(:strict_migration_versions, true) do
+            migrate!
+          end
+          assert_equal(expected_result, subject)
+        end
       end
 
       describe 'with version unspecified' do
@@ -136,6 +176,37 @@ class ViewModel::ActiveRecord::Migration < ActiveSupport::TestCase
         it 'treats it as the requested version' do
           migrate!
           assert_equal(expected_result, subject)
+        end
+      end
+
+      describe 'leaving a version out of the request' do
+        let(:migration_versions) { { viewmodel_class => 2 } }
+
+        let(:subject_data) do
+          v = v2_serialization_data.deep_dup
+          v['child'] = current_serialization['data']['child'].deep_dup
+          v
+        end
+
+        let(:parent_only_expected_result) do
+          v = expected_result.deep_dup
+          v['data']['child'] = current_serialization['data']['child'].deep_dup
+          v
+        end
+
+        it 'migrates only the included view' do
+          migrate!
+          assert_equal(parent_only_expected_result, subject)
+        end
+
+        describe 'with strict migrations' do
+          it 'refuses to migrate' do
+            ViewModel::Config.stub(:strict_migration_versions, true) do
+              assert_raises(ViewModel::Migration::StrictMigrationError) do
+                migrate!
+              end
+            end
+          end
         end
       end
 

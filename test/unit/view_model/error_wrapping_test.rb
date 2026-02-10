@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
-require 'minitest/unit'
-require 'minitest/hooks'
-require 'rspec/expectations/minitest_integration'
+require_relative '../../test_helper'
 
 require_relative '../../helpers/arvm_test_utilities'
 require_relative '../../helpers/arvm_test_models'

@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
+require_relative '../../test_helper'
+
 require_relative '../../helpers/arvm_test_utilities'
 require_relative '../../helpers/arvm_test_models'
 require_relative '../../helpers/callback_tracer'
 require_relative '../../helpers/viewmodel_spec_helpers'
-
-require 'minitest/autorun'
 
 require 'view_model/active_record'
 

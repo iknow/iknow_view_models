@@ -1,10 +1,9 @@
 # frozen_string_literal: true
 
+require_relative '../../test_helper'
+
 require_relative '../../helpers/arvm_test_utilities'
 require_relative '../../helpers/arvm_test_models'
-
-require 'minitest/autorun'
-require 'minitest/unit'
 
 require 'view_model/active_record'
 
