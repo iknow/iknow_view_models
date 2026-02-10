@@ -1,8 +1,6 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
-require 'minitest/unit'
-require 'rspec/expectations/minitest_integration'
+require_relative '../../../test_helper'
 
 require 'view_model'
 require 'view_model/deserialization_error'

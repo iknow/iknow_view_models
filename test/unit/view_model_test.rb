@@ -1,9 +1,6 @@
 # frozen_string_literal: true
 
-require 'bundler/setup'
-Bundler.require
-
-require 'minitest/autorun'
+require_relative '../test_helper'
 
 class DefaultViewModel < ViewModel
   self.view_name = 'DefaultViewModel'

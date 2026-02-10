@@ -1,13 +1,11 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
-require 'minitest/unit'
-require 'minitest/hooks'
+require_relative '../../../test_helper'
 
 require_relative '../../../helpers/arvm_test_models'
 require_relative '../../../helpers/viewmodel_spec_helpers'
 
-# MiniTest::Spec.register_spec_type(/./, Minitest::HooksSpec)
+# Minitest::Spec.register_spec_type(/./, Minitest::HooksSpec)
 
 require 'view_model'
 require 'view_model/active_record'

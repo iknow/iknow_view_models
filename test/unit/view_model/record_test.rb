@@ -1,9 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../helpers/test_access_control'
+require_relative '../../test_helper'
 
-require 'minitest/autorun'
-require 'minitest/unit'
+require_relative '../../helpers/test_access_control'
 
 require 'view_model'
 require 'view_model/record'

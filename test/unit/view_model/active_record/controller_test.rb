@@ -1,14 +1,12 @@
 # frozen_string_literal: true
 
-require 'minitest/autorun'
-require 'minitest/unit'
-require 'minitest/hooks'
-
-require 'view_model'
-require 'view_model/active_record'
+require_relative '../../../test_helper'
 
 require_relative '../../../helpers/controller_test_helpers'
 require_relative '../../../helpers/callback_tracer'
+
+require 'view_model'
+require 'view_model/active_record'
 
 class ViewModel::ActiveRecord::ControllerTest < ActiveSupport::TestCase
   include ARVMTestUtilities

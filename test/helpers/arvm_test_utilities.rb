@@ -2,7 +2,6 @@
 
 require 'logger'
 require 'active_support'
-require 'minitest/hooks'
 
 require 'view_model'
 require 'view_model/test_helpers'

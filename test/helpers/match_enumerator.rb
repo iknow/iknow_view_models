@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # From https://stackoverflow.com/a/41293357
-module MiniTest::Assertions
+module Minitest::Assertions
   class MatchEnumerator
     def initialize(expected, actual)
       @expected = expected
@@ -54,6 +54,6 @@ module MiniTest::Assertions
     result, message = MatchEnumerator.new(expected, actual).match
     assert result, message
   end
-end # MiniTest::Assertions
+end # Minitest::Assertions
 
-Enumerator.infect_an_assertion :assert_match_enumerator, :must_contain_exactly
+Minitest::Expectation.infect_an_assertion :assert_match_enumerator, :must_contain_exactly
