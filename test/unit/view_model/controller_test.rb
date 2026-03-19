@@ -16,6 +16,7 @@ class ViewModel::ControllerTest < ActiveSupport::TestCase
     let(:controller) do
       Class.new do
         def self.rescue_from(*); end
+        def self.etag(*); end
         include ViewModel::Controller
         public :encode_jbuilder
       end
