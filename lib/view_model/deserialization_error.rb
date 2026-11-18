@@ -377,7 +377,36 @@ class ViewModel
         when PG::UniqueViolation, PG::ExclusionViolation
           UniqueViolation.from_postgres_error(exception.cause, nodes)
         else
-          self.new(exception.message, nodes)
+          self.new(redact_failing_row(exception), nodes)
+        end
+      end
+
+      class << self
+        FAILING_ROW_PREFIX   = 'Failing row contains '
+        REDACTED_FAILING_ROW = 'Failing row contains (redacted).'
+
+        private
+
+        # Postgres reports CHECK and NOT NULL violations with "Failing row
+        # contains (...)" including every column of the row being written.
+        # Redact them.
+        def redact_failing_row(exception)
+          message = exception.message
+
+          pg_error = exception.cause
+          row_detail = pg_error.result&.error_field(PG::PG_DIAG_MESSAGE_DETAIL) if pg_error.is_a?(PG::Error)
+
+          if row_detail&.start_with?(FAILING_ROW_PREFIX) && message.include?(row_detail)
+            # With a structured error, replace the exact detail reported by
+            # Postgres rather than parsing the message.
+            message.sub(row_detail) { REDACTED_FAILING_ROW }
+          elsif (index = message.index(FAILING_ROW_PREFIX))
+            # Without a structured error we can't find the end of the message,
+            # so drop everything after it.
+            message[0, index] + REDACTED_FAILING_ROW
+          else
+            message
+          end
         end
       end
     end
