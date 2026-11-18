@@ -101,6 +101,40 @@ class ViewModel::ErrorWrappingTest < ActiveSupport::TestCase
 
         expect(ex.message).to match(/violates check constraint/)
       end
+
+      it 'redacts the failing row' do
+        ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
+          subject.wrap_active_record_errors(blame) do
+            model_class.create!(name: "SECRET).\nVALUE")
+          end
+        end
+
+        expect(ex.detail).to match(/violates check constraint/)
+        expect(ex.detail).to include('Failing row contains (redacted).')
+        expect(ex.detail).not_to include('SECRET')
+        expect(ex.detail).not_to include('VALUE')
+        expect(ex.nodes).to eq([blame])
+      end
+    end
+
+    describe 'not-null constraint' do
+      def model_attributes
+        super.merge(
+          schema: ->(t) { t.string :required, null: false },
+        )
+      end
+
+      it 'redacts the failing row' do
+        ex = assert_raises(ViewModel::DeserializationError::DatabaseConstraint) do
+          subject.wrap_active_record_errors(blame) do
+            model_class.create!(name: 'SECRET')
+          end
+        end
+
+        expect(ex.detail).to match(/null value in column "required" .* violates not-null constraint/)
+        expect(ex.detail).to include('Failing row contains (redacted).')
+        expect(ex.detail).not_to include('SECRET')
+      end
     end
 
     describe 'unique constraint' do
